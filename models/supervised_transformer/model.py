@@ -53,7 +53,7 @@ class Transformer(nn.Module):
         out = out.mean(0) # global pooling
         return out
 
-# 15 second model
+
 class CTN(nn.Module):
     def __init__(self, d_model, nhead, d_ff, num_layers, dropout_rate, classes):
         super(CTN, self).__init__()

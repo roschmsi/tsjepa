@@ -1,5 +1,5 @@
 import torch
-from utils import d_model
+from models.supervised_transformer.utils import d_model
 
 class NoamOpt:
     "Optim wrapper that implements rate."
