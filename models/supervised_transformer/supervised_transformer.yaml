@@ -1,0 +1,26 @@
+model:
+  name: 'supervised_transformer'
+  d_model: 256
+  nhead: 8
+  d_ff: 2048
+  num_layers: 8
+training:
+  epochs: 20
+  patience: 10
+  batch_size: 2
+  debug: True
+evaluation:
+  beta: 2
+data:
+  dir: "/usr/stud/roschman/datasets/physionet_2020"
+  window: 10
+  nb_windows: 1
+  fs: 500
+  filter_bandwidth: [3, 45]
+  num_classes: 27
+evaluation:
+  beta: 2
+  class_weights: null
+  weights_file: "/usr/stud/roschman/ECGAnalysis/physionet_evaluation/weights.csv"
+output_directory: "/usr/stud/roschman/ECGAnalysis/output"
+do_train: True
