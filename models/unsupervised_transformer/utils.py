@@ -2,19 +2,18 @@ import json
 import os
 import sys
 import builtins
-import functools
-import time
-import ipdb
 from copy import deepcopy
 
-import numpy as np
 import torch
 import xlrd
 import xlwt
 from xlutils.copy import copy
 
 import logging
-logging.basicConfig(format='%(asctime)s | %(levelname)s : %(message)s', level=logging.INFO)
+
+logging.basicConfig(
+    format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
 
@@ -23,39 +22,46 @@ def save_model(path, epoch, model, optimizer=None):
         state_dict = model.module.state_dict()
     else:
         state_dict = model.state_dict()
-    data = {'epoch': epoch,
-            'state_dict': state_dict}
+    data = {"epoch": epoch, "state_dict": state_dict}
     if not (optimizer is None):
-        data['optimizer'] = optimizer.state_dict()
+        data["optimizer"] = optimizer.state_dict()
     torch.save(data, path)
 
 
-def load_model(model, model_path, optimizer=None, resume=False, change_output=False,
-               lr=None, lr_step=None, lr_factor=None):
+def load_model(
+    model,
+    model_path,
+    optimizer=None,
+    resume=False,
+    change_output=False,
+    lr=None,
+    lr_step=None,
+    lr_factor=None,
+):
     start_epoch = 0
     checkpoint = torch.load(model_path, map_location=lambda storage, loc: storage)
-    state_dict = deepcopy(checkpoint['state_dict'])
+    state_dict = deepcopy(checkpoint["state_dict"])
     if change_output:
-        for key, val in checkpoint['state_dict'].items():
-            if key.startswith('output_layer'):
+        for key, val in checkpoint["state_dict"].items():
+            if key.startswith("output_layer"):
                 state_dict.pop(key)
     model.load_state_dict(state_dict, strict=False)
-    print('Loaded model from {}. Epoch: {}'.format(model_path, checkpoint['epoch']))
+    print("Loaded model from {}. Epoch: {}".format(model_path, checkpoint["epoch"]))
 
     # resume optimizer parameters
     if optimizer is not None and resume:
-        if 'optimizer' in checkpoint:
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            start_epoch = checkpoint['epoch']
+        if "optimizer" in checkpoint:
+            optimizer.load_state_dict(checkpoint["optimizer"])
+            start_epoch = checkpoint["epoch"]
             start_lr = lr
             for i in range(len(lr_step)):
                 if start_epoch >= lr_step[i]:
                     start_lr *= lr_factor[i]
             for param_group in optimizer.param_groups:
-                param_group['lr'] = start_lr
-            print('Resumed optimizer with start lr', start_lr)
+                param_group["lr"] = start_lr
+            print("Resumed optimizer with start lr", start_lr)
         else:
-            print('No optimizer parameters in checkpoint.')
+            print("No optimizer parameters in checkpoint.")
     if optimizer is not None:
         return model, optimizer, start_epoch
     else:
@@ -91,7 +97,9 @@ def create_dirs(dirs):
         exit(-1)
 
 
-def export_performance_metrics(filepath, metrics_table, header, book=None, sheet_name="metrics"):
+def export_performance_metrics(
+    filepath, metrics_table, header, book=None, sheet_name="metrics"
+):
     """Exports performance metrics on the validation set for all epochs to an excel file"""
 
     if book is None:
@@ -138,7 +146,9 @@ def export_record(filepath, values):
     work_book.save(filepath)
 
 
-def register_record(filepath, timestamp, experiment_name, best_metrics, final_metrics=None, comment=''):
+def register_record(
+    filepath, timestamp, experiment_name, best_metrics, final_metrics=None, comment=""
+):
     """
     Adds the best and final metrics of a given experiment as a record in an excel sheet with other experiment records.
     Creates excel sheet if it doesn't exist.
@@ -157,7 +167,9 @@ def register_record(filepath, timestamp, experiment_name, best_metrics, final_me
         row_values += list(final_metrics_values)
 
     if not os.path.exists(filepath):  # Create a records file for the first time
-        logger.warning("Records file '{}' does not exist! Creating new file ...".format(filepath))
+        logger.warning(
+            "Records file '{}' does not exist! Creating new file ...".format(filepath)
+        )
         directory = os.path.dirname(filepath)
         if len(directory) and not os.path.exists(directory):
             os.makedirs(directory)
@@ -171,8 +183,14 @@ def register_record(filepath, timestamp, experiment_name, best_metrics, final_me
         try:
             export_record(filepath, row_values)
         except Exception as x:
-            alt_path = os.path.join(os.path.dirname(filepath), "record_" + experiment_name)
-            logger.error("Failed saving in: '{}'! Will save here instead: {}".format(filepath, alt_path))
+            alt_path = os.path.join(
+                os.path.dirname(filepath), "record_" + experiment_name
+            )
+            logger.error(
+                "Failed saving in: '{}'! Will save here instead: {}".format(
+                    filepath, alt_path
+                )
+            )
             export_record(alt_path, row_values)
             filepath = alt_path
 
@@ -211,3 +229,40 @@ def count_parameters(model, trainable=False):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
     else:
         return sum(p.numel() for p in model.parameters())
+
+
+def log_training(
+    epoch,
+    aggr_metrics_train,
+    tb_writer,
+    start_epoch,
+    total_epoch_time,
+    epoch_start_time,
+    epoch_end_time,
+    num_batches,
+    num_samples,
+):
+    # log training
+    print()
+    epoch_runtime = epoch_end_time - epoch_start_time
+    print_str = "Epoch {} Training Summary: ".format(epoch)
+    for k, v in aggr_metrics_train.items():
+        tb_writer.add_scalar("{}/train".format(k), v, epoch)
+        print_str += "{}: {:8f} | ".format(k, v)
+    logger.info(print_str)
+    logger.info(
+        "Epoch runtime: {} hours, {} minutes, {} seconds\n".format(
+            *readable_time(epoch_runtime)
+        )
+    )
+    total_epoch_time += epoch_runtime
+    avg_epoch_time = total_epoch_time / (epoch - start_epoch)
+    avg_batch_time = avg_epoch_time / num_batches
+    avg_sample_time = avg_epoch_time / num_samples
+    logger.info(
+        "Avg epoch train. time: {} hours, {} minutes, {} seconds".format(
+            *readable_time(avg_epoch_time)
+        )
+    )
+    logger.info("Avg batch train. time: {} seconds".format(avg_batch_time))
+    logger.info("Avg sample train. time: {} seconds".format(avg_sample_time))

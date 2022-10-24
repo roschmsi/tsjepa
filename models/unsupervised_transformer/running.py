@@ -1,31 +1,30 @@
 import logging
-import sys
 import os
-import traceback
 import json
 from datetime import datetime
-import string
-import random
 from collections import OrderedDict
 import time
-import pickle
 from functools import partial
+from easydict import EasyDict
 
 import torch
-from torch.utils.data import DataLoader
 import numpy as np
-import sklearn
+from models.supervised_fedformer.utils import load_config_yaml
+from models.unsupervised_transformer.loss import l2_reg_loss
+from models.unsupervised_transformer import utils
 from physionet_evaluation.evaluate_12ECG_score import compute_auc
 
-from utils import utils, analysis
-from loss import l2_reg_loss
-from data.dataset import ClassificationDatasetECG, ECGDataset, ImputationDataset, collate_unsuperv, collate_superv
+# from loss import l2_reg_loss
+from data.dataset import (
+    ClassificationDataset,
+    ImputationDataset,
+    collate_unsuperv,
+    collate_superv,
+)
 
 
-logger = logging.getLogger('__main__')
-
-NEG_METRICS = {'loss'}  # metrics for which "better" is less
-
+logger = logging.getLogger("__main__")
+NEG_METRICS = {"loss"}  # metrics for which "better" is less
 val_times = {"total_time": 0, "count": 0}
 
 
@@ -33,31 +32,43 @@ def pipeline_factory(config):
     """For the task specified in the configuration returns the corresponding combination of
     Dataset class, collate function and Runner class."""
 
-    task = config['task']
+    task = config["task"]
 
     if task == "imputation":
-        return partial(ImputationDataset, mean_mask_length=config['mean_mask_length'],
-                       masking_ratio=config['masking_ratio'], mode=config['mask_mode'],
-                       distribution=config['mask_distribution'], exclude_feats=config['exclude_feats']),\
-                        collate_unsuperv, UnsupervisedRunner
-    if (task == "classification"):
-        return ClassificationDatasetECG, collate_superv, SupervisedRunner
+        return (
+            partial(
+                ImputationDataset,
+                mean_mask_length=config["mean_mask_length"],
+                masking_ratio=config["masking_ratio"],
+                mode=config["mask_mode"],
+                distribution=config["mask_distribution"],
+                exclude_feats=config["exclude_feats"],
+            ),
+            collate_unsuperv,
+            UnsupervisedRunner,
+        )
+    if task == "classification":
+        return ClassificationDataset, collate_superv, SupervisedRunner
     else:
         raise NotImplementedError("Task '{}' not implemented".format(task))
+
 
 def create_output_directory(config):
     # Create output directory
     initial_timestamp = datetime.now()
-    output_dir = config['output_dir']
+    output_dir = config["output_dir"]
     if not os.path.isdir(output_dir):
         raise IOError(
-            "Root directory '{}', where the directory of the experiment will be created, must exist".format(output_dir))
+            "Root directory '{}', where the directory of the experiment will be created, must exist".format(
+                output_dir
+            )
+        )
 
-    output_dir = os.path.join(output_dir, config['experiment_name'])
+    output_dir = os.path.join(output_dir, config["experiment_name"])
 
     formatted_timestamp = initial_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
-    config['initial_timestamp'] = formatted_timestamp
-    if (not config['no_timestamp']) or (len(config['experiment_name']) == 0):
+    config["initial_timestamp"] = formatted_timestamp
+    if len(config["experiment_name"]) == 0:
         output_dir += "_" + formatted_timestamp
 
     return config, output_dir
@@ -72,39 +83,17 @@ def setup(args):
     """
 
     config = args.__dict__  # configuration dictionary
-
-    if args.config_filepath is not None:
-        logger.info("Reading configuration ...")
-        try:  # dictionary containing the entire configuration settings in a hierarchical fashion
-            config.update(utils.load_config(args.config_filepath))
-        except:
-            logger.critical("Failed to load configuration file. Check JSON syntax and verify that files exist")
-            traceback.print_exc()
-            sys.exit(1)
-
-    # Create output directory
-    # initial_timestamp = datetime.now()
-    # output_dir = config['output_dir']
-    # if not os.path.isdir(output_dir):
-    #     raise IOError(
-    #         "Root directory '{}', where the directory of the experiment will be created, must exist".format(output_dir))
-
-    # output_dir = os.path.join(output_dir, config['experiment_name'])
-
-    # formatted_timestamp = initial_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
-    # config['initial_timestamp'] = formatted_timestamp
-    # if (not config['no_timestamp']) or (len(config['experiment_name']) == 0):
-    #     output_dir += "_" + formatted_timestamp
+    config_yaml = load_config_yaml(config["config_filepath"])
+    config.update(config_yaml)
+    config = EasyDict(config)
 
     config, output_dir = create_output_directory(config)
-    config['output_dir'] = output_dir
-    config['save_dir'] = os.path.join(output_dir, 'checkpoints')
-    config['pred_dir'] = os.path.join(output_dir, 'predictions')
-    config['tensorboard_dir'] = os.path.join(output_dir, 'tb_summaries')
-    utils.create_dirs([config['save_dir'], config['pred_dir'], config['tensorboard_dir']])
+    config["output_dir"] = output_dir
+    config["checkpoint_dir"] = os.path.join(output_dir, "checkpoints")
+    utils.create_dirs([config["checkpoint_dir"]])
 
     # Save configuration as a (pretty) json file
-    with open(os.path.join(output_dir, 'configuration.json'), 'w') as fp:
+    with open(os.path.join(output_dir, "configuration.json"), "w") as fp:
         json.dump(config, fp, indent=4, sort_keys=True)
 
     logger.info("Stored configuration file in '{}'".format(output_dir))
@@ -112,15 +101,23 @@ def setup(args):
     return config
 
 
-def validate(val_evaluator, tensorboard_writer, config, best_metrics, best_value, epoch):
+def validate(
+    val_evaluator, tensorboard_writer, config, best_metrics, best_value, epoch
+):
     """Run an evaluation on the validation set while logging metrics, and handle outcome"""
 
     logger.info("Evaluating on validation set ...")
+
     eval_start_time = time.time()
     with torch.no_grad():
         aggr_metrics, per_batch = val_evaluator.evaluate(epoch, keep_all=True)
     eval_runtime = time.time() - eval_start_time
-    logger.info("Validation runtime: {} hours, {} minutes, {} seconds\n".format(*utils.readable_time(eval_runtime)))
+
+    logger.info(
+        "Validation runtime: {} hours, {} minutes, {} seconds\n".format(
+            *utils.readable_time(eval_runtime)
+        )
+    )
 
     global val_times
     val_times["total_time"] += eval_runtime
@@ -128,31 +125,40 @@ def validate(val_evaluator, tensorboard_writer, config, best_metrics, best_value
     avg_val_time = val_times["total_time"] / val_times["count"]
     avg_val_batch_time = avg_val_time / len(val_evaluator.dataloader)
     avg_val_sample_time = avg_val_time / len(val_evaluator.dataloader.dataset)
-    logger.info("Avg val. time: {} hours, {} minutes, {} seconds".format(*utils.readable_time(avg_val_time)))
+
+    logger.info(
+        "Avg val. time: {} hours, {} minutes, {} seconds".format(
+            *utils.readable_time(avg_val_time)
+        )
+    )
     logger.info("Avg batch val. time: {} seconds".format(avg_val_batch_time))
     logger.info("Avg sample val. time: {} seconds".format(avg_val_sample_time))
 
     print()
-    print_str = 'Epoch {} Validation Summary: '.format(epoch)
+    print_str = "Epoch {} Validation Summary: ".format(epoch)
     for k, v in aggr_metrics.items():
-        tensorboard_writer.add_scalar('{}/val'.format(k), v, epoch)
-        print_str += '{}: {:8f} | '.format(k, v)
+        tensorboard_writer.add_scalar("{}/val".format(k), v, epoch)
+        print_str += "{}: {:8f} | ".format(k, v)
     logger.info(print_str)
 
-    if config['key_metric'] in NEG_METRICS:
-        condition = (aggr_metrics[config['key_metric']] < best_value)
+    if config["key_metric"] in NEG_METRICS:
+        condition = aggr_metrics[config["key_metric"]] < best_value
     else:
-        condition = (aggr_metrics[config['key_metric']] > best_value)
+        condition = aggr_metrics[config["key_metric"]] > best_value
+
     if condition:
-        best_value = aggr_metrics[config['key_metric']]
-        utils.save_model(os.path.join(config['save_dir'], 'model_best.pth'), epoch, val_evaluator.model)
+        best_value = aggr_metrics[config["key_metric"]]
+        utils.save_model(
+            os.path.join(config["checkpoint_dir"], "model_best.pth"),
+            epoch,
+            val_evaluator.model,
+        )
         best_metrics = aggr_metrics.copy()
 
-        pred_filepath = os.path.join(config['pred_dir'], 'best_predictions')
-        np.savez(pred_filepath, **per_batch)
+        # pred_filepath = os.path.join(config["output_dir"], "best_predictions")
+        # np.savez(pred_filepath, **per_batch)
 
     return aggr_metrics, best_metrics, best_value
-
 
 
 def check_progress(epoch):
@@ -164,8 +170,17 @@ def check_progress(epoch):
 
 
 class BaseRunner(object):
-
-    def __init__(self, model, dataloader, device, loss_module, optimizer=None, l2_reg=None, print_interval=10, console=True):
+    def __init__(
+        self,
+        model,
+        dataloader,
+        device,
+        loss_module,
+        optimizer=None,
+        l2_reg=None,
+        print_interval=10,
+        console=True,
+    ):
 
         self.model = model
         self.dataloader = dataloader
@@ -179,12 +194,12 @@ class BaseRunner(object):
         self.epoch_metrics = OrderedDict()
 
     def train_epoch(self, epoch_num=None):
-        raise NotImplementedError('Please override in child class')
+        raise NotImplementedError("Please override in child class")
 
     def evaluate(self, epoch_num=None, keep_all=True):
-        raise NotImplementedError('Please override in child class')
+        raise NotImplementedError("Please override in child class")
 
-    def print_callback(self, i_batch, metrics, prefix=''):
+    def print_callback(self, i_batch, metrics, prefix=""):
 
         total_batches = len(self.dataloader)
 
@@ -200,7 +215,6 @@ class BaseRunner(object):
 
 
 class UnsupervisedRunner(BaseRunner):
-
     def train_epoch(self, epoch_num=None):
 
         self.model = self.model.train()
@@ -209,18 +223,26 @@ class UnsupervisedRunner(BaseRunner):
         total_active_elements = 0  # total unmasked elements in epoch
         for i, batch in enumerate(self.dataloader):
 
-            X, targets, target_masks, padding_masks, IDs = batch
+            X, targets, target_masks, padding_masks = batch
             targets = targets.to(self.device)
-            target_masks = target_masks.to(self.device)  # 1s: mask and predict, 0s: unaffected input (ignore)
+            target_masks = target_masks.to(
+                self.device
+            )  # 1s: mask and predict, 0s: unaffected input (ignore)
             padding_masks = padding_masks.to(self.device)  # 0s: ignore
 
-            predictions = self.model(X.to(self.device), padding_masks)  # (batch_size, padded_length, feat_dim)
+            predictions = self.model(
+                X.to(self.device), padding_masks
+            )  # (batch_size, padded_length, feat_dim)
 
             # Cascade noise masks (batch_size, padded_length, feat_dim) and padding masks (batch_size, padded_length)
             target_masks = target_masks * padding_masks.unsqueeze(-1)
-            loss = self.loss_module(predictions, targets, target_masks)  # (num_active,) individual loss (square error per element) for each active value in batch
+            loss = self.loss_module(
+                predictions, targets, target_masks
+            )  # (num_active,) individual loss (square error per element) for each active value in batch
             batch_loss = torch.sum(loss)
-            mean_loss = batch_loss / len(loss)  # mean loss (over active elements) used for optimization
+            mean_loss = batch_loss / len(
+                loss
+            )  # mean loss (over active elements) used for optimization
 
             if self.l2_reg:
                 total_loss = mean_loss + self.l2_reg * l2_reg_loss(self.model)
@@ -237,16 +259,18 @@ class UnsupervisedRunner(BaseRunner):
 
             metrics = {"loss": mean_loss.item()}
             if i % self.print_interval == 0:
-                ending = "" if epoch_num is None else 'Epoch {} '.format(epoch_num)
-                self.print_callback(i, metrics, prefix='Training ' + ending)
+                ending = "" if epoch_num is None else "Epoch {} ".format(epoch_num)
+                self.print_callback(i, metrics, prefix="Training " + ending)
 
             with torch.no_grad():
                 total_active_elements += len(loss)
                 epoch_loss += batch_loss.item()  # add total loss of batch
 
-        epoch_loss = epoch_loss / total_active_elements  # average loss per element for whole epoch
-        self.epoch_metrics['epoch'] = epoch_num
-        self.epoch_metrics['loss'] = epoch_loss
+        epoch_loss = (
+            epoch_loss / total_active_elements
+        )  # average loss per element for whole epoch
+        self.epoch_metrics["epoch"] = epoch_num
+        self.epoch_metrics["loss"] = epoch_loss
         return self.epoch_metrics
 
     def evaluate(self, epoch_num=None, keep_all=True):
@@ -257,48 +281,54 @@ class UnsupervisedRunner(BaseRunner):
         total_active_elements = 0  # total unmasked elements in epoch
 
         if keep_all:
-            per_batch = {'target_masks': [], 'targets': [], 'predictions': [], 'metrics': [], 'IDs': []}
+            per_batch = {
+                "target_masks": [],
+                "targets": [],
+                "predictions": [],
+                "metrics": [],
+            }
         for i, batch in enumerate(self.dataloader):
 
-            X, targets, target_masks, padding_masks, IDs = batch
+            X, targets, target_masks, padding_masks = batch
             targets = targets.to(self.device)
-            target_masks = target_masks.to(self.device)  # 1s: mask and predict, 0s: unaffected input (ignore)
+            target_masks = target_masks.to(
+                self.device
+            )  # 1s: mask and predict, 0s: unaffected input (ignore)
             padding_masks = padding_masks.to(self.device)  # 0s: ignore
 
-            # TODO: for debugging
-            # input_ok = utils.check_tensor(X, verbose=False, zero_thresh=1e-8, inf_thresh=1e4)
-            # if not input_ok:
-            #     print("Input problem!")
-            #     ipdb.set_trace()
-            #
-            # utils.check_model(self.model, verbose=False, stop_on_error=True)
-
-            predictions = self.model(X.to(self.device), padding_masks)  # (batch_size, padded_length, feat_dim)
+            predictions = self.model(
+                X.to(self.device), padding_masks
+            )  # (batch_size, padded_length, feat_dim)
 
             # Cascade noise masks (batch_size, padded_length, feat_dim) and padding masks (batch_size, padded_length)
             target_masks = target_masks * padding_masks.unsqueeze(-1)
-            loss = self.loss_module(predictions, targets, target_masks)  # (num_active,) individual loss (square error per element) for each active value in batch
+            loss = self.loss_module(
+                predictions, targets, target_masks
+            )  # (num_active,) individual loss (square error per element) for each active value in batch
             batch_loss = torch.sum(loss).cpu().item()
-            mean_loss = batch_loss / len(loss)  # mean loss (over active elements) used for optimization the batch
+            mean_loss = batch_loss / len(
+                loss
+            )  # mean loss (over active elements) used for optimization the batch
 
             if keep_all:
-                per_batch['target_masks'].append(target_masks.cpu().numpy())
-                per_batch['targets'].append(targets.cpu().numpy())
-                per_batch['predictions'].append(predictions.cpu().numpy())
-                per_batch['metrics'].append([loss.cpu().numpy()])
-                per_batch['IDs'].append(IDs)
+                per_batch["target_masks"].append(target_masks.cpu().numpy())
+                per_batch["targets"].append(targets.cpu().numpy())
+                per_batch["predictions"].append(predictions.cpu().numpy())
+                per_batch["metrics"].append([loss.cpu().numpy()])
 
             metrics = {"loss": mean_loss}
             if i % self.print_interval == 0:
-                ending = "" if epoch_num is None else 'Epoch {} '.format(epoch_num)
-                self.print_callback(i, metrics, prefix='Evaluating ' + ending)
+                ending = "" if epoch_num is None else "Epoch {} ".format(epoch_num)
+                self.print_callback(i, metrics, prefix="Evaluating " + ending)
 
             total_active_elements += len(loss)
             epoch_loss += batch_loss  # add total loss of batch
 
-        epoch_loss = epoch_loss / total_active_elements  # average loss per element for whole epoch
-        self.epoch_metrics['epoch'] = epoch_num
-        self.epoch_metrics['loss'] = epoch_loss
+        epoch_loss = (
+            epoch_loss / total_active_elements
+        )  # average loss per element for whole epoch
+        self.epoch_metrics["epoch"] = epoch_num
+        self.epoch_metrics["loss"] = epoch_loss
 
         if keep_all:
             return self.epoch_metrics, per_batch
@@ -307,13 +337,11 @@ class UnsupervisedRunner(BaseRunner):
 
 
 class SupervisedRunner(BaseRunner):
-
     def __init__(self, *args, **kwargs):
 
         super(SupervisedRunner, self).__init__(*args, **kwargs)
 
         self.classification = True  # True if classification, False if regression
-        self.analyzer = analysis.Analyzer(print_conf_mat=True)
 
     def train_epoch(self, epoch_num=None):
 
@@ -321,20 +349,27 @@ class SupervisedRunner(BaseRunner):
 
         epoch_loss = 0  # total loss of epoch
         total_samples = 0  # total samples in epoch
+
         lbls = []
         probs = []
 
         for i, batch in enumerate(self.dataloader):
 
-            X, targets, padding_masks, IDs = batch
+            X, targets, padding_masks = batch
+            X = X.to(self.device)
             targets = targets.to(self.device)
             padding_masks = padding_masks.to(self.device)  # 0s: ignore
-            # regression: (batch_size, num_labels); classification: (batch_size, num_classes) of logits
-            predictions = self.model(X.to(self.device), padding_masks)
 
-            loss = torch.sum(self.loss_module(predictions, targets), axis=1)  # (batch_size,) loss for each sample in the batch
+            # classification: (batch_size, num_classes) of logits
+            predictions = self.model(X, padding_masks)
+
+            loss = torch.sum(
+                self.loss_module(predictions, targets), axis=1
+            )  # (batch_size,) loss for each sample in the batch
             batch_loss = torch.sum(loss)
-            mean_loss = batch_loss / len(loss)  # mean loss (over samples) used for optimization
+            mean_loss = batch_loss / len(
+                loss
+            )  # mean loss (over samples) used for optimization
 
             if self.l2_reg:
                 total_loss = mean_loss + self.l2_reg * l2_reg_loss(self.model)
@@ -344,32 +379,32 @@ class SupervisedRunner(BaseRunner):
             # Zero gradients, perform a backward pass, and update the weights.
             self.optimizer.zero_grad()
             total_loss.backward()
-            
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=4.0)
+            self.optimizer.step()
+
             prob = predictions.sigmoid().data.cpu().numpy()
             probs.append(prob)
             lbls.append(targets.data.cpu().numpy())
 
-            # torch.nn.utils.clip_grad_value_(self.model.parameters(), clip_value=1.0)
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=4.0)
-            self.optimizer.step()
-
             metrics = {"loss": mean_loss.item()}
             if i % self.print_interval == 0:
-                ending = "" if epoch_num is None else 'Epoch {} '.format(epoch_num)
-                self.print_callback(i, metrics, prefix='Training ' + ending)
+                ending = "" if epoch_num is None else "Epoch {} ".format(epoch_num)
+                self.print_callback(i, metrics, prefix="Training " + ending)
 
             with torch.no_grad():
                 total_samples += len(loss)
                 epoch_loss += batch_loss.item()  # add total loss of batch
 
-        epoch_loss = epoch_loss / total_samples  # average loss per sample for whole epoch
-        self.epoch_metrics['epoch'] = epoch_num
-        self.epoch_metrics['loss'] = epoch_loss
-        
+        epoch_loss = (
+            epoch_loss / total_samples
+        )  # average loss per sample for whole epoch
+        self.epoch_metrics["epoch"] = epoch_num
+        self.epoch_metrics["loss"] = epoch_loss
+
         lbls = np.concatenate(lbls)
         probs = np.concatenate(probs)
         auroc, auprc = compute_auc(lbls, probs)
-        self.epoch_metrics['auroc'] = auroc
+        self.epoch_metrics["auroc"] = auroc
 
         return self.epoch_metrics
 
@@ -383,16 +418,26 @@ class SupervisedRunner(BaseRunner):
         lbls = []
         probs = []
 
-        per_batch = {'target_masks': [], 'targets': [], 'predictions': [], 'metrics': [], 'IDs': []}
+        per_batch = {
+            "target_masks": [],
+            "targets": [],
+            "predictions": [],
+            "metrics": [],
+        }
+
         for i, batch in enumerate(self.dataloader):
 
-            X, targets, padding_masks, IDs = batch
+            X, targets, padding_masks = batch
+            X = X.to(self.device)
             targets = targets.to(self.device)
             padding_masks = padding_masks.to(self.device)  # 0s: ignore
-            # regression: (batch_size, num_labels); classification: (batch_size, num_classes) of logits
-            predictions = self.model(X.to(self.device), padding_masks)
 
-            loss = torch.sum(self.loss_module(predictions, targets), axis=1)  # (batch_size,) loss for each sample in the batch
+            # classification: (batch_size, num_classes) of logits
+            predictions = self.model(X, padding_masks)
+
+            loss = torch.sum(
+                self.loss_module(predictions, targets), axis=1
+            )  # (batch_size,) loss for each sample in the batch
             batch_loss = torch.sum(loss).cpu().item()
             mean_loss = batch_loss / len(loss)  # mean loss (over samples)
 
@@ -400,48 +445,28 @@ class SupervisedRunner(BaseRunner):
             probs.append(prob)
             lbls.append(targets.data.cpu().numpy())
 
-            per_batch['targets'].append(targets.cpu().numpy())
-            per_batch['predictions'].append(predictions.cpu().numpy())
-            per_batch['metrics'].append([loss.cpu().numpy()])
-            per_batch['IDs'].append(IDs)
+            per_batch["targets"].append(targets.cpu().numpy())
+            per_batch["predictions"].append(predictions.cpu().numpy())
+            per_batch["metrics"].append([loss.cpu().numpy()])
 
             metrics = {"loss": mean_loss}
             if i % self.print_interval == 0:
-                ending = "" if epoch_num is None else 'Epoch {} '.format(epoch_num)
-                self.print_callback(i, metrics, prefix='Evaluating ' + ending)
+                ending = "" if epoch_num is None else "Epoch {} ".format(epoch_num)
+                self.print_callback(i, metrics, prefix="Evaluating " + ending)
 
             total_samples += len(loss)
             epoch_loss += batch_loss  # add total loss of batch
 
-        epoch_loss = epoch_loss / total_samples  # average loss per element for whole epoch
-        self.epoch_metrics['epoch'] = epoch_num
-        self.epoch_metrics['loss'] = epoch_loss
-
-        # if self.classification:
-        #     predictions = torch.from_numpy(np.concatenate(per_batch['predictions'], axis=0))
-        #     probs = torch.nn.functional.sigmoid(predictions)  # (total_samples, num_classes) est. prob. for each class and sample
-        #     predictions = (probs > 0.5).int().cpu().numpy()  # (total_samples,) int class index for each sample
-        #     probs = probs.cpu().numpy()
-        #     targets = np.concatenate(per_batch['targets'], axis=0)
-        #     class_names = np.arange(probs.shape[1])  # TODO: temporary until I decide how to pass class names
-        #     # metrics_dict = self.analyzer.analyze_classification(predictions, targets, class_names)
-
-        #     self.epoch_metrics['accuracy'] = (predictions == targets).sum() / (np.ones_like(targets).sum())
-
-        #     # self.epoch_metrics['accuracy'] = metrics_dict['total_accuracy']  # same as average recall over all classes
-        #     # self.epoch_metrics['precision'] = metrics_dict['prec_avg']  # average precision over all classes
-
-        #     if self.model.num_classes == 2:
-        #         false_pos_rate, true_pos_rate, _ = sklearn.metrics.roc_curve(targets, probs[:, 1])  # 1D scores needed
-        #         self.epoch_metrics['AUROC'] = sklearn.metrics.auc(false_pos_rate, true_pos_rate)
-
-        #         prec, rec, _ = sklearn.metrics.precision_recall_curve(targets, probs[:, 1])
-        #         self.epoch_metrics['AUPRC'] = sklearn.metrics.auc(rec, prec)
+        epoch_loss = (
+            epoch_loss / total_samples
+        )  # average loss per element for whole epoch
+        self.epoch_metrics["epoch"] = epoch_num
+        self.epoch_metrics["loss"] = epoch_loss
 
         lbls = np.concatenate(lbls)
         probs = np.concatenate(probs)
         auroc, auprc = compute_auc(lbls, probs)
-        self.epoch_metrics['auroc'] = auroc
+        self.epoch_metrics["auroc"] = auroc
 
         if keep_all:
             return self.epoch_metrics, per_batch

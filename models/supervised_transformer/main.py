@@ -7,6 +7,7 @@ Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mi
 """
 
 import logging
+from models.supervised_transformer.optimizer import NoamOpt
 
 from models.supervised_transformer.run import seed_everything
 
@@ -21,11 +22,19 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 # Project modules
-from options import Options
-from running import setup, pipeline_factory, validate, check_progress, NEG_METRICS
+from models.supervised_transformer.options import Options
+from models.unsupervised_transformer.loss import get_loss
+from models.unsupervised_transformer.running import (
+    setup,
+    pipeline_factory,
+    validate,
+    check_progress,
+    NEG_METRICS,
+)
 from models.unsupervised_transformer import utils
-from ts_transformer import model_factory
-from loss import get_loss
+from models.unsupervised_transformer.ts_transformer import model_factory
+
+# from loss import get_loss
 from models.unsupervised_transformer.optimizer import get_optimizer
 from data.dataset import ECGDataset, load_and_split_dataframe
 
@@ -34,6 +43,34 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 logger.info("Loading packages ...")
+
+
+def optimizer_factory(config, model):
+    if config.model.name == "unsupervised_transformer":
+        # initialize optimizer and regularization
+        if config["global_reg"]:
+            weight_decay = config["l2_reg"]
+            output_reg = None
+        else:
+            weight_decay = 0
+            output_reg = config["l2_reg"]
+
+        optim_class = get_optimizer(config["optimizer"])
+        optimizer = optim_class(
+            model.parameters(), lr=config["lr"], weight_decay=weight_decay
+        )
+        return optimizer
+
+    elif config.model.name == "supervised_transformer":
+        optimizer = NoamOpt(
+            model_size=config.model.d_model,
+            factor=1,
+            warmup=4000,
+            optimizer=torch.optim.Adam(
+                model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9
+            ),
+        )
+        return optimizer
 
 
 def main(config):
@@ -81,12 +118,13 @@ def main(config):
     model = model_factory(config)
 
     # freeze all weights except for output layer in classification task
-    if config["freeze"]:
-        for name, param in model.named_parameters():
-            if name.startswith("output_layer"):
-                param.requires_grad = True
-            else:
-                param.requires_grad = False
+    if config.model.name == "unsupervised_transformer":
+        if config["freeze"]:
+            for name, param in model.named_parameters():
+                if name.startswith("output_layer"):
+                    param.requires_grad = True
+                else:
+                    param.requires_grad = False
 
     logger.info("Model:\n{}".format(model))
     logger.info("Total number of parameters: {}".format(utils.count_parameters(model)))
@@ -94,23 +132,12 @@ def main(config):
         "Trainable parameters: {}".format(utils.count_parameters(model, trainable=True))
     )
 
-    # initialize optimizer and regularization
-    if config["global_reg"]:
-        weight_decay = config["l2_reg"]
-        output_reg = None
-    else:
-        weight_decay = 0
-        output_reg = config["l2_reg"]
-
-    optim_class = get_optimizer(config["optimizer"])
-    optimizer = optim_class(
-        model.parameters(), lr=config["lr"], weight_decay=weight_decay
-    )
+    optimizer = optimizer_factory(config, model)
 
     # options to continue training from previous model
     start_epoch = 0
     lr_step = 0
-    lr = config["lr"]
+    # lr = config["lr"]
 
     # load model and optimizer states
     if config.load_model:
@@ -132,15 +159,17 @@ def main(config):
     # initialize data generator and runner
     dataset_class, collate_fn, runner_class = pipeline_factory(config)
 
-    if config["test_only"] == "testset":  # Only evaluate and skip training
+    max_len = config.data.window * config.data.fs
+
+    if config.test:  # Only evaluate and skip training
         test_dataset = dataset_class(test_dataset)
         test_loader = DataLoader(
             dataset=test_dataset,
-            batch_size=config["batch_size"],
+            batch_size=config.training.batch_size,
             shuffle=False,
-            num_workers=config["num_workers"],
+            num_workers=config.training.num_workers,
             pin_memory=True,
-            collate_fn=lambda x: collate_fn(x, max_len=model.max_len),
+            collate_fn=lambda x: collate_fn(x, max_len=max_len),
         )
         test_evaluator = runner_class(
             model,
@@ -164,11 +193,11 @@ def main(config):
     train_dataset = dataset_class(train_dataset)
     train_loader = DataLoader(
         dataset=train_dataset,
-        batch_size=config["batch_size"],
+        batch_size=config.training.batch_size,
         shuffle=True,
-        num_workers=config["num_workers"],
+        num_workers=config.training.num_workers,
         pin_memory=True,
-        collate_fn=lambda x: collate_fn(x, max_len=model.max_len),
+        collate_fn=lambda x: collate_fn(x, max_len=max_len),
     )
     trainer = runner_class(
         model,
@@ -176,7 +205,7 @@ def main(config):
         device,
         loss_module,
         optimizer,
-        l2_reg=output_reg,
+        l2_reg=None,
         print_interval=config["print_interval"],
         console=config["console"],
     )
@@ -184,11 +213,11 @@ def main(config):
     val_dataset = dataset_class(val_dataset)
     val_loader = DataLoader(
         dataset=val_dataset,
-        batch_size=config["batch_size"],
+        batch_size=config.training.batch_size,
         shuffle=False,
-        num_workers=config["num_workers"],
+        num_workers=config.training.num_workers,
         pin_memory=True,
-        collate_fn=lambda x: collate_fn(x, max_len=model.max_len),
+        collate_fn=lambda x: collate_fn(x, max_len=max_len),
     )
     val_evaluator = runner_class(
         model,
@@ -210,16 +239,18 @@ def main(config):
     best_metrics = {}
 
     # Evaluate on validation before training
-    aggr_metrics_val, best_metrics, best_value = validate(
-        val_evaluator, tb_writer, config, best_metrics, best_value, epoch=0
-    )
-    metrics_names, metrics_values = zip(*aggr_metrics_val.items())
-    metrics.append(list(metrics_values))
+    # aggr_metrics_val, best_metrics, best_value = validate(
+    #     val_evaluator, tb_writer, config, best_metrics, best_value, epoch=0
+    # )
+    # metrics_names, metrics_values = zip(*aggr_metrics_val.items())
+    # metrics.append(list(metrics_values))
 
     logger.info("Starting training...")
 
     for epoch in tqdm(
-        range(start_epoch + 1, config["epochs"] + 1), desc="Training Epoch", leave=False
+        range(start_epoch + 1, config.training.epochs + 1),
+        desc="Training Epoch",
+        leave=False,
     ):
         mark = epoch if config["save_all"] else "last"
 
@@ -266,21 +297,25 @@ def main(config):
 
         # specify for which models scheduling is required
         # learning rate scheduling
-        if epoch == config["lr_step"][lr_step]:
-            utils.save_model(
-                os.path.join(config["checkpoint_dir"], "model_{}.pth".format(epoch)),
-                epoch,
-                model,
-                optimizer,
-            )
-            lr = lr * config["lr_factor"][lr_step]
-            if (
-                lr_step < len(config["lr_step"]) - 1
-            ):  # so that this index does not get out of bounds
-                lr_step += 1
-            logger.info("Learning rate updated to: ", lr)
-            for param_group in optimizer.param_groups:
-                param_group["lr"] = lr
+        scheduling = False
+        if scheduling:
+            if epoch == config["lr_step"][lr_step]:
+                utils.save_model(
+                    os.path.join(
+                        config["checkpoint_dir"], "model_{}.pth".format(epoch)
+                    ),
+                    epoch,
+                    model,
+                    optimizer,
+                )
+                lr = lr * config["lr_factor"][lr_step]
+                if (
+                    lr_step < len(config["lr_step"]) - 1
+                ):  # so that this index does not get out of bounds
+                    lr_step += 1
+                logger.info("Learning rate updated to: ", lr)
+                for param_group in optimizer.param_groups:
+                    param_group["lr"] = lr
 
         # difficulty scheduling
         if config["harden"] and check_progress(epoch):
@@ -312,11 +347,7 @@ def main(config):
 
 
 if __name__ == "__main__":
+    # parse options and config based on given filename
     args = Options().parse()
-
     config = setup(args)
-    # config_yaml = load_config_yaml(config["config"])
-    # config.update(config_yaml)
-    # config = EasyDict(config)
-
     main(config)

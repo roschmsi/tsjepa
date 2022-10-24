@@ -8,7 +8,7 @@
             "name": "Train supervised FEDFormer",
             "type": "python",
             "request": "launch",
-            "program": "/usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/run.py",
+            "program": "/usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/main.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
@@ -55,7 +55,9 @@
                 "--train_epochs",
                 "30",
                 "--checkpoints",
-                "/usr/stud/roschman/ECGAnalysis/output/supervised_fedformer"
+                "/usr/stud/roschman/ECGAnalysis/output/supervised_fedformer",
+                "--config",
+                "/usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/supervised_fedformer.yaml"
             ]
         },
         {
@@ -66,6 +68,8 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
+                "--config",
+                "/usr/stud/roschman/ECGAnalysis/models/unsupervised_transformer/unsupervised_transformer.yaml",
                 "--output_dir",
                 "/usr/stud/roschman/ECGAnalysis/output/unsupervised_transformer",
                 "--comment",
@@ -81,7 +85,7 @@
                 "--optimizer",
                 "RAdam",
                 "--batch_size",
-                "4",
+                "1",
                 "--pos_encoding",
                 "learnable",
                 "--d_model",
@@ -135,12 +139,12 @@
             "name": "Train supervised Transformer",
             "type": "python",
             "request": "launch",
-            "program": "/usr/stud/roschman/ECGAnalysis/models/supervised_transformer/train_model.py",
+            "program": "/usr/stud/roschman/ECGAnalysis/models/supervised_transformer/main.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "/usr/stud/roschman/datasets/physionet_2020",
-                "/usr/stud/roschman/ECGAnalysis/output/supervised_transformer"
+                "--config",
+                "/usr/stud/roschman/ECGAnalysis/models/supervised_transformer/supervised_transformer.yaml"
             ]
         }
     ]

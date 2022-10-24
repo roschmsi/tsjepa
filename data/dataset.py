@@ -1,3 +1,4 @@
+from pathlib import Path
 import numpy as np
 from torch.utils.data import Dataset
 from scipy.io import loadmat
@@ -5,29 +6,54 @@ from scipy.signal import decimate, resample
 from biosppy.signals.tools import filter_signal
 import torch
 import pandas as pd
-from torch.utils.data import DataLoader
 
 
-classes = sorted(['270492004', '164889003', '164890007', '426627000', '713427006', 
-                  '713426002', '445118002', '39732003', '164909002', '251146004', 
-                  '698252002', '10370003', '284470004', '427172004', '164947007', 
-                  '111975006', '164917005', '47665007', '59118001', '427393009', 
-                  '426177001', '426783006', '427084000', '63593006', '164934002', 
-                  '59931005', '17338001'])
+classes = sorted(
+    [
+        "270492004",
+        "164889003",
+        "164890007",
+        "426627000",
+        "713427006",
+        "713426002",
+        "445118002",
+        "39732003",
+        "164909002",
+        "251146004",
+        "698252002",
+        "10370003",
+        "284470004",
+        "427172004",
+        "164947007",
+        "111975006",
+        "164917005",
+        "47665007",
+        "59118001",
+        "427393009",
+        "426177001",
+        "426783006",
+        "427084000",
+        "63593006",
+        "164934002",
+        "59931005",
+        "17338001",
+    ]
+)
 
-filter_bandwidth = [3, 45]
-fs = 500
+normal_class = "426783006"
 
 
 def load_and_split_dataframe(debug):
-        # train, val, test split
-    data_df = pd.read_csv('data/records_stratified_10_folds_v2.csv', index_col=0).reset_index(drop=True)
-    # filter for ptb-xl data
-    data_df = data_df[data_df['Patient'].str.contains('HR')].reset_index(drop=True)
+    data_df = pd.read_csv(
+        "data/records_stratified_10_folds_v2.csv", index_col=0
+    ).reset_index(drop=True)
 
-    train_df = data_df.sample(frac=0.8,random_state=42)
+    # filter for ptb-xl data
+    data_df = data_df[data_df["Patient"].str.contains("HR")].reset_index(drop=True)
+
+    train_df = data_df.sample(frac=0.8, random_state=42)
     data_df = data_df.drop(train_df.index)
-    val_df= data_df.sample(frac=0.5, random_state=42)
+    val_df = data_df.sample(frac=0.5, random_state=42)
     test_df = data_df.drop(val_df.index)
 
     train_df = train_df.reset_index(drop=True)
@@ -35,23 +61,26 @@ def load_and_split_dataframe(debug):
     test_df = test_df.reset_index(drop=True)
 
     if debug:
-        train_df = train_df[:2]
-        val_df = train_df[:2]
-        test_df = train_df[:2]
+        train_df = train_df[:1]
+        val_df = train_df[:1]
+        test_df = train_df[:1]
 
     return train_df, val_df, test_df
 
+
 class ECGDataset(Dataset):
-    def __init__(self, df, window, nb_windows, src_path):
-        ''' Return randome window length segments from ecg signal, pad if window is too large
-            df: trn_df, val_df or tst_df
-            window: ecg window length e.g 2500 (5 seconds)
-            nb_windows: number of windows to sample from record
-        '''
+    def __init__(self, df, window, num_windows, src_path, filter_bandwidth, fs):
+        """Return randome window length segments from ecg signal, pad if window is too large
+        df: trn_df, val_df or tst_df
+        window: ecg window length e.g 2500 (5 seconds)
+        nb_windows: number of windows to sample from record
+        """
         self.df = df
-        self.window = window
-        self.nb_windows = nb_windows
-        self.src_path = src_path
+        self.window = window * fs
+        self.num_windows = num_windows
+        self.src_path = Path(src_path)
+        self.filter_bandwidth = filter_bandwidth
+        self.fs = fs
 
     def __len__(self):
         return len(self.df)
@@ -59,63 +88,85 @@ class ECGDataset(Dataset):
     def __getitem__(self, idx):
         # Get data
         row = self.df.iloc[idx]
-        filename = str(self.src_path/(row.Patient + '.hea'))
-        data, hdr = load_challenge_data(filename)
-        seq_len = data.shape[-1] # get the length of the ecg sequence
-        
+        filename = str(self.src_path / (row.Patient + ".hea"))
+        data, hdr = load_challenge_data(filename, fs=self.fs)
+        # seq_len = data.shape[-1]  # get the length of the ecg sequence
+
         # Apply band pass filter
-        if filter_bandwidth is not None:
-            data = apply_filter(data, filter_bandwidth)
-        
+        if self.filter_bandwidth is not None:
+            data = apply_filter(data, self.filter_bandwidth)
+
         data = normalize(data)
         lbl = row[classes].values.astype(np.int)
-        
+
         # Add just enough padding to allow window
         # pad = np.abs(np.min([seq_len - self.window, 0]))
         # if pad > 0:
         #     data = np.pad(data, ((0,0),(0,pad+1)))
         #     seq_len = data.shape[-1] # get the new length of the ecg sequence
-        
-        # starts = np.random.randint(seq_len - self.window + 1, size=self.nb_windows) # get start indices of ecg segment        
-        # data = np.array([data[:,start:start+self.window] for start in starts])
-    
-        return data.transpose(), lbl       
 
-def load_challenge_data(header_file):
-    with open(header_file, 'r') as f:
-        header = f.readlines()    
-    sampling_rate = int(header[0].split()[2])    
-    mat_file = header_file.replace('.hea', '.mat')
+        # starts = np.random.randint(seq_len - self.window + 1, size=self.nb_windows) # get start indices of ecg segment
+        # data = np.array([data[:,start:start+self.window] for start in starts])
+
+        return data.transpose(), lbl
+
+
+def load_challenge_data(header_file, fs):
+    with open(header_file, "r") as f:
+        header = f.readlines()
+    sampling_rate = int(header[0].split()[2])
+    mat_file = header_file.replace(".hea", ".mat")
     x = loadmat(mat_file)
-    recording = np.asarray(x['val'], dtype=np.float64)
-    
+    recording = np.asarray(x["val"], dtype=np.float64)
+
     # Standardize sampling rate
     if sampling_rate > fs:
         recording = decimate(recording, int(sampling_rate / fs))
     elif sampling_rate < fs:
-        recording = resample(recording, int(recording.shape[-1] * (fs / sampling_rate)), axis=1)
-    
+        recording = resample(
+            recording, int(recording.shape[-1] * (fs / sampling_rate)), axis=1
+        )
+
     return recording, header
 
+
 def normalize(seq, smooth=1e-8):
-    ''' Normalize each sequence between -1 and 1 '''
-    return 2 * (seq - np.min(seq, axis=1)[None].T) / (np.max(seq, axis=1) - np.min(seq, axis=1) + smooth)[None].T - 1
+    """Normalize each sequence between -1 and 1"""
+    return (
+        2
+        * (seq - np.min(seq, axis=1)[None].T)
+        / (np.max(seq, axis=1) - np.min(seq, axis=1) + smooth)[None].T
+        - 1
+    )
+
 
 def apply_filter(signal, filter_bandwidth, fs=500):
-        # Calculate filter order
-        order = int(0.3 * fs)
-        # Filter signal
-        signal, _, _ = filter_signal(signal=signal, ftype='FIR', band='bandpass',
-                                     order=order, frequency=filter_bandwidth, 
-                                     sampling_rate=fs)
-        return signal
+    # Calculate filter order
+    order = int(0.3 * fs)
+    # Filter signal
+    signal, _, _ = filter_signal(
+        signal=signal,
+        ftype="FIR",
+        band="bandpass",
+        order=order,
+        frequency=filter_bandwidth,
+        sampling_rate=fs,
+    )
+    return signal
 
 
 class ImputationDataset(Dataset):
     """Dynamically computes missingness (noise) mask for each sample"""
 
-    def __init__(self, ecg_dataset, mean_mask_length=3, masking_ratio=0.15,
-                 mode='separate', distribution='geometric', exclude_feats=None):
+    def __init__(
+        self,
+        ecg_dataset,
+        mean_mask_length=3,
+        masking_ratio=0.15,
+        mode="separate",
+        distribution="geometric",
+        exclude_feats=None,
+    ):
         super(ImputationDataset, self).__init__()
         self.ecg_dataset = ecg_dataset
         self.masking_ratio = masking_ratio
@@ -136,15 +187,33 @@ class ImputationDataset(Dataset):
         """
         X, _ = self.ecg_dataset.__getitem__(ind)
 
-        # X = self.feature_df.loc[self.IDs[ind]].values  # (seq_length, feat_dim) array
-        mask = noise_mask(X, self.masking_ratio, self.mean_mask_length, self.mode, self.distribution,
-                          self.exclude_feats)  # (seq_length, feat_dim) boolean array
+        mask = noise_mask(
+            X,
+            self.masking_ratio,
+            self.mean_mask_length,
+            self.mode,
+            self.distribution,
+            self.exclude_feats,
+        )  # (seq_length, feat_dim) boolean array
 
-        return torch.from_numpy(X), torch.from_numpy(mask), ind
+        return torch.from_numpy(X), torch.from_numpy(mask)
 
     def update(self):
         self.mean_mask_length = min(20, self.mean_mask_length + 1)
         self.masking_ratio = min(1, self.masking_ratio + 0.05)
+
+    def __len__(self):
+        return len(self.ecg_dataset)
+
+
+class ClassificationDataset(Dataset):
+    def __init__(self, ecg_dataset):
+        super(ClassificationDataset, self).__init__()
+        self.ecg_dataset = ecg_dataset
+
+    def __getitem__(self, ind):
+        X, y = self.ecg_dataset.__getitem__(ind)
+        return torch.from_numpy(X), torch.from_numpy(y)
 
     def __len__(self):
         return len(self.ecg_dataset)
@@ -168,73 +237,28 @@ def collate_superv(data, max_len=None):
     """
 
     batch_size = len(data)
-    features, labels, IDs = zip(*data)
+    features, labels = zip(*data)
 
     # Stack and pad features and masks (convert 2D to 3D tensors, i.e. add batch dimension)
-    lengths = [X.shape[0] for X in features]  # original sequence length for each time series
+    lengths = [
+        X.shape[0] for X in features
+    ]  # original sequence length for each time series
     if max_len is None:
         max_len = max(lengths)
-    X = torch.zeros(batch_size, max_len, features[0].shape[-1])  # (batch_size, padded_length, feat_dim)
+    X = torch.zeros(
+        batch_size, max_len, features[0].shape[-1]
+    )  # (batch_size, padded_length, feat_dim)
     for i in range(batch_size):
         end = min(lengths[i], max_len)
         X[i, :end, :] = features[i][:end, :]
 
     targets = torch.stack(labels, dim=0)  # (batch_size, num_labels)
 
-    padding_masks = padding_mask(torch.tensor(lengths, dtype=torch.int16),
-                                 max_len=max_len)  # (batch_size, padded_length) boolean tensor, "1" means keep
+    padding_masks = padding_mask(
+        torch.tensor(lengths, dtype=torch.int16), max_len=max_len
+    )  # (batch_size, padded_length) boolean tensor, "1" means keep
 
-    return X, targets.float(), padding_masks, IDs
-
-
-class ClassificationDatasetECG(Dataset):
-
-    def __init__(self, ecg_dataset):
-        super(ClassificationDatasetECG, self).__init__()
-
-        self.ecg_dataset = ecg_dataset
-
-    def __getitem__(self, ind):
-        """
-        For a given integer index, returns the corresponding (seq_length, feat_dim) array and a noise mask of same shape
-        Args:
-            ind: integer index of sample in dataset
-        Returns:
-            X: (seq_length, feat_dim) tensor of the multivariate time series corresponding to a sample
-            y: (num_labels,) tensor of labels (num_labels > 1 for multi-task models) for each sample
-            ID: ID of sample
-        """
-
-        X, y = self.ecg_dataset.__getitem__(ind)
-        # X = X.transpose()
-        # X = self.feature_df.loc[self.IDs[ind]].values  # (seq_length, feat_dim) array
-        # y = self.labels_df.loc[self.IDs[ind]].values  # (num_labels,) array
-
-        return torch.from_numpy(X), torch.from_numpy(y), ind
-
-    def __len__(self):
-        return len(self.ecg_dataset)
-
-
-def transduct_mask(X, mask_feats, start_hint=0.0, end_hint=0.0):
-    """
-    Creates a boolean mask of the same shape as X, with 0s at places where a feature should be masked.
-    Args:
-        X: (seq_length, feat_dim) numpy array of features corresponding to a single sample
-        mask_feats: list/array of indices corresponding to features to be masked
-        start_hint:
-        end_hint: proportion at the end of time series which will not be masked
-
-    Returns:
-        boolean numpy array with the same shape as X, with 0s at places where a feature should be masked
-    """
-
-    mask = np.ones(X.shape, dtype=bool)
-    start_ind = int(start_hint * X.shape[0])
-    end_ind = max(start_ind, int((1 - end_hint) * X.shape[0]))
-    mask[start_ind:end_ind, mask_feats] = 0
-
-    return mask
+    return X, targets.float(), padding_masks
 
 
 def compensate_masking(X, mask):
@@ -251,7 +275,9 @@ def compensate_masking(X, mask):
     # number of unmasked elements of feature vector for each time step
     num_active = torch.sum(mask, dim=-1).unsqueeze(-1)  # (batch_size, seq_length, 1)
     # to avoid division by 0, set the minimum to 1
-    num_active = torch.max(num_active, torch.ones(num_active.shape, dtype=torch.int16))  # (batch_size, seq_length, 1)
+    num_active = torch.max(
+        num_active, torch.ones(num_active.shape, dtype=torch.int16)
+    )  # (batch_size, seq_length, 1)
     return X.shape[-1] * X / num_active
 
 
@@ -272,15 +298,20 @@ def collate_unsuperv(data, max_len=None, mask_compensation=False):
     """
 
     batch_size = len(data)
-    features, masks, IDs = zip(*data)
+    features, masks = zip(*data)
 
     # Stack and pad features and masks (convert 2D to 3D tensors, i.e. add batch dimension)
-    lengths = [X.shape[0] for X in features]  # original sequence length for each time series
+    lengths = [
+        X.shape[0] for X in features
+    ]  # original sequence length for each time series
     if max_len is None:
         max_len = max(lengths)
-    X = torch.zeros(batch_size, max_len, features[0].shape[-1])  # (batch_size, padded_length, feat_dim)
-    target_masks = torch.zeros_like(X,
-                                    dtype=torch.bool)  # (batch_size, padded_length, feat_dim) masks related to objective
+    X = torch.zeros(
+        batch_size, max_len, features[0].shape[-1]
+    )  # (batch_size, padded_length, feat_dim)
+    target_masks = torch.zeros_like(
+        X, dtype=torch.bool
+    )  # (batch_size, padded_length, feat_dim) masks related to objective
     for i in range(batch_size):
         end = min(lengths[i], max_len)
         X[i, :end, :] = features[i][:end, :]
@@ -291,12 +322,21 @@ def collate_unsuperv(data, max_len=None, mask_compensation=False):
     if mask_compensation:
         X = compensate_masking(X, target_masks)
 
-    padding_masks = padding_mask(torch.tensor(lengths, dtype=torch.int16), max_len=max_len)  # (batch_size, padded_length) boolean tensor, "1" means keep
+    padding_masks = padding_mask(
+        torch.tensor(lengths, dtype=torch.int16), max_len=max_len
+    )  # (batch_size, padded_length) boolean tensor, "1" means keep
     target_masks = ~target_masks  # inverse logic: 0 now means ignore, 1 means predict
-    return X, targets, target_masks, padding_masks, IDs
+    return X, targets, target_masks, padding_masks
 
 
-def noise_mask(X, masking_ratio, lm=3, mode='separate', distribution='geometric', exclude_feats=None):
+def noise_mask(
+    X,
+    masking_ratio,
+    lm=3,
+    mode="separate",
+    distribution="geometric",
+    exclude_feats=None,
+):
     """
     Creates a random boolean mask of the same shape as X, with 0s at places where a feature should be masked.
     Args:
@@ -317,21 +357,39 @@ def noise_mask(X, masking_ratio, lm=3, mode='separate', distribution='geometric'
     if exclude_feats is not None:
         exclude_feats = set(exclude_feats)
 
-    if distribution == 'geometric':  # stateful (Markov chain)
-        if mode == 'separate':  # each variable (feature) is independent
+    if distribution == "geometric":  # stateful (Markov chain)
+        if mode == "separate":  # each variable (feature) is independent
             mask = np.ones(X.shape, dtype=bool)
             for m in range(X.shape[1]):  # feature dimension
                 if exclude_feats is None or m not in exclude_feats:
-                    mask[:, m] = geom_noise_mask_single(X.shape[0], lm, masking_ratio)  # time dimension
+                    mask[:, m] = geom_noise_mask_single(
+                        X.shape[0], lm, masking_ratio
+                    )  # time dimension
         else:  # replicate across feature dimension (mask all variables at the same positions concurrently)
-            mask = np.tile(np.expand_dims(geom_noise_mask_single(X.shape[0], lm, masking_ratio), 1), X.shape[1])
+            mask = np.tile(
+                np.expand_dims(
+                    geom_noise_mask_single(X.shape[0], lm, masking_ratio), 1
+                ),
+                X.shape[1],
+            )
     else:  # each position is independent Bernoulli with p = 1 - masking_ratio
-        if mode == 'separate':
-            mask = np.random.choice(np.array([True, False]), size=X.shape, replace=True,
-                                    p=(1 - masking_ratio, masking_ratio))
+        if mode == "separate":
+            mask = np.random.choice(
+                np.array([True, False]),
+                size=X.shape,
+                replace=True,
+                p=(1 - masking_ratio, masking_ratio),
+            )
         else:
-            mask = np.tile(np.random.choice(np.array([True, False]), size=(X.shape[0], 1), replace=True,
-                                            p=(1 - masking_ratio, masking_ratio)), X.shape[1])
+            mask = np.tile(
+                np.random.choice(
+                    np.array([True, False]),
+                    size=(X.shape[0], 1),
+                    replace=True,
+                    p=(1 - masking_ratio, masking_ratio),
+                ),
+                X.shape[1],
+            )
 
     return mask
 
@@ -349,14 +407,22 @@ def geom_noise_mask_single(L, lm, masking_ratio):
         (L,) boolean numpy array intended to mask ('drop') with 0s a sequence of length L
     """
     keep_mask = np.ones(L, dtype=bool)
-    p_m = 1 / lm  # probability of each masking sequence stopping. parameter of geometric distribution.
-    p_u = p_m * masking_ratio / (1 - masking_ratio)  # probability of each unmasked sequence stopping. parameter of geometric distribution.
+    p_m = (
+        1 / lm
+    )  # probability of each masking sequence stopping. parameter of geometric distribution.
+    p_u = (
+        p_m * masking_ratio / (1 - masking_ratio)
+    )  # probability of each unmasked sequence stopping. parameter of geometric distribution.
     p = [p_m, p_u]
 
     # Start in state 0 with masking_ratio probability
-    state = int(np.random.rand() > masking_ratio)  # state 0 means masking, 1 means not masking
+    state = int(
+        np.random.rand() > masking_ratio
+    )  # state 0 means masking, 1 means not masking
     for i in range(L):
-        keep_mask[i] = state  # here it happens that state and masking value corresponding to state are identical
+        keep_mask[
+            i
+        ] = state  # here it happens that state and masking value corresponding to state are identical
         if np.random.rand() < p[state]:
             state = 1 - state
 
@@ -369,8 +435,12 @@ def padding_mask(lengths, max_len=None):
     where 1 means keep element at this position (time step)
     """
     batch_size = lengths.numel()
-    max_len = max_len or lengths.max_val()  # trick works because of overloading of 'or' operator for non-boolean types
-    return (torch.arange(0, max_len, device=lengths.device)
-            .type_as(lengths)
-            .repeat(batch_size, 1)
-            .lt(lengths.unsqueeze(1)))
+    max_len = (
+        max_len or lengths.max_val()
+    )  # trick works because of overloading of 'or' operator for non-boolean types
+    return (
+        torch.arange(0, max_len, device=lengths.device)
+        .type_as(lengths)
+        .repeat(batch_size, 1)
+        .lt(lengths.unsqueeze(1))
+    )

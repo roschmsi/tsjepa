@@ -60,7 +60,7 @@ def train_12ECG_classifier(config):
         ECGDataset(
             train_df,
             window=config.data.window,
-            nb_windows=config.data.nb_windows,
+            num_windows=config.data.num_windows_train,
             src_path=config.data.dir,
             filter_bandwidth=config.data.filter_bandwidth,
             fs=config.data.fs,
@@ -73,7 +73,7 @@ def train_12ECG_classifier(config):
         ECGDataset(
             val_df,
             window=config.data.window,
-            nb_windows=1,
+            num_windows=config.data.num_windows_val,
             src_path=config.data.dir,
             filter_bandwidth=config.data.filter_bandwidth,
             fs=config.data.fs,
@@ -86,7 +86,7 @@ def train_12ECG_classifier(config):
         ECGDataset(
             test_df,
             window=config.data.window,
-            nb_windows=1,
+            num_windows=config.data.num_windows_test,
             src_path=config.data.dir,
             filter_bandwidth=config.data.filter_bandwidth,
             fs=config.data.fs,

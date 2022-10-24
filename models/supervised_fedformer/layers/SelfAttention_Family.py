@@ -1,18 +1,31 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
-import matplotlib.pyplot as plt
-
 import numpy as np
-import math
 from math import sqrt
-from utils.masking import TriangularCausalMask
-import os
+
+
+class TriangularCausalMask:
+    def __init__(self, B, L, device="cpu"):
+        mask_shape = [B, 1, L, L]
+        with torch.no_grad():
+            self._mask = torch.triu(
+                torch.ones(mask_shape, dtype=torch.bool), diagonal=1
+            ).to(device)
+
+    @property
+    def mask(self):
+        return self._mask
 
 
 class FullAttention(nn.Module):
-    def __init__(self, mask_flag=True, factor=5, scale=None, attention_dropout=0.1, output_attention=False):
+    def __init__(
+        self,
+        mask_flag=True,
+        factor=5,
+        scale=None,
+        attention_dropout=0.1,
+        output_attention=False,
+    ):
         super(FullAttention, self).__init__()
         self.scale = scale
         self.mask_flag = mask_flag
@@ -22,7 +35,7 @@ class FullAttention(nn.Module):
     def forward(self, queries, keys, values, attn_mask):
         B, L, H, E = queries.shape
         _, S, _, D = values.shape
-        scale = self.scale or 1. / sqrt(E)
+        scale = self.scale or 1.0 / sqrt(E)
 
         scores = torch.einsum("blhe,bshe->bhls", queries, keys)
 
