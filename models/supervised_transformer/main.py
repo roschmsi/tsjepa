@@ -24,7 +24,7 @@ from torch.utils.tensorboard import SummaryWriter
 # Project modules
 from models.supervised_transformer.options import Options
 from models.unsupervised_transformer.loss import get_loss
-from models.unsupervised_transformer.running import (
+from running import (
     setup,
     pipeline_factory,
     validate,
@@ -86,7 +86,7 @@ def main(config):
     logger.info("Running:\n{}\n".format(" ".join(sys.argv)))
 
     # build ecg data
-    train_df, val_df, test_df = load_and_split_dataframe(debug=False)
+    train_df, val_df, test_df = load_and_split_dataframe(debug=config.training.debug)
 
     train_dataset = ECGDataset(
         train_df,

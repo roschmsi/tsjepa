@@ -1,5 +1,4 @@
 import argparse
-import torch
 
 
 class Options(object):
@@ -10,7 +9,9 @@ class Options(object):
         )
 
         # basic config
-        self.parser.add_argument("--is_training", type=int, default=1, help="status")
+        self.parser.add_argument(
+            "--model.is_training", type=int, default=1, help="status"
+        )
         self.parser.add_argument("--task_id", type=str, default="test", help="task id")
         self.parser.add_argument(
             "--model",
@@ -205,32 +206,32 @@ class Options(object):
 
         # Run from command-line arguments
         # I/O
-        self.parser.add_argument(
-            "--output_dir",
-            default="./output",
-            help="Root output directory. Must exist. Time-stamped directories will be created inside.",
-        )
-        self.parser.add_argument("--data_dir", default="./data", help="Data directory")
+        # self.parser.add_argument(
+        #     "--output_dir",
+        #     default="./output",
+        #     help="Root output directory. Must exist. Time-stamped directories will be created inside.",
+        # )
+        # self.parser.add_argument("--data_dir", default="./data", help="Data directory")
         self.parser.add_argument("--load_model", help="Path to pre-trained model.")
-        self.parser.add_argument(
-            "--name",
-            dest="experiment_name",
-            default="",
-            help="A string identifier/name for the experiment to be run - it will be appended to the output directory name, before the timestamp",
-        )
-        self.parser.add_argument(
-            "--max_seq_len",
-            type=int,
-            help="""Maximum input sequence length. Determines size of transformer layers.
-                                 If not provided, then the value defined inside the data class will be used.""",
-        )
-        self.parser.add_argument(
-            "--data_window_len",
-            type=int,
-            help="""Used instead of the `max_seq_len`, when the data samples must be
-                                 segmented into windows. Determines maximum input sequence length 
-                                 (size of transformer layers).""",
-        )
+        # self.parser.add_argument(
+        #     "--name",
+        #     dest="experiment_name",
+        #     default="",
+        #     help="A string identifier/name for the experiment to be run - it will be appended to the output directory name, before the timestamp",
+        # )
+        # self.parser.add_argument(
+        #     "--max_seq_len",
+        #     type=int,
+        #     help="""Maximum input sequence length. Determines size of transformer layers.
+        #                          If not provided, then the value defined inside the data class will be used.""",
+        # )
+        # self.parser.add_argument(
+        #     "--data_window_len",
+        #     type=int,
+        #     help="""Used instead of the `max_seq_len`, when the data samples must be
+        #                          segmented into windows. Determines maximum input sequence length
+        #                          (size of transformer layers).""",
+        # )
         self.parser.add_argument(
             "--test",
             action="store_true",
@@ -269,12 +270,12 @@ class Options(object):
 
         args = self.parser.parse_args()
 
-        args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
+        # args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
 
-        if args.use_gpu and args.use_multi_gpu:
-            args.dvices = args.devices.replace(" ", "")
-            device_ids = args.devices.split(",")
-            args.device_ids = [int(id_) for id_ in device_ids]
-            args.gpu = args.device_ids[0]
+        # if args.use_gpu and args.use_multi_gpu:
+        #     args.dvices = args.devices.replace(" ", "")
+        #     device_ids = args.devices.split(",")
+        #     args.device_ids = [int(id_) for id_ in device_ids]
+        #     args.gpu = args.device_ids[0]
 
         return args

@@ -32,7 +32,7 @@ class ECGExperiment(Exp_Basic):
         self.test_data = ECGDataset(test_df, window, num_windows=1, src_path=src_path)
 
     def _build_model(self):
-        model = FEDformer.Model(self.args).float()
+        model = FEDformer.FEDformer(self.args).float()
 
         if self.args.use_multi_gpu and self.args.use_gpu:
             model = nn.DataParallel(model, device_ids=self.args.device_ids)

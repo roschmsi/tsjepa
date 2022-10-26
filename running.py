@@ -38,11 +38,11 @@ def pipeline_factory(config):
         return (
             partial(
                 ImputationDataset,
-                mean_mask_length=config["mean_mask_length"],
-                masking_ratio=config["masking_ratio"],
-                mode=config["mask_mode"],
-                distribution=config["mask_distribution"],
-                exclude_feats=config["exclude_feats"],
+                mean_mask_length=config.model["mean_mask_length"],
+                masking_ratio=config.model["masking_ratio"],
+                mode=config.model["mask_mode"],
+                distribution=config.model["mask_distribution"],
+                exclude_feats=config.model["exclude_feats"],
             ),
             collate_unsuperv,
             UnsupervisedRunner,
@@ -64,12 +64,11 @@ def create_output_directory(config):
             )
         )
 
-    output_dir = os.path.join(output_dir, config["experiment_name"])
+    output_dir = os.path.join(output_dir, config.model.name)
 
     formatted_timestamp = initial_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
     config["initial_timestamp"] = formatted_timestamp
-    if len(config["experiment_name"]) == 0:
-        output_dir += "_" + formatted_timestamp
+    output_dir += "_" + formatted_timestamp
 
     return config, output_dir
 
@@ -83,8 +82,10 @@ def setup(args):
     """
 
     config = args.__dict__  # configuration dictionary
-    config_yaml = load_config_yaml(config["config_filepath"])
-    config.update(config_yaml)
+    model_yaml = load_config_yaml(config["config_filepath"])
+    config.update(model_yaml)
+    data_yaml = load_config_yaml("data/dataset.yaml")
+    config.update(data_yaml)
     config = EasyDict(config)
 
     config, output_dir = create_output_directory(config)

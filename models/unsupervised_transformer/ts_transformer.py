@@ -13,26 +13,28 @@ from torch.nn.modules import (
 )
 
 from models.supervised_transformer.model import CTN
-from models.supervised_fedformer.FEDformer import Model as FEDformer
+from models.supervised_fedformer.FEDformer import FEDformer as FEDformer
 
 
 def model_factory(config):
     task = config["task"]
-    feat_dim = 12  # dimensionality of data features
+    feat_dim = config.data.feat_dim  # dimensionality of data features
     # data windowing is used when samples don't have a predefined length or the length is too long
-    max_seq_len = (
-        config["data_window_len"]
-        if config["data_window_len"] is not None
-        else config["max_seq_len"]
-    )
-    if max_seq_len is None:
-        try:
-            max_seq_len = 5000
-        except AttributeError as x:
-            print(
-                "Data class does not define a maximum sequence length, so it must be defined with the script argument `max_seq_len`"
-            )
-            raise x
+    # max_seq_len = (
+    #     config["data_window_len"]
+    #     if config["data_window_len"] is not None
+    #     else config["max_seq_len"]
+    # )
+    # if max_seq_len is None:
+    #     try:
+    #         max_seq_len = 5000
+    #     except AttributeError as x:
+    #         print(
+    #             "Data class does not define a maximum sequence length, so it must be defined with the script argument `max_seq_len`"
+    #         )
+    #         raise x
+
+    max_seq_len = config.data.window * config.data.fs
 
     if task == "imputation":
         if config.model.name == "transformer":
@@ -51,9 +53,6 @@ def model_factory(config):
             )
 
     if task == "classification":
-        num_labels = (
-            27 if task == "classification" else None
-        )  # dimensionality of labels
         if config.model.name == "unsupervised_transformer":
             return TSTransformerEncoderClassifier(
                 feat_dim,
@@ -62,7 +61,7 @@ def model_factory(config):
                 config["num_heads"],
                 config["num_layers"],
                 config["dim_feedforward"],
-                num_classes=num_labels,
+                num_classes=config.data.num_classes,
                 dropout=config["dropout"],
                 pos_encoding=config["pos_encoding"],
                 activation=config["activation"],
@@ -78,7 +77,7 @@ def model_factory(config):
                 num_classes=config.data.num_classes,
             )
         elif config.model.name == "supervised_fedformer":
-            return FEDformer(config)
+            return FEDformer(config.model, config.data)
     else:
         raise ValueError("Model class for task '{}' does not exist".format(task))
 

@@ -3,6 +3,8 @@ import numpy as np
 from tqdm import tqdm
 import yaml
 from easydict import EasyDict
+from models.supervised_transformer.options import Options
+from running import setup
 from models.supervised_transformer.utils import (
     create_experiment_directory,
     load_best_model,
@@ -121,7 +123,7 @@ def train_12ECG_classifier(config):
 
     # Create dir structure and init logs
     results_loc, sw = create_experiment_directory(
-        output_dir=config.output_directory, model_name=config.model.name
+        output_dir=config.output_dir, model_name=config.model.name
     )
     start_log(results_loc)
 
@@ -314,12 +316,8 @@ def get_probs(model, dataloader, device):
 
 if __name__ == "__main__":
     # argparse config and train or test mode
-
-    with open(
-        "/usr/stud/roschman/ECGAnalysis/models/supervised_transformer/supervised_transformer.yaml"
-    ) as f:
-        config = yaml.safe_load(f)
-    config = EasyDict(config)
+    args = Options().parse()
+    config = setup(args)
 
     print("Running training code...")
 

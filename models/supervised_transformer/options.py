@@ -18,12 +18,12 @@ class Options(object):
 
         # Run from command-line arguments
         # I/O
-        self.parser.add_argument(
-            "--output_dir",
-            default="./output",
-            help="Root output directory. Must exist. Time-stamped directories will be created inside.",
-        )
-        self.parser.add_argument("--data_dir", default="./data", help="Data directory")
+        # self.parser.add_argument(
+        #     "--output_dir",
+        #     default="./output",
+        #     help="Root output directory. Must exist. Time-stamped directories will be created inside.",
+        # )
+        # self.parser.add_argument("--data_dir", default="./data", help="Data directory")
         self.parser.add_argument("--load_model", help="Path to pre-trained model.")
         self.parser.add_argument(
             "--name",

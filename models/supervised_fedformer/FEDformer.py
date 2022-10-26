@@ -1,11 +1,17 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from layers.Embed import DataEmbedding_OnlyToken
-from layers.AutoCorrelation import AutoCorrelationLayer
-from layers.FourierCorrelation import FourierBlock, FourierCrossAttention
-from layers.MultiWaveletCorrelation import MultiWaveletCross, MultiWaveletTransform
-from layers.Autoformer_EncDec import (
+from models.supervised_fedformer.layers.Embed import DataEmbedding_OnlyToken
+from models.supervised_fedformer.layers.AutoCorrelation import AutoCorrelationLayer
+from models.supervised_fedformer.layers.FourierCorrelation import (
+    FourierBlock,
+    FourierCrossAttention,
+)
+from models.supervised_fedformer.layers.MultiWaveletCorrelation import (
+    MultiWaveletCross,
+    MultiWaveletTransform,
+)
+from models.supervised_fedformer.layers.Autoformer_EncDec import (
     Encoder,
     Decoder,
     EncoderLayer,
@@ -19,23 +25,23 @@ from layers.Autoformer_EncDec import (
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-class Model(nn.Module):
+class FEDformer(nn.Module):
     """
     FEDformer performs the attention mechanism on frequency domain and achieved O(N) complexity
     """
 
-    def __init__(self, configs):
-        super(Model, self).__init__()
-        self.version = configs.version
-        self.mode_select = configs.mode_select
-        self.modes = configs.modes
-        self.seq_len = configs.seq_len
-        self.label_len = configs.label_len
-        self.pred_len = configs.pred_len
-        self.output_attention = configs.output_attention
+    def __init__(self, config_model, config_data):
+        super(FEDformer, self).__init__()
+        self.version = config_model.version
+        self.mode_select = config_model.mode_select
+        self.modes = config_model.modes
+        self.seq_len = config_model.seq_len
+        self.label_len = config_model.label_len
+        self.pred_len = config_model.pred_len
+        self.output_attention = config_model.output_attention
 
         # Decomp
-        kernel_size = configs.moving_avg
+        kernel_size = config_model.moving_avg
         if isinstance(kernel_size, list):
             self.decomp = series_decomp_multi(kernel_size)
         else:
@@ -45,64 +51,63 @@ class Model(nn.Module):
         # The series-wise connection inherently contains the sequential information.
         # Thus, we can discard the position embedding of transformers.
         self.enc_embedding = DataEmbedding_OnlyToken(
-            configs.enc_in,
-            configs.d_model,
-            configs.embed,
-            configs.freq,
-            configs.dropout,
+            config_model.enc_in,
+            config_model.d_model,
+            config_model.dropout,
         )
         self.dec_embedding = DataEmbedding_OnlyToken(
-            configs.dec_in,
-            configs.d_model,
-            configs.embed,
-            configs.freq,
-            configs.dropout,
+            config_model.dec_in,
+            config_model.d_model,
+            config_model.dropout,
         )
 
-        if configs.version == "Wavelets":
+        if config_model.version == "Wavelets":
             encoder_self_att = MultiWaveletTransform(
-                ich=configs.d_model, L=configs.L, base=configs.base
+                ich=config_model.d_model, L=config_model.L, base=config_model.base
             )
             decoder_self_att = MultiWaveletTransform(
-                ich=configs.d_model, L=configs.L, base=configs.base
+                ich=config_model.d_model, L=config_model.L, base=config_model.base
             )
             decoder_cross_att = MultiWaveletCross(
-                in_channels=configs.d_model,
-                out_channels=configs.d_model,
+                in_channels=config_model.d_model,
+                out_channels=config_model.d_model,
                 seq_len_q=self.seq_len // 2 + self.pred_len,
                 seq_len_kv=self.seq_len,
-                modes=configs.modes,
-                ich=configs.d_model,
-                base=configs.base,
-                activation=configs.cross_activation,
+                modes=config_model.modes,
+                ich=config_model.d_model,
+                base=config_model.base,
+                activation=config_model.cross_activation,
             )
         else:
             encoder_self_att = FourierBlock(
-                in_channels=configs.d_model,
-                out_channels=configs.d_model,
+                in_channels=config_model.d_model,
+                out_channels=config_model.d_model,
                 seq_len=self.seq_len,
-                modes=configs.modes,
-                mode_select_method=configs.mode_select,
+                modes=config_model.modes,
+                mode_select_method=config_model.mode_select,
             )
             decoder_self_att = FourierBlock(
-                in_channels=configs.d_model,
-                out_channels=configs.d_model,
+                in_channels=config_model.d_model,
+                out_channels=config_model.d_model,
                 seq_len=self.seq_len // 2 + self.pred_len,
-                modes=configs.modes,
-                mode_select_method=configs.mode_select,
+                modes=config_model.modes,
+                mode_select_method=config_model.mode_select,
             )
             decoder_cross_att = FourierCrossAttention(
-                in_channels=configs.d_model,
-                out_channels=configs.d_model,
+                in_channels=config_model.d_model,
+                out_channels=config_model.d_model,
                 seq_len_q=self.seq_len // 2 + self.pred_len,
                 seq_len_kv=self.seq_len,
-                modes=configs.modes,
-                mode_select_method=configs.mode_select,
+                modes=config_model.modes,
+                mode_select_method=config_model.mode_select,
             )
         # Encoder
-        enc_modes = int(min(configs.modes, configs.seq_len // 2))
+        enc_modes = int(min(config_model.modes, config_model.seq_len // 2))
         dec_modes = int(
-            min(configs.modes, (configs.seq_len // 2 + configs.pred_len) // 2)
+            min(
+                config_model.modes,
+                (config_model.seq_len // 2 + config_model.pred_len) // 2,
+            )
         )
         print("enc_modes: {}, dec_modes: {}".format(enc_modes, dec_modes))
 
@@ -110,46 +115,48 @@ class Model(nn.Module):
             [
                 EncoderLayer(
                     AutoCorrelationLayer(
-                        encoder_self_att, configs.d_model, configs.n_heads
+                        encoder_self_att, config_model.d_model, config_model.n_heads
                     ),
-                    configs.d_model,
-                    configs.d_ff,
-                    moving_avg=configs.moving_avg,
-                    dropout=configs.dropout,
-                    activation=configs.activation,
+                    config_model.d_model,
+                    config_model.d_ff,
+                    moving_avg=config_model.moving_avg,
+                    dropout=config_model.dropout,
+                    activation=config_model.activation,
                 )
-                for _ in range(configs.e_layers)
+                for _ in range(config_model.e_layers)
             ],
-            norm_layer=my_Layernorm(configs.d_model),
+            norm_layer=my_Layernorm(config_model.d_model),
         )
         # Decoder
         self.decoder = Decoder(
             [
                 DecoderLayer(
                     AutoCorrelationLayer(
-                        decoder_self_att, configs.d_model, configs.n_heads
+                        decoder_self_att, config_model.d_model, config_model.n_heads
                     ),
                     AutoCorrelationLayer(
-                        decoder_cross_att, configs.d_model, configs.n_heads
+                        decoder_cross_att, config_model.d_model, config_model.n_heads
                     ),
-                    configs.d_model,
-                    configs.c_out,
-                    configs.d_ff,
-                    moving_avg=configs.moving_avg,
-                    dropout=configs.dropout,
-                    activation=configs.activation,
+                    config_model.d_model,
+                    config_model.c_out,
+                    config_model.d_ff,
+                    moving_avg=config_model.moving_avg,
+                    dropout=config_model.dropout,
+                    activation=config_model.activation,
                 )
-                for _ in range(configs.d_layers)
+                for _ in range(config_model.d_layers)
             ],
-            norm_layer=my_Layernorm(configs.d_model),
+            norm_layer=my_Layernorm(config_model.d_model),
             projection=None,  # nn.Linear(configs.d_model, configs.c_out, bias=True)
         )
 
         # 27 classes to predict
-        self.classification_head = nn.Linear(configs.d_model, 27)
+        self.classification_head = nn.Linear(
+            config_model.d_model, config_data.num_classes
+        )
 
-        self.trend_head = nn.Linear(12, configs.d_model)
-        self.seasonal_head = nn.Linear(12, configs.d_model)
+        self.trend_head = nn.Linear(config_data.feat_dim, config_model.d_model)
+        self.seasonal_head = nn.Linear(config_data.feat_dim, config_model.d_model)
 
     def forward(self, x_enc, enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
         # decomp init

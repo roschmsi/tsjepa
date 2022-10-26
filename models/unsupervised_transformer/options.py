@@ -94,14 +94,14 @@ class Options(object):
             help="Seed used for splitting sets. None by default, set to an integer for reproducibility",
         )
         # Dataset
-        self.parser.add_argument(
-            "--limit_size",
-            type=float,
-            default=None,
-            help="Limit  dataset to specified smaller random sample, e.g. for rapid debugging purposes. "
-            "If in [0,1], it will be interpreted as a proportion of the dataset, "
-            "otherwise as an integer absolute number of samples",
-        )
+        # self.parser.add_argument(
+        #     "--limit_size",
+        #     type=float,
+        #     default=None,
+        #     help="Limit  dataset to specified smaller random sample, e.g. for rapid debugging purposes. "
+        #     "If in [0,1], it will be interpreted as a proportion of the dataset, "
+        #     "otherwise as an integer absolute number of samples",
+        # )
         # self.parser.add_argument(
         #     "--test_only",
         #     choices={"testset", "fold_transduction"},

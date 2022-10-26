@@ -8,7 +8,7 @@
             "name": "Train supervised FEDFormer",
             "type": "python",
             "request": "launch",
-            "program": "/usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/main.py",
+            "program": "/usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/run.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
@@ -56,8 +56,8 @@
                 "30",
                 "--checkpoints",
                 "/usr/stud/roschman/ECGAnalysis/output/supervised_fedformer",
-                "--config",
-                "/usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/supervised_fedformer.yaml"
+                // "--config",
+                // "/usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/supervised_fedformer.yaml"
             ]
         },
         {
@@ -139,12 +139,26 @@
             "name": "Train supervised Transformer",
             "type": "python",
             "request": "launch",
-            "program": "/usr/stud/roschman/ECGAnalysis/models/supervised_transformer/main.py",
+            "program": "/usr/stud/roschman/ECGAnalysis/models/supervised_transformer/run.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
                 "--config",
                 "/usr/stud/roschman/ECGAnalysis/models/supervised_transformer/supervised_transformer.yaml"
+            ]
+        },
+        {
+            "name": "Run main all models",
+            "type": "python",
+            "request": "launch",
+            "program": "/usr/stud/roschman/ECGAnalysis/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--config",
+                // "/usr/stud/roschman/ECGAnalysis/models/supervised_transformer/config.yaml"
+                // "/usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/config.yaml",
+                "/usr/stud/roschman/ECGAnalysis/models/unsupervised_transformer/config.yaml"
             ]
         }
     ]

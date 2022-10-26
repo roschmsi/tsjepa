@@ -8,7 +8,6 @@ Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mi
 
 import logging
 from models.supervised_transformer.optimizer import NoamOpt
-
 from models.supervised_transformer.run import seed_everything
 
 import os
@@ -24,7 +23,7 @@ from torch.utils.tensorboard import SummaryWriter
 # Project modules
 from models.supervised_fedformer.options import Options
 from models.unsupervised_transformer.loss import get_loss
-from models.unsupervised_transformer.running import (
+from running import (
     setup,
     pipeline_factory,
     validate,
@@ -73,7 +72,7 @@ def optimizer_factory(config, model):
         return optimizer
 
     elif config.model.name == "supervised_fedformer":
-        optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"])
+        optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
         return optimizer
 
     else:
@@ -128,7 +127,7 @@ def main(config):
 
     # freeze all weights except for output layer in classification task
     if config.model.name == "unsupervised_transformer":
-        if config["freeze"]:
+        if config.model.freeze_backbone:
             for name, param in model.named_parameters():
                 if name.startswith("output_layer"):
                     param.requires_grad = True
@@ -237,7 +236,7 @@ def main(config):
         console=config["console"],
     )
 
-    tb_writer = SummaryWriter(config["output_dir"])
+    tb_writer = SummaryWriter(config.output_dir)
 
     best_value = (
         1e16 if config["key_metric"] in NEG_METRICS else -1e16
@@ -298,7 +297,7 @@ def main(config):
             metrics.append(list(metrics_values))
 
         utils.save_model(
-            os.path.join(config["checkpoint_dir"], "model_{}.pth".format(mark)),
+            os.path.join(config.checkpoint_dir, "model_{}.pth".format(mark)),
             epoch,
             model,
             optimizer,
@@ -310,9 +309,7 @@ def main(config):
         if scheduling:
             if epoch == config["lr_step"][lr_step]:
                 utils.save_model(
-                    os.path.join(
-                        config["checkpoint_dir"], "model_{}.pth".format(epoch)
-                    ),
+                    os.path.join(config.checkpoint_dir, "model_{}.pth".format(epoch)),
                     epoch,
                     model,
                     optimizer,

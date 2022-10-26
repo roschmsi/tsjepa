@@ -12,19 +12,8 @@ training:
   debug: True
 evaluation:
   beta: 2
-data:
-  dir: "/usr/stud/roschman/datasets/physionet_2020"
-  window: 10
-  num_windows_train: 1
-  num_windows_val: 1
-  num_windows_test: 1
-  fs: 250
-  filter_bandwidth: [3, 45]
-  num_classes: 27
-evaluation:
-  beta: 2
   class_weights: null
   weights_file: "/usr/stud/roschman/ECGAnalysis/physionet_evaluation/weights.csv"
-output_directory: "/usr/stud/roschman/ECGAnalysis/output"
+output_dir: "/usr/stud/roschman/ECGAnalysis/output"
 do_train: True
 task: "classification"

@@ -1,0 +1,40 @@
+model:
+  name: "unsupervised_transformer"
+  masking_ratio: 0.15
+  mean_mask_length: 3
+  mask_mode: separate
+  mask_distribution: geometric
+  exclude_feats: null
+  mask_feats: null
+  start_hint: 0.0
+  end_hint: 0.0
+  harden: False
+  d_model: 64
+  dim_feedforward: 256
+  num_heads: 8
+  num_layers: 3
+  dropout: 0.1
+  pos_encoding: fixed
+  activation: gelu
+  normalization_layer: BatchNorm
+  freeze: False
+  l2_reg: 0
+  global_reg: False
+optimizer: "RAdam"
+training:
+  epochs: 400
+  val_interval: 2
+  lr: 0.001
+  lr_step: 1000000
+  lr_factor: 0.1
+  batch_size: 64
+  key_metric: "loss"
+  debug: True
+  num_workers: 2
+evaluation:
+  beta: 2
+  class_weights: null
+  weights_file: "/usr/stud/roschman/ECGAnalysis/physionet_evaluation/weights.csv"
+output_dir: "/usr/stud/roschman/ECGAnalysis/output"
+do_train: True
+task: "imputation"

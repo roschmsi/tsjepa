@@ -98,7 +98,7 @@ class CTN(nn.Module):
         # self.dropout = nn.Dropout(dropout_rate)
         # self.apply(_weights_init)
 
-    def forward(self, x, padding_mask):
+    def forward(self, x, padding_mask=None):
         x = x.transpose(1, 2)
         z = self.encoder(x)  # encoded sequence is batch_sz x nb_ch x seq_len
         out = self.transformer(z)  # transformer output is batch_sz x d_model

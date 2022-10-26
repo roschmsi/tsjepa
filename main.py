@@ -7,8 +7,6 @@ Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mi
 """
 
 import logging
-from models.supervised_transformer.optimizer import NoamOpt
-
 from models.supervised_transformer.run import seed_everything
 
 import os
@@ -24,7 +22,7 @@ from torch.utils.tensorboard import SummaryWriter
 # Project modules
 from models.supervised_fedformer.options import Options
 from models.unsupervised_transformer.loss import get_loss
-from models.unsupervised_transformer.running import (
+from running import (
     setup,
     pipeline_factory,
     validate,
@@ -32,10 +30,9 @@ from models.unsupervised_transformer.running import (
     NEG_METRICS,
 )
 from models.unsupervised_transformer import utils
-from models.unsupervised_transformer.ts_transformer import model_factory
+from factory import model_factory, optimizer_factory
 
 # from loss import get_loss
-from models.unsupervised_transformer.optimizer import get_optimizer
 from data.dataset import ECGDataset, load_and_split_dataframe
 
 logging.basicConfig(
@@ -43,41 +40,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 logger.info("Loading packages ...")
-
-
-def optimizer_factory(config, model):
-    if config.model.name == "unsupervised_transformer":
-        # initialize optimizer and regularization
-        if config["global_reg"]:
-            weight_decay = config["l2_reg"]
-            output_reg = None
-        else:
-            weight_decay = 0
-            output_reg = config["l2_reg"]
-
-        optim_class = get_optimizer(config["optimizer"])
-        optimizer = optim_class(
-            model.parameters(), lr=config["lr"], weight_decay=weight_decay
-        )
-        return optimizer
-
-    elif config.model.name == "supervised_transformer":
-        optimizer = NoamOpt(
-            model_size=config.model.d_model,
-            factor=1,
-            warmup=4000,
-            optimizer=torch.optim.Adam(
-                model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9
-            ),
-        )
-        return optimizer
-
-    elif config.model.name == "supervised_fedformer":
-        optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"])
-        return optimizer
-
-    else:
-        raise ValueError("No optimizer specified for this configuration.")
 
 
 def main(config):
@@ -128,7 +90,7 @@ def main(config):
 
     # freeze all weights except for output layer in classification task
     if config.model.name == "unsupervised_transformer":
-        if config["freeze"]:
+        if config.model.freeze:
             for name, param in model.named_parameters():
                 if name.startswith("output_layer"):
                     param.requires_grad = True
@@ -237,7 +199,7 @@ def main(config):
         console=config["console"],
     )
 
-    tb_writer = SummaryWriter(config["output_dir"])
+    tb_writer = SummaryWriter(config.output_dir)
 
     best_value = (
         1e16 if config["key_metric"] in NEG_METRICS else -1e16
@@ -298,7 +260,7 @@ def main(config):
             metrics.append(list(metrics_values))
 
         utils.save_model(
-            os.path.join(config["checkpoint_dir"], "model_{}.pth".format(mark)),
+            os.path.join(config.checkpoint_dir, "model_{}.pth".format(mark)),
             epoch,
             model,
             optimizer,
@@ -310,9 +272,7 @@ def main(config):
         if scheduling:
             if epoch == config["lr_step"][lr_step]:
                 utils.save_model(
-                    os.path.join(
-                        config["checkpoint_dir"], "model_{}.pth".format(epoch)
-                    ),
+                    os.path.join(config.checkpoint_dir, "model_{}.pth".format(epoch)),
                     epoch,
                     model,
                     optimizer,
