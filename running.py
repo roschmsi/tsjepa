@@ -64,7 +64,7 @@ def create_output_directory(config):
             )
         )
 
-    output_dir = os.path.join(output_dir, config.model.name)
+    output_dir = os.path.join(output_dir, config.model.name, config.model.name)
 
     formatted_timestamp = initial_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
     config["initial_timestamp"] = formatted_timestamp
@@ -82,7 +82,7 @@ def setup(args):
     """
 
     config = args.__dict__  # configuration dictionary
-    model_yaml = load_config_yaml(config["config_filepath"])
+    model_yaml = load_config_yaml(config["config_path"])
     config.update(model_yaml)
     data_yaml = load_config_yaml("data/dataset.yaml")
     config.update(data_yaml)

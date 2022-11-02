@@ -20,8 +20,8 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 # Project modules
-from models.supervised_fedformer.options import Options
-from models.unsupervised_transformer.loss import get_loss
+from options import Options
+from loss import get_loss
 from running import (
     setup,
     pipeline_factory,
