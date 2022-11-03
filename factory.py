@@ -7,8 +7,8 @@ from data.dataset import (
     collate_unsuperv,
 )
 from models.supervised_fedformer.model import FEDformer
-from models.supervised_transformer.model import CTN
-from models.supervised_transformer.optimizer import NoamOpt
+from models.supervised_cnn_transformer.model import CTN
+from models.supervised_cnn_transformer.optimizer import NoamOpt
 from models.unsupervised_transformer.optimizer import get_optimizer
 from models.unsupervised_transformer.model import (
     TSTransformerEncoder,
@@ -58,7 +58,7 @@ def optimizer_factory(config, model):
         )
         return optimizer
 
-    elif config.model.name == "supervised_transformer":
+    elif config.model.name == "supervised_cnn_transformer":
         # optimizer = NoamOpt(
         #     model_size=config.model.d_model,
         #     factor=1,
@@ -115,7 +115,7 @@ def model_factory(config):
                 norm=config.model["normalization_layer"],
                 freeze=config.model["freeze"],
             )
-        elif config.model.name == "supervised_transformer":
+        elif config.model.name == "supervised_cnn_transformer":
             return CTN(
                 d_model=config.model.d_model,
                 nhead=config.model.nhead,

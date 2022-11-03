@@ -1,5 +1,5 @@
 model:
-  name: "supervised_transformer"
+  name: "supervised_cnn_transformer"
   d_model: 256
   nhead: 8
   d_ff: 2048
@@ -8,7 +8,7 @@ optimizer: "RAdam"
 training:
   epochs: 100
   patience: 10
-  batch_size: 2
+  batch_size: 16
   num_workers: 4
   lr: 0.0001
 evaluation:

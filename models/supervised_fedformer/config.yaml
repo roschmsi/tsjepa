@@ -23,9 +23,9 @@ model:
   output_attention: False
   activation: "gelu"
 training:
-  epochs: 100
+  epochs: 500
   patience: 10
-  batch_size: 1
+  batch_size: 16
   num_workers: 4
   lr: 0.0001
   loss: "mse"

@@ -7,7 +7,10 @@ import torch
 import numpy as np
 from loss import l2_reg_loss
 import utils
-from physionet_evaluation.evaluate_12ECG_score import compute_auc
+from physionet_evaluation.evaluate_12ECG_score import (
+    compute_auc,
+    compute_challenge_metric,
+)
 
 
 logger = logging.getLogger("__main__")
