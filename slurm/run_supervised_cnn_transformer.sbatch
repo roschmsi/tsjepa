@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="train ecg model"
+#SBATCH --job-name="train supervised cnn transformer"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1,VRAM:8G

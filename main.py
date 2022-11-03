@@ -33,7 +33,6 @@ from utils import (
     count_parameters,
     log_training,
     readable_time,
-    check_progress,
 )
 from factory import model_factory, optimizer_factory, pipeline_factory
 
@@ -113,7 +112,6 @@ def main(config):
     # options to continue training from previous model
     start_epoch = 0
     lr_step = 0
-    # lr = config["lr"]
 
     # load model and optimizer states
     if config.load_model:
@@ -281,7 +279,7 @@ def main(config):
                     model,
                     optimizer,
                 )
-                lr = lr * config["lr_factor"][lr_step]
+                lr = config.training.lr * config["lr_factor"][lr_step]
                 if (
                     lr_step < len(config["lr_step"]) - 1
                 ):  # so that this index does not get out of bounds
@@ -289,21 +287,6 @@ def main(config):
                 logger.info("Learning rate updated to: ", lr)
                 for param_group in optimizer.param_groups:
                     param_group["lr"] = lr
-
-        config["harden"] = False
-        # difficulty scheduling
-        if config["harden"] and check_progress(epoch):
-            train_loader.dataset.update()
-            val_loader.dataset.update()
-
-    # export evolution of metrics over epochs
-    # header = metrics_names
-    # metrics_filepath = os.path.join(
-    #     config["output_dir"], "metrics_" + config["experiment_name"] + ".xls"
-    # )
-    # utils.export_performance_metrics(
-    #     metrics_filepath, metrics, header, sheet_name="metrics"
-    # )
 
     logger.info(
         "Best {} was {}. Other metrics: {}".format(

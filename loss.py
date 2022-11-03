@@ -4,17 +4,14 @@ from torch.nn import BCEWithLogitsLoss
 
 
 def get_loss(config):
-
-    task = config["task"]
-
-    if task == "imputation":
-        return MaskedMSELoss(reduction="none")  # outputs loss for each batch element
-
-    if task == "classification":
-        return BCEWithLogitsLoss(reduction="none")  # outputs loss for each batch sample
-
+    if config["task"] == "imputation":
+        return MaskedMSELoss(reduction="none")
+    elif config["task"] == "classification":
+        return BCEWithLogitsLoss(reduction="none")
     else:
-        raise ValueError("Loss module for task '{}' does not exist".format(task))
+        raise ValueError(
+            "Loss module for task '{}' does not exist".format(config["task"])
+        )
 
 
 def l2_reg_loss(model):

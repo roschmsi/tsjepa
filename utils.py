@@ -43,12 +43,6 @@ def create_output_directory(config):
 
 
 def create_dirs(dirs):
-    """
-    Input:
-        dirs: a list of directories to create, in case these directories are not found
-    Returns:
-        exit_code: 0 if success, -1 if failure
-    """
     try:
         for dir_ in dirs:
             if not os.path.exists(dir_):
@@ -66,12 +60,11 @@ def setup(args):
     Returns:
         config: configuration dictionary
     """
-
     config = args.__dict__  # configuration dictionary
-    model_yaml = load_config_yaml(config["config_path"])
-    config.update(model_yaml)
-    data_yaml = load_config_yaml("data/dataset.yaml")
-    config.update(data_yaml)
+    model_config = load_config_yaml(config["config_path"])
+    config.update(model_config)
+    data_config = load_config_yaml("data/dataset.yaml")
+    config.update(data_config)
     config = EasyDict(config)
 
     config, output_dir = create_output_directory(config)
@@ -79,7 +72,7 @@ def setup(args):
     config["checkpoint_dir"] = os.path.join(output_dir, "checkpoints")
     create_dirs([config["checkpoint_dir"]])
 
-    # Save configuration as a (pretty) json file
+    # Save configuration as json file
     with open(os.path.join(output_dir, "configuration.json"), "w") as fp:
         json.dump(config, fp, indent=4, sort_keys=True)
 
@@ -139,90 +132,6 @@ def load_model(
         return model
 
 
-def write_row(sheet, row_ind, data_list):
-    """Write a list to row_ind row of an excel sheet"""
-
-    row = sheet.row(row_ind)
-    for col_ind, col_value in enumerate(data_list):
-        row.write(col_ind, col_value)
-    return
-
-
-def write_table_to_sheet(table, work_book, sheet_name=None):
-    """Writes a table implemented as a list of lists to an excel sheet in the given work book object"""
-
-    sheet = work_book.add_sheet(sheet_name)
-
-    for row_ind, row_list in enumerate(table):
-        write_row(sheet, row_ind, row_list)
-
-    return work_book
-
-
-def export_record(filepath, values):
-    """Adds a list of values as a bottom row of a table in a given excel file"""
-
-    read_book = xlrd.open_workbook(filepath, formatting_info=True)
-    read_sheet = read_book.sheet_by_index(0)
-    last_row = read_sheet.nrows
-
-    work_book = copy(read_book)
-    sheet = work_book.get_sheet(0)
-    write_row(sheet, last_row, values)
-    work_book.save(filepath)
-
-
-def register_record(
-    filepath, timestamp, experiment_name, best_metrics, final_metrics=None, comment=""
-):
-    """
-    Adds the best and final metrics of a given experiment as a record in an excel sheet with other experiment records.
-    Creates excel sheet if it doesn't exist.
-    Args:
-        filepath: path of excel file keeping records
-        timestamp: string
-        experiment_name: string
-        best_metrics: dict of metrics at best epoch {metric_name: metric_value}. Includes "epoch" as first key
-        final_metrics: dict of metrics at final epoch {metric_name: metric_value}. Includes "epoch" as first key
-        comment: optional description
-    """
-    metrics_names, metrics_values = zip(*best_metrics.items())
-    row_values = [timestamp, experiment_name, comment] + list(metrics_values)
-    if final_metrics is not None:
-        final_metrics_names, final_metrics_values = zip(*final_metrics.items())
-        row_values += list(final_metrics_values)
-
-    if not os.path.exists(filepath):  # Create a records file for the first time
-        logger.warning(
-            "Records file '{}' does not exist! Creating new file ...".format(filepath)
-        )
-        directory = os.path.dirname(filepath)
-        if len(directory) and not os.path.exists(directory):
-            os.makedirs(directory)
-        header = ["Timestamp", "Name", "Comment"] + ["Best " + m for m in metrics_names]
-        if final_metrics is not None:
-            header += ["Final " + m for m in final_metrics_names]
-        book = xlwt.Workbook()  # excel work book
-        book = write_table_to_sheet([header, row_values], book, sheet_name="records")
-        book.save(filepath)
-    else:
-        try:
-            export_record(filepath, row_values)
-        except Exception as x:
-            alt_path = os.path.join(
-                os.path.dirname(filepath), "record_" + experiment_name
-            )
-            logger.error(
-                "Failed saving in: '{}'! Will save here instead: {}".format(
-                    filepath, alt_path
-                )
-            )
-            export_record(alt_path, row_values)
-            filepath = alt_path
-
-    logger.info("Exported performance record to '{}'".format(filepath))
-
-
 class Printer(object):
     """Class for printing output by refreshing the same line in the console, e.g. for indicating progress of a process"""
 
@@ -268,7 +177,6 @@ def log_training(
     num_batches,
     num_samples,
 ):
-    # log training
     print()
     epoch_runtime = epoch_end_time - epoch_start_time
     print_str = "Epoch {} Training Summary: ".format(epoch)
@@ -281,17 +189,19 @@ def log_training(
             *readable_time(epoch_runtime)
         )
     )
+
     total_epoch_time += epoch_runtime
     avg_epoch_time = total_epoch_time / (epoch - start_epoch)
     avg_batch_time = avg_epoch_time / num_batches
     avg_sample_time = avg_epoch_time / num_samples
+
     logger.info(
-        "Avg epoch train. time: {} hours, {} minutes, {} seconds".format(
+        "Avg epoch training time: {} hours, {} minutes, {} seconds".format(
             *readable_time(avg_epoch_time)
         )
     )
-    logger.info("Avg batch train. time: {} seconds".format(avg_batch_time))
-    logger.info("Avg sample train. time: {} seconds".format(avg_sample_time))
+    logger.info("Avg batch training time: {} seconds".format(avg_batch_time))
+    logger.info("Avg sample training time: {} seconds".format(avg_sample_time))
 
 
 def seed_everything(seed=42):
@@ -303,13 +213,6 @@ def seed_everything(seed=42):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = True
-
-
-def check_progress(epoch):
-    if epoch in [100, 140, 160, 220, 280, 340]:
-        return True
-    else:
-        return False
 
 
 def load_config_yaml(config_dir):

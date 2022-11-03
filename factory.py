@@ -21,9 +21,7 @@ def pipeline_factory(config):
     """For the task specified in the configuration returns the corresponding combination of
     Dataset class, collate function and Runner class."""
 
-    task = config["task"]
-
-    if task == "imputation":
+    if config["task"] == "imputation":
         return (
             partial(
                 ImputationDataset,
@@ -36,10 +34,10 @@ def pipeline_factory(config):
             collate_unsuperv,
             UnsupervisedRunner,
         )
-    if task == "classification":
+    elif config["task"] == "classification":
         return ClassificationDataset, collate_superv, SupervisedRunner
     else:
-        raise NotImplementedError("Task '{}' not implemented".format(task))
+        raise NotImplementedError("Task '{}' not implemented".format(config["task"]))
 
 
 def optimizer_factory(config, model):
@@ -79,11 +77,10 @@ def optimizer_factory(config, model):
 
 
 def model_factory(config):
-    task = config["task"]
     feat_dim = config.data.feat_dim  # dimensionality of data features
     max_seq_len = config.data.window * config.data.fs
 
-    if task == "imputation":
+    if config["task"] == "imputation":
         if config.model.name == "unsupervised_transformer":
             return TSTransformerEncoder(
                 feat_dim,
@@ -99,7 +96,7 @@ def model_factory(config):
                 freeze=config.model["freeze"],
             )
 
-    if task == "classification":
+    elif config["task"] == "classification":
         if config.model.name == "unsupervised_transformer":
             return TSTransformerEncoderClassifier(
                 feat_dim,
@@ -125,5 +122,12 @@ def model_factory(config):
             )
         elif config.model.name == "supervised_fedformer":
             return FEDformer(config.model, config.data)
+        else:
+            raise ValueError(
+                "Model class for task '{}' does not exist".format(config["task"])
+            )
+
     else:
-        raise ValueError("Model class for task '{}' does not exist".format(task))
+        raise ValueError(
+            "Model class for task '{}' does not exist".format(config["task"])
+        )

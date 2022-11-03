@@ -5,10 +5,6 @@ model:
   mask_mode: separate
   mask_distribution: geometric
   exclude_feats: null
-  mask_feats: null
-  start_hint: 0.0
-  end_hint: 0.0
-  harden: False
   d_model: 256
   dim_feedforward: 256
   num_heads: 8

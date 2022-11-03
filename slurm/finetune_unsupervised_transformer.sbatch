@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="train unsupervised transformer"
+#SBATCH --job-name="finetune unsupervised transformer"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -9,4 +9,4 @@
 #SBATCH --output=/storage/slurm/logs/slurm-%j.out
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
-srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config /usr/stud/roschman/ECGAnalysis/models/unsupervised_transformer/config_pretraining.yaml
+srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config /usr/stud/roschman/ECGAnalysis/models/unsupervised_transformer/config_finetuning.yaml
