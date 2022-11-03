@@ -1,12 +1,45 @@
+from functools import partial
 import torch
-from models.supervised_fedformer.FEDformer import FEDformer
+from data.dataset import (
+    ClassificationDataset,
+    ImputationDataset,
+    collate_superv,
+    collate_unsuperv,
+)
+from models.supervised_fedformer.model import FEDformer
 from models.supervised_transformer.model import CTN
 from models.supervised_transformer.optimizer import NoamOpt
 from models.unsupervised_transformer.optimizer import get_optimizer
-from models.unsupervised_transformer.ts_transformer import (
+from models.unsupervised_transformer.model import (
     TSTransformerEncoder,
     TSTransformerEncoderClassifier,
 )
+from running import SupervisedRunner, UnsupervisedRunner
+
+
+def pipeline_factory(config):
+    """For the task specified in the configuration returns the corresponding combination of
+    Dataset class, collate function and Runner class."""
+
+    task = config["task"]
+
+    if task == "imputation":
+        return (
+            partial(
+                ImputationDataset,
+                mean_mask_length=config.model["mean_mask_length"],
+                masking_ratio=config.model["masking_ratio"],
+                mode=config.model["mask_mode"],
+                distribution=config.model["mask_distribution"],
+                exclude_feats=config.model["exclude_feats"],
+            ),
+            collate_unsuperv,
+            UnsupervisedRunner,
+        )
+    if task == "classification":
+        return ClassificationDataset, collate_superv, SupervisedRunner
+    else:
+        raise NotImplementedError("Task '{}' not implemented".format(task))
 
 
 def optimizer_factory(config, model):
@@ -26,14 +59,15 @@ def optimizer_factory(config, model):
         return optimizer
 
     elif config.model.name == "supervised_transformer":
-        optimizer = NoamOpt(
-            model_size=config.model.d_model,
-            factor=1,
-            warmup=4000,
-            optimizer=torch.optim.Adam(
-                model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9
-            ),
-        )
+        # optimizer = NoamOpt(
+        #     model_size=config.model.d_model,
+        #     factor=1,
+        #     warmup=4000,
+        #     optimizer=torch.optim.Adam(
+        #         model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9
+        #     ),
+        # )
+        optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
         return optimizer
 
     elif config.model.name == "supervised_fedformer":
@@ -70,16 +104,16 @@ def model_factory(config):
             return TSTransformerEncoderClassifier(
                 feat_dim,
                 max_seq_len,
-                config["d_model"],
-                config["num_heads"],
-                config["num_layers"],
-                config["dim_feedforward"],
+                config.model["d_model"],
+                config.model["num_heads"],
+                config.model["num_layers"],
+                config.model["dim_feedforward"],
                 num_classes=config.data.num_classes,
-                dropout=config["dropout"],
-                pos_encoding=config["pos_encoding"],
-                activation=config["activation"],
-                norm=config["normalization_layer"],
-                freeze=config["freeze"],
+                dropout=config.model["dropout"],
+                pos_encoding=config.model["pos_encoding"],
+                activation=config.model["activation"],
+                norm=config.model["normalization_layer"],
+                freeze=config.model["freeze"],
             )
         elif config.model.name == "supervised_transformer":
             return CTN(

@@ -9,12 +9,12 @@ model:
   start_hint: 0.0
   end_hint: 0.0
   harden: False
-  d_model: 64
+  d_model: 256
   dim_feedforward: 256
   num_heads: 8
   num_layers: 3
   dropout: 0.1
-  pos_encoding: fixed
+  pos_encoding: learnable
   activation: gelu
   normalization_layer: BatchNorm
   freeze: False
@@ -29,12 +29,10 @@ training:
   lr_factor: 0.1
   batch_size: 64
   key_metric: "loss"
-  debug: True
   num_workers: 2
 evaluation:
   beta: 2
   class_weights: null
   weights_file: "/usr/stud/roschman/ECGAnalysis/physionet_evaluation/weights.csv"
 output_dir: "/usr/stud/roschman/ECGAnalysis/output"
-do_train: True
-task: "imputation"
+task: "classification"

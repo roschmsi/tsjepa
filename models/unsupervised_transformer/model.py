@@ -13,7 +13,7 @@ from torch.nn.modules import (
 )
 
 from models.supervised_transformer.model import CTN
-from models.supervised_fedformer.FEDformer import FEDformer as FEDformer
+from models.supervised_fedformer.model import FEDformer as FEDformer
 
 
 def model_factory(config):

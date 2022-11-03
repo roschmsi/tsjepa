@@ -61,9 +61,9 @@ def load_and_split_dataframe(debug):
     test_df = test_df.reset_index(drop=True)
 
     if debug:
-        train_df = train_df[:1]
-        val_df = train_df[:1]
-        test_df = train_df[:1]
+        train_df = train_df[:16]
+        val_df = train_df[:16]
+        test_df = train_df[:16]
 
     return train_df, val_df, test_df
 

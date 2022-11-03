@@ -30,11 +30,9 @@ training:
   lr: 0.0001
   loss: "mse"
   lradj: "type1"
-  debug: True
 evaluation:
   beta: 2
   class_weights: null
   weights_file: "/usr/stud/roschman/ECGAnalysis/physionet_evaluation/weights.csv"
 output_dir: "/usr/stud/roschman/ECGAnalysis/output"
-do_train: True
 task: "classification"

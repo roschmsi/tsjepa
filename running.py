@@ -1,105 +1,18 @@
 import logging
 import os
-import json
-from datetime import datetime
 from collections import OrderedDict
 import time
-from functools import partial
-from easydict import EasyDict
 
 import torch
 import numpy as np
-from models.supervised_fedformer.utils import load_config_yaml
-from models.unsupervised_transformer.loss import l2_reg_loss
-from models.unsupervised_transformer import utils
+from loss import l2_reg_loss
+import utils
 from physionet_evaluation.evaluate_12ECG_score import compute_auc
-
-# from loss import l2_reg_loss
-from data.dataset import (
-    ClassificationDataset,
-    ImputationDataset,
-    collate_unsuperv,
-    collate_superv,
-)
 
 
 logger = logging.getLogger("__main__")
 NEG_METRICS = {"loss"}  # metrics for which "better" is less
 val_times = {"total_time": 0, "count": 0}
-
-
-def pipeline_factory(config):
-    """For the task specified in the configuration returns the corresponding combination of
-    Dataset class, collate function and Runner class."""
-
-    task = config["task"]
-
-    if task == "imputation":
-        return (
-            partial(
-                ImputationDataset,
-                mean_mask_length=config.model["mean_mask_length"],
-                masking_ratio=config.model["masking_ratio"],
-                mode=config.model["mask_mode"],
-                distribution=config.model["mask_distribution"],
-                exclude_feats=config.model["exclude_feats"],
-            ),
-            collate_unsuperv,
-            UnsupervisedRunner,
-        )
-    if task == "classification":
-        return ClassificationDataset, collate_superv, SupervisedRunner
-    else:
-        raise NotImplementedError("Task '{}' not implemented".format(task))
-
-
-def create_output_directory(config):
-    # Create output directory
-    initial_timestamp = datetime.now()
-    output_dir = config["output_dir"]
-    if not os.path.isdir(output_dir):
-        raise IOError(
-            "Root directory '{}', where the directory of the experiment will be created, must exist".format(
-                output_dir
-            )
-        )
-
-    output_dir = os.path.join(output_dir, config.model.name, config.model.name)
-
-    formatted_timestamp = initial_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
-    config["initial_timestamp"] = formatted_timestamp
-    output_dir += "_" + formatted_timestamp
-
-    return config, output_dir
-
-
-def setup(args):
-    """Prepare training session: read configuration from file (takes precedence), create directories.
-    Input:
-        args: arguments object from argparse
-    Returns:
-        config: configuration dictionary
-    """
-
-    config = args.__dict__  # configuration dictionary
-    model_yaml = load_config_yaml(config["config_path"])
-    config.update(model_yaml)
-    data_yaml = load_config_yaml("data/dataset.yaml")
-    config.update(data_yaml)
-    config = EasyDict(config)
-
-    config, output_dir = create_output_directory(config)
-    config["output_dir"] = output_dir
-    config["checkpoint_dir"] = os.path.join(output_dir, "checkpoints")
-    utils.create_dirs([config["checkpoint_dir"]])
-
-    # Save configuration as a (pretty) json file
-    with open(os.path.join(output_dir, "configuration.json"), "w") as fp:
-        json.dump(config, fp, indent=4, sort_keys=True)
-
-    logger.info("Stored configuration file in '{}'".format(output_dir))
-
-    return config
 
 
 def validate(
@@ -160,14 +73,6 @@ def validate(
         # np.savez(pred_filepath, **per_batch)
 
     return aggr_metrics, best_metrics, best_value
-
-
-def check_progress(epoch):
-
-    if epoch in [100, 140, 160, 220, 280, 340]:
-        return True
-    else:
-        return False
 
 
 class BaseRunner(object):
@@ -380,7 +285,7 @@ class SupervisedRunner(BaseRunner):
             # Zero gradients, perform a backward pass, and update the weights.
             self.optimizer.zero_grad()
             total_loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=4.0)
+            # torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=4.0)
             self.optimizer.step()
 
             prob = predictions.sigmoid().data.cpu().numpy()

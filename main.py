@@ -7,7 +7,6 @@ Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mi
 """
 
 import logging
-from models.supervised_transformer.run import seed_everything
 
 import os
 import sys
@@ -23,14 +22,20 @@ from torch.utils.tensorboard import SummaryWriter
 from options import Options
 from loss import get_loss
 from running import (
-    setup,
-    pipeline_factory,
     validate,
-    check_progress,
     NEG_METRICS,
 )
-from models.unsupervised_transformer import utils
-from factory import model_factory, optimizer_factory
+from utils import (
+    setup,
+    seed_everything,
+    load_model,
+    save_model,
+    count_parameters,
+    log_training,
+    readable_time,
+    check_progress,
+)
+from factory import model_factory, optimizer_factory, pipeline_factory
 
 # from loss import get_loss
 from data.dataset import ECGDataset, load_and_split_dataframe
@@ -55,8 +60,8 @@ def main(config):
     logger.info("Running:\n{}\n".format(" ".join(sys.argv)))
 
     # build ecg data
-    train_df, val_df, test_df = load_and_split_dataframe(debug=config.training.debug)
-    if config.training.debug:
+    train_df, val_df, test_df = load_and_split_dataframe(debug=config.debug)
+    if config.debug:
         config.training.batch_size = 1
 
     train_dataset = ECGDataset(
@@ -98,9 +103,9 @@ def main(config):
                     param.requires_grad = False
 
     logger.info("Model:\n{}".format(model))
-    logger.info("Total number of parameters: {}".format(utils.count_parameters(model)))
+    logger.info("Total number of parameters: {}".format(count_parameters(model)))
     logger.info(
-        "Trainable parameters: {}".format(utils.count_parameters(model, trainable=True))
+        "Trainable parameters: {}".format(count_parameters(model, trainable=True))
     )
 
     optimizer = optimizer_factory(config, model)
@@ -112,15 +117,15 @@ def main(config):
 
     # load model and optimizer states
     if config.load_model:
-        model, optimizer, start_epoch = utils.load_model(
+        model, optimizer, start_epoch = load_model(
             model,
             config["load_model"],  # load weights
             optimizer,
             config["resume"],  # load starting epoch and optimizer
             config["change_output"],  # finetuning on different task
-            config["lr"],
-            config["lr_step"],
-            config["lr_factor"],
+            config.training["lr"],
+            config.training["lr_step"],
+            config.training["lr_factor"],
         )
     model.to(device)
 
@@ -201,12 +206,11 @@ def main(config):
 
     tb_writer = SummaryWriter(config.output_dir)
 
-    best_value = (
-        1e16 if config["key_metric"] in NEG_METRICS else -1e16
-    )  # initialize with +inf or -inf depending on key metric
-    metrics = (
-        []
-    )  # (for validation) list of lists: for each epoch, stores metrics like loss, ...
+    # initialize with +inf or -inf depending on key metric
+    best_value = 1e16 if config["key_metric"] in NEG_METRICS else -1e16
+
+    # (for validation) list of lists: for each epoch, stores metrics like loss, ...
+    metrics = []
     best_metrics = {}
 
     # Evaluate on validation before training
@@ -230,7 +234,7 @@ def main(config):
         aggr_metrics_train = trainer.train_epoch(epoch)
         epoch_end_time = time.time()
 
-        utils.log_training(
+        log_training(
             epoch=epoch,
             aggr_metrics_train=aggr_metrics_train,
             tb_writer=tb_writer,
@@ -259,7 +263,7 @@ def main(config):
             metrics_names, metrics_values = zip(*aggr_metrics_val.items())
             metrics.append(list(metrics_values))
 
-        utils.save_model(
+        save_model(
             os.path.join(config.checkpoint_dir, "model_{}.pth".format(mark)),
             epoch,
             model,
@@ -271,7 +275,7 @@ def main(config):
         scheduling = False
         if scheduling:
             if epoch == config["lr_step"][lr_step]:
-                utils.save_model(
+                save_model(
                     os.path.join(config.checkpoint_dir, "model_{}.pth".format(epoch)),
                     epoch,
                     model,
@@ -311,7 +315,7 @@ def main(config):
     total_runtime = time.time() - total_start_time
     logger.info(
         "Total runtime: {} hours, {} minutes, {} seconds\n".format(
-            *utils.readable_time(total_runtime)
+            *readable_time(total_runtime)
         )
     )
 

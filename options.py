@@ -13,22 +13,23 @@ class Options(object):
             dest="config_path",
             help="Configuration .json file (optional). Overwrites existing command-line args!",
         )
-
         self.parser.add_argument("--load_model", help="Path to pre-trained model.")
-
         self.parser.add_argument(
             "--test",
             action="store_true",
             help="only test model, no training",
         )
-
+        self.parser.add_argument(
+            "--debug",
+            action="store_true",
+            help="debug model with single sample",
+        )
         self.parser.add_argument(
             "--print_interval",
             type=int,
             default=100,
             help="Print batch info every this many batches",
         )
-
         self.parser.add_argument(
             "--console",
             action="store_true",
@@ -46,10 +47,20 @@ class Options(object):
             help="If set, will save model weights (and optimizer state) for every epoch; otherwise just latest",
         )
         self.parser.add_argument(
+            "--change_output",
+            action="store_true",
+            help="change unsupervised model to supervised model",
+        )
+        self.parser.add_argument(
             "--val_interval",
             type=int,
             default=2,
             help="Evaluate on validation set every this many epochs. Must be >= 1.",
+        )
+        self.parser.add_argument(
+            "--resume",
+            action="store_true",
+            help="If set, will load `starting_epoch` and state of optimizer, besides model weights.",
         )
 
     def parse(self):
