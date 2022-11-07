@@ -13,7 +13,7 @@ model:
   pos_encoding: learnable
   activation: gelu
   normalization_layer: BatchNorm
-  freeze: True
+  freeze: False
   l2_reg: 0
   global_reg: False
 optimizer: "RAdam"
