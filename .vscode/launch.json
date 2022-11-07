@@ -161,7 +161,7 @@
             "args": [
                 "--config",
                 // "/usr/stud/roschman/ECGAnalysis/models/supervised_cnn_transformer/config.yaml",
-                "/usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/config.yaml",
+                "/usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/fedformer_encoder_config.yaml",
                 // "/usr/stud/roschman/ECGAnalysis/models/unsupervised_transformer/config_pretraining.yaml",
                 // "/usr/stud/roschman/ECGAnalysis/models/unsupervised_transformer/config_finetuning.yaml",
                 // "--load_model",

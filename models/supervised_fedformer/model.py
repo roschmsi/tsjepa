@@ -190,3 +190,22 @@ class FEDformer(nn.Module):
         dec_out = dec_out.mean(1)
 
         return self.classification_head(dec_out)
+
+
+class FedformerEncoder(FEDformer):
+    def __init__(self, config_model, config_data):
+        super(FedformerEncoder, self).__init__(config_model, config_data)
+
+        self.classification_head = nn.Linear(
+            config_model.d_model, config_data.num_classes
+        )
+
+    def forward(self, x_enc, enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
+        # enc
+        enc_out = self.enc_embedding(x_enc)
+        enc_out, attns = self.encoder(enc_out, attn_mask=enc_self_mask)
+
+        # global pooling
+        enc_out = enc_out.mean(1)
+
+        return self.classification_head(enc_out)

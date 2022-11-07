@@ -6,7 +6,7 @@ from data.dataset import (
     collate_superv,
     collate_unsuperv,
 )
-from models.supervised_fedformer.model import FEDformer
+from models.supervised_fedformer.model import FEDformer, FedformerEncoder
 from models.supervised_cnn_transformer.model import CTN
 from models.supervised_cnn_transformer.optimizer import NoamOpt
 from models.unsupervised_transformer.optimizer import get_optimizer
@@ -68,7 +68,10 @@ def optimizer_factory(config, model):
         optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
         return optimizer
 
-    elif config.model.name == "supervised_fedformer":
+    elif (
+        config.model.name == "supervised_fedformer"
+        or config.model.name == "fedformer_encoder"
+    ):
         optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
         return optimizer
 
@@ -122,6 +125,8 @@ def model_factory(config):
             )
         elif config.model.name == "supervised_fedformer":
             return FEDformer(config.model, config.data)
+        elif config.model.name == "fedformer_encoder":
+            return FedformerEncoder(config.model, config.data)
         else:
             raise ValueError(
                 "Model class for task '{}' does not exist".format(config["task"])

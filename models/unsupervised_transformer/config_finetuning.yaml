@@ -13,7 +13,7 @@ model:
   pos_encoding: learnable
   activation: gelu
   normalization_layer: BatchNorm
-  freeze: False
+  freeze: True
   l2_reg: 0
   global_reg: False
 optimizer: "RAdam"
@@ -23,7 +23,7 @@ training:
   lr: 0.001
   lr_step: 1000000
   lr_factor: 0.1
-  batch_size: 64
+  batch_size: 8
   key_metric: "loss"
   num_workers: 2
 evaluation:
