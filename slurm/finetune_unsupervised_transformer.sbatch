@@ -9,4 +9,4 @@
 #SBATCH --output=/storage/slurm/logs/slurm-%j.out
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
-srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config /usr/stud/roschman/ECGAnalysis/models/unsupervised_transformer/config_finetuning.yaml --load_model /usr/stud/roschman/ECGAnalysis/output/unsupervised_transformer/unsupervised_transformer_2022-11-03_11-55-40/checkpoints/model_best.pth --change_output
+srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config /usr/stud/roschman/ECGAnalysis/models/unsupervised_transformer/config_finetuning.yaml --load_model /usr/stud/roschman/ECGAnalysis/output/unsupervised_transformer/unsupervised_transformer_2022-11-07_18-55-07_pretraining/checkpoints/model_best.pth --change_output --description finetuning_freeze
