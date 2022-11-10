@@ -55,13 +55,13 @@ def validate(
         print_str += "{}: {:8f} | ".format(k, v)
     logger.info(print_str)
 
-    if config["key_metric"] in NEG_METRICS:
-        condition = aggr_metrics[config["key_metric"]] < best_value
-    else:
-        condition = aggr_metrics[config["key_metric"]] > best_value
+    # if config["key_metric"] in NEG_METRICS:
+    #     condition = aggr_metrics[config["key_metric"]] < best_value
+    # else:
+    #     condition = aggr_metrics[config["key_metric"]] > best_value
 
-    if condition:
-        best_value = aggr_metrics[config["key_metric"]]
+    if aggr_metrics["loss"] < best_value:
+        best_value = aggr_metrics["loss"]
         save_model(
             os.path.join(config["checkpoint_dir"], "model_best.pth"),
             epoch,
@@ -257,7 +257,7 @@ class SupervisedRunner(BaseRunner):
             predictions = self.model(X, padding_masks)
 
             # (batch_size,) loss for each sample in the batch
-            loss = torch.sum(self.loss_module(predictions, targets), axis=1)
+            loss = torch.mean(self.loss_module(predictions, targets), axis=1)
             batch_loss = torch.sum(loss)
             # mean loss (over samples) used for optimization
             mean_loss = batch_loss / len(loss)

@@ -21,10 +21,7 @@ from torch.utils.tensorboard import SummaryWriter
 # Project modules
 from options import Options
 from loss import get_loss
-from running import (
-    validate,
-    NEG_METRICS,
-)
+from running import validate
 from utils import (
     setup,
     seed_everything,
@@ -62,6 +59,7 @@ def main(config):
     train_df, val_df, test_df = load_and_split_dataframe(debug=config.debug)
     if config.debug:
         config.training.batch_size = 1
+        config.val_interval = 1000
 
     train_dataset = ECGDataset(
         train_df,
@@ -205,7 +203,7 @@ def main(config):
     tb_writer = SummaryWriter(config.output_dir)
 
     # initialize with +inf or -inf depending on key metric
-    best_value = 1e16 if config["key_metric"] in NEG_METRICS else -1e16
+    best_value = 1e16
 
     # (for validation) list of lists: for each epoch, stores metrics like loss, ...
     metrics = []

@@ -43,17 +43,18 @@ def pipeline_factory(config):
 def optimizer_factory(config, model):
     if config.model.name == "unsupervised_transformer":
         # initialize optimizer and regularization
-        if config.model["global_reg"]:
-            weight_decay = config["l2_reg"]
-            output_reg = None
-        else:
-            weight_decay = 0
-            output_reg = config.model["l2_reg"]
+        # if config.model["global_reg"]:
+        #     weight_decay = config["l2_reg"]
+        #     output_reg = None
+        # else:
+        #     weight_decay = 0
+        #     output_reg = config.model["l2_reg"]
 
-        optim_class = get_optimizer(config["optimizer"])
-        optimizer = optim_class(
-            model.parameters(), lr=config.training["lr"], weight_decay=weight_decay
-        )
+        # optim_class = get_optimizer(config["optimizer"])
+        # optimizer = optim_class(
+        #     model.parameters(), lr=config.training["lr"], weight_decay=weight_decay
+        # )
+        optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
         return optimizer
 
     elif config.model.name == "supervised_cnn_transformer":
