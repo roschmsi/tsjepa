@@ -13,23 +13,20 @@ model:
   c_out: 12
   d_model: 256
   n_heads: 8
-  e_layers: 2
+  e_layers: 6
   d_layers: 1
   d_ff: 2048
-  moving_avg: [24]
+  moving_avg: [1]
   factor: 3
-  distil: False
   dropout: 0.05
   output_attention: False
   activation: "gelu"
 training:
   epochs: 500
-  patience: 10
   batch_size: 16
   num_workers: 4
+  patience: 10
   lr: 0.0001
-  loss: "mse"
-  lradj: "type1"
 evaluation:
   beta: 2
   class_weights: null
