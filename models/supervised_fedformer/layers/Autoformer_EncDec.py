@@ -79,15 +79,6 @@ class series_decomp_multi(nn.Module):
         return res, moving_mean
 
 
-class FourierDecomp(nn.Module):
-    def __init__(self):
-        super(FourierDecomp, self).__init__()
-        pass
-
-    def forward(self, x):
-        x_ft = torch.fft.rfft(x, dim=-1)
-
-
 class EncoderLayer(nn.Module):
     """
     Autoformer encoder layer with the progressive decomposition architecture
@@ -125,11 +116,12 @@ class EncoderLayer(nn.Module):
     def forward(self, x, attn_mask=None):
         new_x, attn = self.attention(x, x, x, attn_mask=attn_mask)
         x = x + self.dropout(new_x)
-        x, _ = self.decomp1(x)
+        # x, _ = self.decomp1(x)
         y = x
         y = self.dropout(self.activation(self.conv1(y.transpose(-1, 1))))
         y = self.dropout(self.conv2(y).transpose(-1, 1))
-        res, _ = self.decomp2(x + y)
+        # res, _ = self.decomp2(x + y)
+        res = x + y
         return res, attn
 
 

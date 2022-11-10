@@ -22,9 +22,6 @@ from models.supervised_fedformer.layers.Autoformer_EncDec import (
 )
 
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
 class FEDformer(nn.Module):
     """
     FEDformer performs the attention mechanism on frequency domain and achieved O(N) complexity
@@ -125,7 +122,7 @@ class FEDformer(nn.Module):
                 )
                 for _ in range(config_model.e_layers)
             ],
-            norm_layer=my_Layernorm(config_model.d_model),
+            # norm_layer=my_Layernorm(config_model.d_model),
         )
         # Decoder
         self.decoder = Decoder(
