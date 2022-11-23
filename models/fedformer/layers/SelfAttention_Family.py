@@ -1,7 +1,8 @@
+from math import sqrt
+
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-from math import sqrt
 
 
 class TriangularCausalMask:

@@ -7,39 +7,34 @@ Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mi
 """
 
 import logging
-
 import os
 import sys
 import time
 
-# 3rd party packages
-from tqdm import tqdm
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-import numpy as np
+from tqdm import tqdm
 
-# Project modules
-from options import Options
+from data.dataset import ECGDataset, classes, load_and_split_dataframe, normal_class
+from factory import model_factory, optimizer_factory, pipeline_factory
 from loss import get_loss
+from options import Options
+from physionet_evaluation.evaluate_12ECG_score import (
+    compute_challenge_metric,
+    load_weights,
+)
 from running import validate
 from utils import (
-    setup,
-    seed_everything,
-    load_model,
-    save_model,
     count_parameters,
+    load_model,
     log_training,
     readable_time,
+    save_model,
+    seed_everything,
+    setup,
 )
-from factory import model_factory, optimizer_factory, pipeline_factory
-from physionet_evaluation.evaluate_12ECG_score import (
-    load_weights,
-    compute_challenge_metric,
-)
-
-# from loss import get_loss
-from data.dataset import ECGDataset, load_and_split_dataframe, classes, normal_class
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO
@@ -96,7 +91,7 @@ def main(config):
     model = model_factory(config)
 
     # freeze all weights except for output layer in classification task
-    if config.model.name == "unsupervised_transformer":
+    if config.model.name == "transformer_finetuning":
         if config.model.freeze:
             for name, param in model.named_parameters():
                 if name.startswith("output_layer"):

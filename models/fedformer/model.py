@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.supervised_cnn_transformer.model import CNNEncoder
-from models.supervised_fedformer.layers.AutoCorrelation import AutoCorrelationLayer
-from models.supervised_fedformer.layers.Autoformer_EncDec import (
+from models.cnn_transformer.model import CNNEncoder
+from models.fedformer.layers.AutoCorrelation import AutoCorrelationLayer
+from models.fedformer.layers.Autoformer_EncDec import (
     Decoder,
     DecoderLayer,
     Encoder,
@@ -15,16 +15,12 @@ from models.supervised_fedformer.layers.Autoformer_EncDec import (
     series_decomp,
     series_decomp_multi,
 )
-from models.supervised_fedformer.layers.Embed import (
-    DataEmbedding_onlypos,
-    DataEmbedding_OnlyToken,
-    PositionalEmbedding,
-)
-from models.supervised_fedformer.layers.FourierCorrelation import (
+from models.fedformer.layers.Embed import DataEmbedding_onlypos
+from models.fedformer.layers.FourierCorrelation import (
     FourierBlock,
     FourierCrossAttention,
 )
-from models.supervised_fedformer.layers.MultiWaveletCorrelation import (
+from models.fedformer.layers.MultiWaveletCorrelation import (
     MultiWaveletCross,
     MultiWaveletTransform,
 )
@@ -417,13 +413,13 @@ class CNNTimeFreqEncoder(nn.Module):
         return self.classification_head(enc_out)
 
 
-class FEDformerEncoderDecomp(nn.Module):
+class DecompFEDformerEncoder(nn.Module):
     """
     FEDformer performs the attention mechanism on frequency domain and achieved O(N) complexity
     """
 
     def __init__(self, config_model, config_data):
-        super(FEDformerEncoderDecomp, self).__init__()
+        super(DecompFEDformerEncoder, self).__init__()
         self.version = config_model.version
         self.mode_select = config_model.mode_select
         self.modes = config_model.modes
@@ -511,13 +507,13 @@ class FEDformerEncoderDecomp(nn.Module):
         return self.classification_head(enc_out)
 
 
-class CNNTimeFreqEncoderDecomp(nn.Module):
+class CNNDecompTimeFreqEncoder(nn.Module):
     """
     FEDformer performs the attention mechanism on frequency domain and achieved O(N) complexity
     """
 
     def __init__(self, config_model, config_data):
-        super(CNNTimeFreqEncoderDecomp, self).__init__()
+        super(CNNDecompTimeFreqEncoder, self).__init__()
         self.version = config_model.version
         self.mode_select = config_model.mode_select
         self.modes = config_model.modes

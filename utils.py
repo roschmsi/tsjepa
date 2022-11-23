@@ -1,19 +1,15 @@
+import builtins
+import json
+import logging
 import os
 import random
-import torch
-import numpy as np
-import yaml
 import sys
-import builtins
 from copy import deepcopy
-
-import xlrd
-import xlwt
-from xlutils.copy import copy
-
-import logging
-import json
 from datetime import datetime
+
+import numpy as np
+import torch
+import yaml
 from easydict import EasyDict
 
 logging.basicConfig(

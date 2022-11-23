@@ -4,7 +4,7 @@ data:
   num_windows_train: 1
   num_windows_val: 1
   num_windows_test: 1
-  fs: 250  # Hz
+  fs: 100  # Hz
   filter_bandwidth: [3, 45]  # Hz
   num_classes: 27
   feat_dim: 12

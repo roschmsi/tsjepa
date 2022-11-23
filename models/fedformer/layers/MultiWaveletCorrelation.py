@@ -1,12 +1,13 @@
-import torch
+import math
+from typing import List, Tuple
+
 import numpy as np
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from typing import List, Tuple
-import math
-from models.supervised_fedformer.layers.utils import get_filter
+from models.fedformer.layers.utils import get_filter
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

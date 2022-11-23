@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name="train fedformer encoder decomp"
+#SBATCH --job-name="train transformer"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=2
-#SBATCH --gres=gpu:1,VRAM:16G
-#SBATCH --mem=16G
+#SBATCH --gres=gpu:1,VRAM:32G
+#SBATCH --mem=32G
 #SBATCH --time=12:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --output=/storage/slurm/logs/slurm-%j.out
@@ -11,4 +11,4 @@
 #SBATCH --exclude=node14,node15,node16,node17,node18
 #SBATCH --no-requeue
 source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
-srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config /usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/config_encoder_decomp.yaml --description version=wavelets
+srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config /usr/stud/roschman/ECGAnalysis/models/transformer/config_transformer.yaml --description learnable_pe

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="train cnn time freq transformer"
+#SBATCH --job-name="train decomp fedformer encoder"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -11,4 +11,4 @@
 #SBATCH --exclude=node14,node15,node16,node17,node18
 #SBATCH --no-requeue
 source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
-srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config /usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/config_cnn_time_freq.yaml
+srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config /usr/stud/roschman/ECGAnalysis/models/fedformer/config_decomp_fedformer_encoder.yaml --description version=wavelets

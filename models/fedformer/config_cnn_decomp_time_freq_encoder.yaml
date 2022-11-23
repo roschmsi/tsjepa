@@ -1,5 +1,5 @@
 model:
-  name: "cnn_time_freq_encoder_decomp"
+  name: "cnn_decomp_time_freq_encoder"
   version: "Fourier"
   mode_select: "random"
   modes: 64

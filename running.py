@@ -1,19 +1,16 @@
 import logging
 import os
-from collections import OrderedDict
 import time
-import torch
-import numpy as np
-from loss import l2_reg_loss
-from utils import readable_time, save_model, Printer
-from physionet_evaluation.evaluate_12ECG_score import (
-    compute_auc,
-    compute_challenge_metric,
-)
+from collections import OrderedDict
 
+import numpy as np
+import torch
+
+from loss import l2_reg_loss
+from physionet_evaluation.evaluate_12ECG_score import compute_auc
+from utils import Printer, readable_time, save_model
 
 logger = logging.getLogger("__main__")
-NEG_METRICS = {"loss"}  # metrics for which "better" is less
 val_times = {"total_time": 0, "count": 0}
 
 

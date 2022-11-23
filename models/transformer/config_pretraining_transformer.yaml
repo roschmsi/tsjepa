@@ -1,0 +1,32 @@
+model:
+  name: "pretraining_transformer"
+  masking_ratio: 0.15
+  mean_mask_length: 7
+  mask_mode: separate
+  mask_distribution: geometric
+  exclude_feats: null
+  d_model: 256
+  d_ff: 2048
+  num_heads: 8
+  num_layers: 8
+  dropout: 0.1
+  pos_encoding: learnable
+  activation: gelu
+  normalization_layer: BatchNorm
+  freeze: False
+  l2_reg: 0
+  global_reg: False
+training:
+  epochs: 400
+  batch_size: 8
+  num_workers: 4
+  lr: 0.0001
+  lr_step: 1000000
+  lr_factor: 0.1
+  patience: 10
+evaluation:
+  beta: 2
+  class_weights: null
+  weights_file: "/usr/stud/roschman/ECGAnalysis/physionet_evaluation/weights.csv"
+output_dir: "/usr/stud/roschman/ECGAnalysis/output"
+task: "imputation"

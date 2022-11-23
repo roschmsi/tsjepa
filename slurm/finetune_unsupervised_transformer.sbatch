@@ -11,4 +11,4 @@
 #SBATCH --exclude=node14,node15,node16,node17,node18
 #SBATCH --no-requeue
 source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
-srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config /usr/stud/roschman/ECGAnalysis/models/unsupervised_transformer/config_finetuning.yaml --load_model /usr/stud/roschman/ECGAnalysis/output/unsupervised_transformer_pretraining/unsupervised_transformer_pretraining_2022-11-14_11-37-06_baseline/checkpoints/model_best.pth --change_output --description no_freeze
+srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config /usr/stud/roschman/ECGAnalysis/models/transformer/config_finetuning_transformer.yaml --load_model /usr/stud/roschman/ECGAnalysis/output/transformer_pretraining/transformer_pretraining_2022-11-14_11-37-06_baseline/checkpoints/model_best.pth --change_output --description no_freeze

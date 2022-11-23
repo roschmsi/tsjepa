@@ -1,8 +1,8 @@
-import numpy as np
 from functools import partial
 
+import numpy as np
 from scipy.special import eval_legendre
-from sympy import Poly, legendre, Symbol, chebyshevt
+from sympy import Poly, Symbol, chebyshevt, legendre
 
 
 def legendreDer(k, x):

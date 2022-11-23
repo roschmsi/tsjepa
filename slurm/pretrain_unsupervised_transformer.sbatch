@@ -11,4 +11,4 @@
 #SBATCH --exclude=node14,node15,node16,node17,node18
 #SBATCH --no-requeue
 source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
-srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config /usr/stud/roschman/ECGAnalysis/models/unsupervised_transformer/config_pretraining.yaml --description baseline
+srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config /usr/stud/roschman/ECGAnalysis/models/transformer/config_pretraining_transformer.yaml

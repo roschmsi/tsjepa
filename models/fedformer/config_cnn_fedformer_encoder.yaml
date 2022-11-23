@@ -1,5 +1,5 @@
 model:
-  name: "fedformer_cnn_encoder"
+  name: "cnn_fedformer_encoder"
   version: "Wavelets"
   mode_select: "random"
   modes: 64

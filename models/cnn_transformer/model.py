@@ -1,9 +1,10 @@
 import math
-import torch
-from torch.autograd import Variable
-import torch.nn as nn
 
-from models.unsupervised_transformer.model import FixedPositionalEncoding
+import torch
+import torch.nn as nn
+from torch.autograd import Variable
+
+from models.transformer.model import FixedPositionalEncoding
 
 
 class PositionalEncoding(nn.Module):
@@ -110,11 +111,11 @@ class CNNEncoder(nn.Module):
         return out.transpose(1, 2)
 
 
-class CTN(nn.Module):
+class CNNTransformer(nn.Module):
     def __init__(
         self, feat_dim, d_model, num_heads, d_ff, num_layers, num_classes, max_seq_len
     ):
-        super(CTN, self).__init__()
+        super(CNNTransformer, self).__init__()
 
         self.encoder = nn.Sequential(  # downsampling factor = 20
             nn.Conv1d(feat_dim, 128, kernel_size=14, stride=3, padding=2, bias=False),

@@ -36,12 +36,6 @@ class Options(object):
             action="store_true",
             help="Optimize printout for console output; otherwise for file",
         )
-        # self.parser.add_argument(
-        #     "--key_metric",
-        #     choices={"loss", "accuracy", "precision"},
-        #     default="loss",
-        #     help="Metric used for defining best epoch",
-        # )
         self.parser.add_argument(
             "--save_all",
             action="store_true",
