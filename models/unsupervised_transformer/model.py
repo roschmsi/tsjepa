@@ -176,9 +176,9 @@ class TSTransformerEncoder(nn.Module):
         feat_dim,
         max_len,
         d_model,
-        n_heads,
+        num_heads,
         num_layers,
-        dim_feedforward,
+        d_ff,
         dropout=0.1,
         pos_encoding="fixed",
         activation="gelu",
@@ -189,7 +189,7 @@ class TSTransformerEncoder(nn.Module):
 
         self.max_len = max_len
         self.d_model = d_model
-        self.n_heads = n_heads
+        self.n_heads = num_heads
 
         self.project_inp = nn.Linear(feat_dim, d_model)
         self.pos_enc = get_pos_encoder(pos_encoding)(
@@ -200,7 +200,7 @@ class TSTransformerEncoder(nn.Module):
             encoder_layer = TransformerEncoderLayer(
                 d_model,
                 self.n_heads,
-                dim_feedforward,
+                d_ff,
                 dropout * (1.0 - freeze),
                 activation=activation,
             )
@@ -208,7 +208,7 @@ class TSTransformerEncoder(nn.Module):
             encoder_layer = TransformerBatchNormEncoderLayer(
                 d_model,
                 self.n_heads,
-                dim_feedforward,
+                d_ff,
                 dropout * (1.0 - freeze),
                 activation=activation,
             )
@@ -264,9 +264,9 @@ class TSTransformerEncoderClassifier(nn.Module):
         feat_dim,
         max_len,
         d_model,
-        n_heads,
+        num_heads,
         num_layers,
-        dim_feedforward,
+        d_ff,
         num_classes,
         dropout=0.1,
         pos_encoding="fixed",
@@ -278,7 +278,7 @@ class TSTransformerEncoderClassifier(nn.Module):
 
         self.max_len = max_len
         self.d_model = d_model
-        self.n_heads = n_heads
+        self.num_heads = num_heads
 
         self.project_inp = nn.Linear(feat_dim, d_model)
         self.pos_enc = get_pos_encoder(pos_encoding)(
@@ -288,16 +288,16 @@ class TSTransformerEncoderClassifier(nn.Module):
         if norm == "LayerNorm":
             encoder_layer = TransformerEncoderLayer(
                 d_model,
-                self.n_heads,
-                dim_feedforward,
+                self.num_heads,
+                d_ff,
                 dropout * (1.0 - freeze),
                 activation=activation,
             )
         else:
             encoder_layer = TransformerBatchNormEncoderLayer(
                 d_model,
-                self.n_heads,
-                dim_feedforward,
+                self.num_heads,
+                d_ff,
                 dropout * (1.0 - freeze),
                 activation=activation,
             )

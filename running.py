@@ -18,7 +18,12 @@ val_times = {"total_time": 0, "count": 0}
 
 
 def validate(
-    val_evaluator, tensorboard_writer, config, best_metrics, best_value, epoch
+    val_evaluator,
+    tensorboard_writer,
+    config,
+    best_metrics,
+    best_value,
+    epoch,
 ):
     logger.info("Evaluating on validation set ...")
 
@@ -325,9 +330,9 @@ class SupervisedRunner(BaseRunner):
             predictions = self.model(X, padding_masks)
 
             # (batch_size,) loss for each sample in the batch
-            loss = torch.sum(self.loss_module(predictions, targets), axis=1)
-            batch_loss = torch.sum(loss).cpu().item()
-            # mean loss (over samples)
+            loss = torch.mean(self.loss_module(predictions, targets), axis=1)
+            batch_loss = torch.sum(loss)
+            # mean loss (over samples) used for optimization
             mean_loss = batch_loss / len(loss)
 
             prob = predictions.sigmoid().data.cpu().numpy()

@@ -37,9 +37,12 @@ def create_output_directory(config):
     output_dir = os.path.join(output_dir, config.model.name, config.model.name)
     formatted_timestamp = initial_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
     config["initial_timestamp"] = formatted_timestamp
+    if not config.description == "":
+        config.description = "_" + config.description
     if config.debug:
         config.description = config.description + "_debug"
-    output_dir += "_" + formatted_timestamp + "_" + config.description
+
+    output_dir += "_" + formatted_timestamp + config.description
 
     return config, output_dir
 
