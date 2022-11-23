@@ -14,8 +14,8 @@
             "args": [
                 "--config",
                 // "/usr/stud/roschman/ECGAnalysis/models/supervised_cnn_transformer/config.yaml",
-                "/usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/fedformer_encoder_config.yaml",
-                // "/usr/stud/roschman/ECGAnalysis/models/unsupervised_transformer/config_pretraining.yaml",
+                "/usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/config_encoder.yaml",
+                // "/usr/stud/roschman/ECGAnalysis/models/unsupervised_transformer/config_supervised.yaml",
                 // "/usr/stud/roschman/ECGAnalysis/models/unsupervised_transformer/config_classifier.yaml",
                 // "--load_model",
                 // "/usr/stud/roschman/ECGAnalysis/output/unsupervised_transformer/unsupervised_transformer_2022-11-03_09-19-52/checkpoints/model_best.pth",
@@ -26,6 +26,8 @@
                 // "/usr/stud/roschman/ECGAnalysis/output/unsupervised_transformer/unsupervised_transformer_2022-11-07_18-55-07_pretraining/checkpoints/model_best.pth",
                 // "--change_output",
                 "--debug",
+                "--description",
+                "version=wavelets"
                 // "--change_output"
             ]
         }
