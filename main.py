@@ -17,6 +17,7 @@ from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+import numpy as np
 
 # Project modules
 from options import Options
@@ -32,9 +33,13 @@ from utils import (
     readable_time,
 )
 from factory import model_factory, optimizer_factory, pipeline_factory
+from physionet_evaluation.evaluate_12ECG_score import (
+    load_weights,
+    compute_challenge_metric,
+)
 
 # from loss import get_loss
-from data.dataset import ECGDataset, load_and_split_dataframe
+from data.dataset import ECGDataset, load_and_split_dataframe, classes, normal_class
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO
@@ -204,6 +209,7 @@ def main(config):
 
     # initialize with +inf or -inf depending on key metric
     best_value = 1e16
+    patience_count = 0
 
     # (for validation) list of lists: for each epoch, stores metrics like loss, ...
     metrics = []
@@ -248,6 +254,7 @@ def main(config):
             or (epoch == start_epoch + 1)
             or (epoch % config["val_interval"] == 0)
         ):
+            prev_best_value = best_value
             aggr_metrics_val, best_metrics, best_value = validate(
                 val_evaluator,
                 tb_writer,
@@ -256,8 +263,14 @@ def main(config):
                 best_value,
                 epoch,
             )
+
             metrics_names, metrics_values = zip(*aggr_metrics_val.items())
             metrics.append(list(metrics_values))
+
+            if best_value < prev_best_value:
+                patience_count = 0
+            else:
+                patience_count += config["val_interval"]
 
         save_model(
             os.path.join(config.checkpoint_dir, "model_{}.pth".format(mark)),
@@ -265,6 +278,9 @@ def main(config):
             model,
             optimizer,
         )
+
+        if patience_count > config.training.patience:
+            break
 
         # specify for which models scheduling is required
         # learning rate scheduling
@@ -286,11 +302,47 @@ def main(config):
                 for param_group in optimizer.param_groups:
                     param_group["lr"] = lr
 
-    logger.info(
-        "Best {} was {}. Other metrics: {}".format(
-            config["key_metric"], best_value, best_metrics
-        )
+    # load best model, compute physionet challenge metric
+    step = 0.02
+    scores = []
+    weights = load_weights(config.evaluation.weights_file, classes)
+    model = load_model(
+        model, model_path=os.path.join(config["checkpoint_dir"], "model_best.pth")
     )
+
+    for thr in np.arange(0.0, 1.0, step):
+        lbls = []
+        probs = []
+
+        for batch in val_loader:
+
+            X, targets, padding_masks = batch
+            X = X.to(device)
+            targets = targets.to(device)
+            padding_masks = padding_masks.to(device)
+
+            predictions = model(X, padding_masks)
+            prob = predictions.sigmoid().data.cpu().numpy()
+            probs.append(prob)
+            lbls.append(targets.data.cpu().numpy())
+
+        lbls = np.concatenate(lbls)
+        probs = np.concatenate(probs)
+
+        preds = (probs > thr).astype(np.int)
+        challenge_metric = compute_challenge_metric(
+            weights, lbls, preds, classes, normal_class
+        )
+        scores.append(challenge_metric)
+
+    # Best thrs and preds
+    scores = np.array(scores)
+    idxs = np.argmax(scores, axis=0)
+    thrs = np.array([idxs * step])
+    preds = (probs > thrs).astype(np.int)
+
+    logger.info("Best loss: {}. Other metrics: {}".format(best_value, best_metrics))
+    logger.info("Best challenge score: {}. Threshold: {}".format(scores[idxs], thrs[0]))
     logger.info("All Done!")
 
     total_runtime = time.time() - total_start_time
