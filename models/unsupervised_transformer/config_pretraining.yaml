@@ -1,14 +1,14 @@
 model:
-  name: "unsupervised_transformer"
+  name: "unsupervised_transformer_pretraining"
   masking_ratio: 0.15
-  mean_mask_length: 3
+  mean_mask_length: 7
   mask_mode: separate
   mask_distribution: geometric
   exclude_feats: null
   d_model: 256
-  dim_feedforward: 256
+  d_ff: 2048
   num_heads: 8
-  num_layers: 3
+  num_layers: 8
   dropout: 0.1
   pos_encoding: learnable
   activation: gelu
@@ -16,14 +16,14 @@ model:
   freeze: False
   l2_reg: 0
   global_reg: False
-optimizer: "RAdam"
 training:
   epochs: 400
+  batch_size: 8
+  num_workers: 4
   lr: 0.0001
   lr_step: 1000000
   lr_factor: 0.1
-  batch_size: 8
-  num_workers: 2
+  patience: 10
 evaluation:
   beta: 2
   class_weights: null

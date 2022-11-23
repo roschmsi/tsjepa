@@ -1,0 +1,36 @@
+model:
+  name: "fedformer_encoder"
+  version: "Wavelets"
+  mode_select: "random"
+  modes: 64
+  base: "legendre"
+  cross_activation: tanh
+  seq_len: 2500
+  label_len: 2500
+  pred_len: 0
+  enc_in: 12
+  dec_in: 12
+  c_out: 12
+  d_model: 256
+  num_heads: 8
+  e_layers: 8
+  d_layers: 1
+  d_ff: 2048
+  moving_avg: [1]
+  factor: 3
+  dropout: 0.1
+  output_attention: False
+  activation: "gelu"
+  L: 0
+training:
+  epochs: 400
+  batch_size: 8
+  num_workers: 4
+  patience: 10
+  lr: 0.0001
+evaluation:
+  beta: 2
+  class_weights: null
+  weights_file: "/usr/stud/roschman/ECGAnalysis/physionet_evaluation/weights.csv"
+output_dir: "/usr/stud/roschman/ECGAnalysis/output"
+task: "classification"
