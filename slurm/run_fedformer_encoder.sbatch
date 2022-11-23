@@ -8,7 +8,7 @@
 #SBATCH --mail-type=ALL
 #SBATCH --output=/storage/slurm/logs/slurm-%j.out
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
-#SBATCH --exclude=node15,node17
+#SBATCH --exclude=node14,node15,node16,node17,node18
 #SBATCH --no-requeue
 source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
-srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config /usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/fedformer_encoder_config.yaml
+srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config /usr/stud/roschman/ECGAnalysis/models/supervised_fedformer/config_encoder.yaml --description version=wavelets
