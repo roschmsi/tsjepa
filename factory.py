@@ -6,7 +6,14 @@ from data.dataset import (
     collate_superv,
     collate_unsuperv,
 )
-from models.supervised_fedformer.model import FEDformer, FedformerEncoder
+from models.supervised_fedformer.model import (
+    CNNFEDformerEncoder,
+    CNNTimeFreqEncoder,
+    CNNTimeFreqEncoderDecomp,
+    FEDformer,
+    FEDformerEncoder,
+    FEDformerEncoderDecomp,
+)
 from models.supervised_cnn_transformer.model import CTN
 from models.supervised_cnn_transformer.optimizer import NoamOpt
 from models.unsupervised_transformer.optimizer import get_optimizer
@@ -41,32 +48,33 @@ def pipeline_factory(config):
 
 
 def optimizer_factory(config, model):
-    if config.model.name == "unsupervised_transformer":
-        # initialize optimizer and regularization
-        # if config.model["global_reg"]:
-        #     weight_decay = config["l2_reg"]
-        #     output_reg = None
-        # else:
-        #     weight_decay = 0
-        #     output_reg = config.model["l2_reg"]
+    # for initial experiments only use Adam optimizer
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
+    return optimizer
 
-        # optim_class = get_optimizer(config["optimizer"])
-        # optimizer = optim_class(
-        #     model.parameters(), lr=config.training["lr"], weight_decay=weight_decay
-        # )
-        optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
+    if config.model.name == "unsupervised_transformer":
+        if config.model["global_reg"]:
+            weight_decay = config["l2_reg"]
+            output_reg = None
+        else:
+            weight_decay = 0
+            output_reg = config.model["l2_reg"]
+
+        optim_class = get_optimizer(config["optimizer"])
+        optimizer = optim_class(
+            model.parameters(), lr=config.training["lr"], weight_decay=weight_decay
+        )
         return optimizer
 
     elif config.model.name == "supervised_cnn_transformer":
-        # optimizer = NoamOpt(
-        #     model_size=config.model.d_model,
-        #     factor=1,
-        #     warmup=4000,
-        #     optimizer=torch.optim.Adam(
-        #         model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9
-        #     ),
-        # )
-        optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
+        optimizer = NoamOpt(
+            model_size=config.model.d_model,
+            factor=1,
+            warmup=4000,
+            optimizer=torch.optim.Adam(
+                model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9
+            ),
+        )
         return optimizer
 
     elif (
@@ -85,14 +93,14 @@ def model_factory(config):
     max_seq_len = config.data.window * config.data.fs
 
     if config["task"] == "imputation":
-        if config.model.name == "unsupervised_transformer":
+        if config.model.name == "unsupervised_transformer_pretraining":
             return TSTransformerEncoder(
-                feat_dim,
-                max_seq_len,
-                config.model["d_model"],
-                config.model["num_heads"],
-                config.model["num_layers"],
-                config.model["dim_feedforward"],
+                feat_dim=feat_dim,
+                max_len=max_seq_len,
+                d_model=config.model["d_model"],
+                num_heads=config.model["num_heads"],
+                num_layers=config.model["num_layers"],
+                d_ff=config.model["d_ff"],
                 dropout=config.model["dropout"],
                 pos_encoding=config.model["pos_encoding"],
                 activation=config.model["activation"],
@@ -101,14 +109,17 @@ def model_factory(config):
             )
 
     elif config["task"] == "classification":
-        if config.model.name == "unsupervised_transformer":
+        if (
+            config.model.name == "supervised_transformer"
+            or config.model.name == "unsupervised_transformer_finetuning"
+        ):
             return TSTransformerEncoderClassifier(
-                feat_dim,
-                max_seq_len,
-                config.model["d_model"],
-                config.model["num_heads"],
-                config.model["num_layers"],
-                config.model["dim_feedforward"],
+                feat_dim=feat_dim,
+                max_len=max_seq_len,
+                d_model=config.model["d_model"],
+                num_heads=config.model["num_heads"],
+                num_layers=config.model["num_layers"],
+                d_ff=config.model["d_ff"],
                 num_classes=config.data.num_classes,
                 dropout=config.model["dropout"],
                 pos_encoding=config.model["pos_encoding"],
@@ -118,16 +129,24 @@ def model_factory(config):
             )
         elif config.model.name == "supervised_cnn_transformer":
             return CTN(
+                feat_dim=feat_dim,
                 d_model=config.model.d_model,
-                nhead=config.model.nhead,
+                num_heads=config.model.num_heads,
                 d_ff=config.model.d_ff,
                 num_layers=config.model.num_layers,
                 num_classes=config.data.num_classes,
+                max_seq_len=max_seq_len,
             )
-        elif config.model.name == "supervised_fedformer":
-            return FEDformer(config.model, config.data)
         elif config.model.name == "fedformer_encoder":
-            return FedformerEncoder(config.model, config.data)
+            return FEDformerEncoder(config.model, config.data)
+        elif config.model.name == "fedformer_cnn_encoder":
+            return CNNFEDformerEncoder(config.model, config.data)
+        elif config.model.name == "cnn_time_freq_encoder":
+            return CNNTimeFreqEncoder(config.model, config.data)
+        elif config.model.name == "fedformer_encoder_decomp":
+            return FEDformerEncoderDecomp(config.model, config.data)
+        elif config.model.name == "cnn_time_freq_encoder_decomp":
+            return CNNTimeFreqEncoderDecomp(config.model, config.data)
         else:
             raise ValueError(
                 "Model class for task '{}' does not exist".format(config["task"])
