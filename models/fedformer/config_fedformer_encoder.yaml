@@ -1,6 +1,6 @@
 model:
   name: "fedformer_encoder"
-  version: "Wavelets"
+  version: "Fourier"
   mode_select: "random"
   modes: 64
   base: "legendre"
