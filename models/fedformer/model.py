@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.cnn_transformer.model import CNNEncoder
+from models.cnn_transformer.model import CNNEncoderLayer
 from models.fedformer.layers.AutoCorrelation import AutoCorrelationLayer
 from models.fedformer.layers.Autoformer_EncDec import (
     Decoder,
@@ -297,7 +297,7 @@ class CNNFEDformerEncoder(FEDformerEncoder):
         enc_modes = int(min(config_model.modes, config_model.seq_len // 2))
         print("enc_modes: {}".format(enc_modes))
 
-        self.cnn_encoder = CNNEncoder(
+        self.cnn_encoder = CNNEncoderLayer(
             feat_dim=config_model.enc_in, d_model=config_model.d_model
         )
 
@@ -368,7 +368,7 @@ class CNNTimeFreqEncoder(nn.Module):
         enc_modes = int(min(config_model.modes, config_model.seq_len // 2))
         print("enc_modes: {}".format(enc_modes))
 
-        self.cnn_encoder = CNNEncoder(
+        self.cnn_encoder = CNNEncoderLayer(
             feat_dim=config_model.enc_in, d_model=config_model.d_model
         )
 
@@ -551,7 +551,7 @@ class CNNDecompTimeFreqEncoder(nn.Module):
         enc_modes = int(min(config_model.modes, config_model.seq_len // 2))
         print("enc_modes: {}".format(enc_modes))
 
-        self.cnn_encoder = CNNEncoder(
+        self.cnn_encoder = CNNEncoderLayer(
             feat_dim=config_model.enc_in, d_model=config_model.d_model
         )
 

@@ -8,7 +8,7 @@ from data.dataset import (
     collate_superv,
     collate_unsuperv,
 )
-from models.cnn_transformer.model import CNNTransformer
+from models.cnn_transformer.model import CNNTransformer, CNNEncoder
 from models.fedformer.model import (
     CNNDecompTimeFreqEncoder,
     CNNFEDformerEncoder,
@@ -108,6 +108,16 @@ def model_factory(config):
         return CNNTimeFreqEncoder(config.model, config.data)
     elif config.model.name == "cnn_decomp_time_freq_encoder":
         return CNNDecompTimeFreqEncoder(config.model, config.data)
+    elif config.model.name == "cnn_encoder":
+        return CNNEncoder(
+            feat_dim=feat_dim,
+            d_model=config.model.d_model,
+            num_heads=config.model.num_heads,
+            d_ff=config.model.d_ff,
+            num_layers=config.model.num_layers,
+            num_classes=config.data.num_classes,
+            max_seq_len=max_seq_len,
+        )
     else:
         raise ValueError(
             "Model class for task '{}' does not exist".format(config["task"])

@@ -56,7 +56,9 @@ def main(config):
     logger.info("Running:\n{}\n".format(" ".join(sys.argv)))
 
     # build ecg data
-    train_df, val_df, test_df = load_and_split_dataframe(debug=config.debug)
+    train_df, val_df, test_df = load_and_split_dataframe(
+        subset=config.data.subset, debug=config.debug
+    )
     if config.debug:
         config.training.batch_size = 1
         config.val_interval = 1000

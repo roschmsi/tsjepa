@@ -66,7 +66,7 @@ class Transformer(nn.Module):
         return out
 
 
-class CNNEncoder(nn.Module):
+class CNNEncoderLayer(nn.Module):
     def __init__(self, feat_dim, d_model) -> None:
         super().__init__()
 
@@ -156,5 +156,54 @@ class CNNTransformer(nn.Module):
         x = x.transpose(1, 2)
         z = self.encoder(x)  # encoded sequence is batch_sz x nb_ch x seq_len
         out = self.transformer(z)  # transformer output is batch_sz x d_model
+        out = self.fc(out)
+        return out
+
+
+class CNNEncoder(nn.Module):
+    def __init__(
+        self, feat_dim, d_model, num_heads, d_ff, num_layers, num_classes, max_seq_len
+    ):
+        super(CNNEncoder, self).__init__()
+
+        self.encoder = nn.Sequential(  # downsampling factor = 20
+            nn.Conv1d(feat_dim, 128, kernel_size=14, stride=3, padding=2, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(128, 256, kernel_size=14, stride=3, padding=0, bias=False),
+            nn.BatchNorm1d(256),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(256, d_model, kernel_size=10, stride=2, padding=0, bias=False),
+            nn.BatchNorm1d(d_model),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(
+                d_model, d_model, kernel_size=10, stride=2, padding=0, bias=False
+            ),
+            nn.BatchNorm1d(d_model),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(
+                d_model, d_model, kernel_size=10, stride=1, padding=0, bias=False
+            ),
+            nn.BatchNorm1d(d_model),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(
+                d_model, d_model, kernel_size=10, stride=1, padding=0, bias=False
+            ),
+            nn.BatchNorm1d(d_model),
+            nn.ReLU(inplace=True),
+        )
+        self.transformer = Transformer(
+            d_model, num_heads, d_ff, num_layers, max_seq_len, dropout=0.1
+        )
+        # self.fc1 = nn.Linear(d_model, deepfeat_sz)
+        # self.fc2 = nn.Linear(deepfeat_sz+nb_feats+nb_demo, len(classes))
+        self.fc = nn.Linear(d_model, num_classes)
+        # self.dropout = nn.Dropout(dropout_rate)
+        # self.apply(_weights_init)
+
+    def forward(self, x, padding_mask=None):
+        x = x.transpose(1, 2)
+        out = self.encoder(x)  # encoded sequence is batch_sz x nb_ch x seq_len
+        out = out.mean(-1)
         out = self.fc(out)
         return out
