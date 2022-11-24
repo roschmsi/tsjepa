@@ -43,13 +43,18 @@ classes = sorted(
 normal_class = "426783006"
 
 
-def load_and_split_dataframe(debug):
+def load_and_split_dataframe(subset, debug):
     data_df = pd.read_csv(
         "data/records_stratified_10_folds_v2.csv", index_col=0
     ).reset_index(drop=True)
 
     # filter for ptb-xl data
-    data_df = data_df[data_df["Patient"].str.contains("HR")].reset_index(drop=True)
+    if subset == "ptb-xl":
+        data_df = data_df[data_df["Patient"].str.contains("HR")].reset_index(drop=True)
+    elif subset == "all":
+        pass
+    else:
+        raise ValueError("Subset not specified")
 
     train_df = data_df.sample(frac=0.8, random_state=42)
     data_df = data_df.drop(train_df.index)
@@ -60,10 +65,10 @@ def load_and_split_dataframe(debug):
     val_df = val_df.reset_index(drop=True)
     test_df = test_df.reset_index(drop=True)
 
-    if debug:
-        train_df = train_df[:16]
-        val_df = train_df[:16]
-        test_df = train_df[:16]
+    # if debug:
+    #     train_df = train_df[:16]
+    #     val_df = train_df[:16]
+    #     test_df = train_df[:16]
 
     return train_df, val_df, test_df
 
