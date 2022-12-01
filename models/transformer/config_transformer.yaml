@@ -8,9 +8,9 @@ model:
   d_model: 256
   d_ff: 1024
   num_heads: 8
-  num_layers: 4
+  num_layers: 8
   dropout: 0.2
-  pos_encoding: fixed
+  pos_encoding: fixed                                                                                                                                                                                                           
   activation: relu
   normalization_layer: BatchNorm
   freeze: False
@@ -18,7 +18,7 @@ model:
   global_reg: False
 training:
   epochs: 400
-  batch_size: 16
+  batch_size: 8
   num_workers: 4
   lr: 0.00001
   patience: 10

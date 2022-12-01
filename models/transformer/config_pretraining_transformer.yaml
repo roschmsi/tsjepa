@@ -1,17 +1,17 @@
 model:
   name: "pretraining_transformer"
   masking_ratio: 0.15
-  mean_mask_length: 7
+  mean_mask_length: 5
   mask_mode: separate
   mask_distribution: geometric
   exclude_feats: null
   d_model: 256
-  d_ff: 2048
+  d_ff: 1024
   num_heads: 8
   num_layers: 8
-  dropout: 0.1
-  pos_encoding: learnable
-  activation: gelu
+  dropout: 0.2
+  pos_encoding: fixed
+  activation: relu
   normalization_layer: BatchNorm
   freeze: False
   l2_reg: 0

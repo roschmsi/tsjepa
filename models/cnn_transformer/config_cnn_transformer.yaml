@@ -1,12 +1,13 @@
 model:
   name: "cnn_transformer"
-  d_model: 256
+  d_model: 1024
   d_ff: 2048
   num_heads: 8
-  num_layers: 2
+  num_layers: 4
+  dropout: 0.2
 training:
   epochs: 400
-  batch_size: 16
+  batch_size: 32
   num_workers: 4
   patience: 10
   lr: 0.0001
