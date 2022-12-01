@@ -8,7 +8,7 @@ from data.dataset import (
     collate_superv,
     collate_unsuperv,
 )
-from models.cnn_transformer.model import CNNTransformer, CNNEncoder
+from models.cnn_transformer.model import CNNEncoder, CNNTransformer
 from models.fedformer.model import (
     CNNDecompTimeFreqEncoder,
     CNNFEDformerEncoder,
@@ -20,7 +20,7 @@ from models.transformer.model import (
     TSTransformerEncoder,
     TSTransformerEncoderClassifier,
 )
-from running import SupervisedRunner, UnsupervisedRunner
+from runner import SupervisedRunner, UnsupervisedRunner
 
 
 def pipeline_factory(config):
@@ -97,6 +97,7 @@ def model_factory(config):
             num_layers=config.model.num_layers,
             num_classes=config.data.num_classes,
             max_seq_len=max_seq_len,
+            dropout=config.model.dropout,
         )
     elif config.model.name == "fedformer_encoder":
         return FEDformerEncoder(config.model, config.data)

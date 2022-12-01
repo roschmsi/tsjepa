@@ -158,7 +158,7 @@ class UnsupervisedRunner(BaseRunner):
             total_loss.backward()
 
             # torch.nn.utils.clip_grad_value_(self.model.parameters(), clip_value=1.0)
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=4.0)
+            # torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=4.0)
             self.optimizer.step()
 
             metrics = {"loss": mean_loss.item()}
@@ -269,9 +269,14 @@ class SupervisedRunner(BaseRunner):
             else:
                 total_loss = mean_loss
 
+            if torch.isnan(total_loss):
+                print()
+
             self.optimizer.zero_grad()
             total_loss.backward()
+
             # torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=4.0)
+            # torch.nn.utils.clip_grad_value_(self.model.parameters(), clip_value=1.0)
             self.optimizer.step()
 
             prob = predictions.sigmoid().data.cpu().numpy()

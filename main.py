@@ -25,7 +25,7 @@ from physionet_evaluation.evaluate_12ECG_score import (
     compute_challenge_metric,
     load_weights,
 )
-from running import validate
+from runner import validate
 from utils import (
     count_parameters,
     load_model,

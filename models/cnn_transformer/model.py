@@ -113,7 +113,15 @@ class CNNEncoderLayer(nn.Module):
 
 class CNNTransformer(nn.Module):
     def __init__(
-        self, feat_dim, d_model, num_heads, d_ff, num_layers, num_classes, max_seq_len
+        self,
+        feat_dim,
+        d_model,
+        num_heads,
+        d_ff,
+        num_layers,
+        num_classes,
+        max_seq_len,
+        dropout,
     ):
         super(CNNTransformer, self).__init__()
 
@@ -144,13 +152,9 @@ class CNNTransformer(nn.Module):
             nn.ReLU(inplace=True),
         )
         self.transformer = Transformer(
-            d_model, num_heads, d_ff, num_layers, max_seq_len, dropout=0.1
+            d_model, num_heads, d_ff, num_layers, max_seq_len, dropout=dropout
         )
-        # self.fc1 = nn.Linear(d_model, deepfeat_sz)
-        # self.fc2 = nn.Linear(deepfeat_sz+nb_feats+nb_demo, len(classes))
         self.fc = nn.Linear(d_model, num_classes)
-        # self.dropout = nn.Dropout(dropout_rate)
-        # self.apply(_weights_init)
 
     def forward(self, x, padding_mask=None):
         x = x.transpose(1, 2)
@@ -192,14 +196,7 @@ class CNNEncoder(nn.Module):
             nn.BatchNorm1d(d_model),
             nn.ReLU(inplace=True),
         )
-        self.transformer = Transformer(
-            d_model, num_heads, d_ff, num_layers, max_seq_len, dropout=0.1
-        )
-        # self.fc1 = nn.Linear(d_model, deepfeat_sz)
-        # self.fc2 = nn.Linear(deepfeat_sz+nb_feats+nb_demo, len(classes))
         self.fc = nn.Linear(d_model, num_classes)
-        # self.dropout = nn.Dropout(dropout_rate)
-        # self.apply(_weights_init)
 
     def forward(self, x, padding_mask=None):
         x = x.transpose(1, 2)
