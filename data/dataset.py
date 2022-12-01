@@ -259,8 +259,9 @@ def collate_superv(data, max_len=None):
 
     targets = torch.stack(labels, dim=0)  # (batch_size, num_labels)
 
+    # padding mask was dtype=torch.int16 and thus negative when over 32000
     padding_masks = padding_mask(
-        torch.tensor(lengths, dtype=torch.int16), max_len=max_len
+        torch.tensor(lengths, dtype=torch.int32), max_len=max_len
     )  # (batch_size, padded_length) boolean tensor, "1" means keep
 
     return X, targets.float(), padding_masks
@@ -328,7 +329,7 @@ def collate_unsuperv(data, max_len=None, mask_compensation=False):
         X = compensate_masking(X, target_masks)
 
     padding_masks = padding_mask(
-        torch.tensor(lengths, dtype=torch.int16), max_len=max_len
+        torch.tensor(lengths, dtype=torch.int32), max_len=max_len
     )  # (batch_size, padded_length) boolean tensor, "1" means keep
     target_masks = ~target_masks  # inverse logic: 0 now means ignore, 1 means predict
     return X, targets, target_masks, padding_masks
