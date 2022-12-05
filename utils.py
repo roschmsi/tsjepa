@@ -18,6 +18,37 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def check_config(config):
+    dir = ""
+    # check for transformer parameters
+    if "d_model" in config.model.keys():
+        dir += f"_dmodel={config.model.d_model}"
+    if "d_ff" in config.model.keys():
+        dir += f"_dff={config.model.d_ff}"
+    if "num_layers" in config.model.keys():
+        dir += f"_nlayers={config.model.num_layers}"
+    if "num_heads" in config.model.keys():
+        dir += f"_nheads={config.model.num_heads}"
+    if "dropout" in config.model.keys():
+        dir += f"_dropout={config.model.dropout}"
+    if "pos_encoding" in config.model.keys():
+        dir += f"_pe={config.model.pos_encoding}"
+
+    # check for pretraining parameters
+    if "masking_ratio" in config.model.keys():
+        dir += f"_maskratio={config.model.masking_ratio}"
+    if "mean_mask_length" in config.model.keys():
+        dir += f"_masklen={config.model.mean_mask_length}"
+
+    # check for fedformer parameters
+    if "version" in config.model.keys():
+        dir += f"_version={config.model.version}"
+    if "modes" in config.model.keys():
+        dir += f"_modes={config.model.modes}"
+
+    return dir
+
+
 def create_output_directory(config):
     # Create output directory
     initial_timestamp = datetime.now()
@@ -36,16 +67,16 @@ def create_output_directory(config):
     formatted_model_config = (
         f"_set={config.data.subset}_window={config.data.window}_fs={config.data.fs}"
         f"_bs={config.training.batch_size}_lr={config.training.batch_size}"
-        f"_dmodel={config.model.d_model}_dff={config.model.d_ff}_nheads={config.model.num_heads}_nlayers={config.model.num_layers}"
     )
+    formatted_model_config += check_config(config)
 
     if not config.description == "":
         config.description = "_" + config.description
     if config.debug:
         config.description = config.description + "_debug"
 
-    output_dir += (
-        "_" + formatted_timestamp + formatted_model_config + config.description
+    output_dir = os.path.join(
+        output_dir, formatted_timestamp + formatted_model_config + config.description
     )
 
     return config, output_dir
