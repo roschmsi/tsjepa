@@ -5,16 +5,13 @@ model:
   modes: 64
   base: "legendre"
   cross_activation: tanh
-  seq_len: 2500
-  enc_in: 12
-  c_out: 12
   d_model: 256
   num_heads: 8
-  e_layers: 8
+  num_layers: 8
   d_ff: 2048
   moving_avg: [50]
   factor: 3
-  dropout: 0.1
+  dropout: 0.2
   output_attention: False
   activation: "gelu"
 training:

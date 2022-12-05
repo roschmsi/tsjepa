@@ -30,15 +30,23 @@ def create_output_directory(config):
             )
         )
 
-    output_dir = os.path.join(output_dir, config.model.name, config.model.name)
+    output_dir = os.path.join(output_dir, config.model.name)
     formatted_timestamp = initial_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
     config["initial_timestamp"] = formatted_timestamp
+    formatted_model_config = (
+        f"_set={config.data.subset}_window={config.data.window}_fs={config.data.fs}"
+        f"_bs={config.training.batch_size}_lr={config.training.batch_size}"
+        f"_dmodel={config.model.d_model}_dff={config.model.d_ff}_nheads={config.model.num_heads}_nlayers={config.model.num_layers}"
+    )
+
     if not config.description == "":
         config.description = "_" + config.description
     if config.debug:
         config.description = config.description + "_debug"
 
-    output_dir += "_" + formatted_timestamp + config.description
+    output_dir += (
+        "_" + formatted_timestamp + formatted_model_config + config.description
+    )
 
     return config, output_dir
 
@@ -100,8 +108,6 @@ def load_model(
     resume=False,
     change_output=False,
     lr=None,
-    lr_step=None,
-    lr_factor=None,
 ):
     start_epoch = 0
     checkpoint = torch.load(model_path, map_location=lambda storage, loc: storage)
@@ -119,9 +125,6 @@ def load_model(
             optimizer.load_state_dict(checkpoint["optimizer"])
             start_epoch = checkpoint["epoch"]
             start_lr = lr
-            for i in range(len(lr_step)):
-                if start_epoch >= lr_step[i]:
-                    start_lr *= lr_factor[i]
             for param_group in optimizer.param_groups:
                 param_group["lr"] = start_lr
             print("Resumed optimizer with start lr", start_lr)

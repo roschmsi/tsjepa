@@ -113,11 +113,7 @@ def model_factory(config):
         return CNNEncoder(
             feat_dim=feat_dim,
             d_model=config.model.d_model,
-            num_heads=config.model.num_heads,
-            d_ff=config.model.d_ff,
-            num_layers=config.model.num_layers,
             num_classes=config.data.num_classes,
-            max_seq_len=max_seq_len,
         )
     else:
         raise ValueError(

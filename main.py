@@ -111,7 +111,6 @@ def main(config):
 
     # options to continue training from previous model
     start_epoch = 0
-    lr_step = 0
 
     # load model and optimizer states
     if config.load_model:
@@ -122,8 +121,6 @@ def main(config):
             config["resume"],  # load starting epoch and optimizer
             config["change_output"],  # finetuning on different task
             config.training["lr"],
-            config.training["lr_step"],
-            config.training["lr_factor"],
         )
     model.to(device)
 
@@ -278,26 +275,6 @@ def main(config):
 
         if patience_count > config.training.patience:
             break
-
-        # specify for which models scheduling is required
-        # learning rate scheduling
-        scheduling = False
-        if scheduling:
-            if epoch == config["lr_step"][lr_step]:
-                save_model(
-                    os.path.join(config.checkpoint_dir, "model_{}.pth".format(epoch)),
-                    epoch,
-                    model,
-                    optimizer,
-                )
-                lr = config.training.lr * config["lr_factor"][lr_step]
-                if (
-                    lr_step < len(config["lr_step"]) - 1
-                ):  # so that this index does not get out of bounds
-                    lr_step += 1
-                logger.info("Learning rate updated to: ", lr)
-                for param_group in optimizer.param_groups:
-                    param_group["lr"] = lr
 
     # load best model, compute physionet challenge metric
     step = 0.02

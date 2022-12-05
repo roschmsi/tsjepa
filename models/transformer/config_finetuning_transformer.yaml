@@ -1,17 +1,12 @@
 model:
   name: "finetuning_transformer"
-  masking_ratio: 0.15
-  mean_mask_length: 3
-  mask_mode: separate
-  mask_distribution: geometric
-  exclude_feats: null
   d_model: 256
-  d_ff: 2048
+  d_ff: 1024
   num_heads: 8
   num_layers: 8
-  dropout: 0.1
-  pos_encoding: learnable
-  activation: gelu
+  dropout: 0.2
+  pos_encoding: fixed
+  activation: relu
   normalization_layer: BatchNorm
   freeze: False
   l2_reg: 0
@@ -21,8 +16,6 @@ training:
   batch_size: 8
   num_workers: 4
   lr: 0.00001
-  lr_step: 1000000
-  lr_factor: 0.1
   patience: 10
 evaluation:
   beta: 2

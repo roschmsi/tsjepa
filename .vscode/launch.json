@@ -16,6 +16,18 @@
                 "/usr/stud/roschman/ECGAnalysis/models/transformer/config_transformer.yaml",
                 "--debug",
             ]
+        },
+        {
+            "name": "Explore data",
+            "type": "python",
+            "request": "launch",
+            "program": "/usr/stud/roschman/ECGAnalysis/explore_lengths.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--config",
+                "/usr/stud/roschman/ECGAnalysis/models/transformer/config_transformer.yaml",
+            ]
         }
     ]
 }

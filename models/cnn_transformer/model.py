@@ -166,7 +166,10 @@ class CNNTransformer(nn.Module):
 
 class CNNEncoder(nn.Module):
     def __init__(
-        self, feat_dim, d_model, num_heads, d_ff, num_layers, num_classes, max_seq_len
+        self,
+        feat_dim,
+        d_model,
+        num_classes,
     ):
         super(CNNEncoder, self).__init__()
 

@@ -1,11 +1,6 @@
 model:
   name: "transformer"
-  masking_ratio: 0.15
-  mean_mask_length: 3
-  mask_mode: separate
-  mask_distribution: geometric
-  exclude_feats: null
-  d_model: 256
+  d_model: 1024
   d_ff: 1024
   num_heads: 8
   num_layers: 8
