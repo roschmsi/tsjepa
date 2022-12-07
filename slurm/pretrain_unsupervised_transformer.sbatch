@@ -10,4 +10,4 @@
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 #SBATCH --no-requeue
 source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
-srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config /usr/stud/roschman/ECGAnalysis/models/transformer/config_pretraining_transformer.yaml
+srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config_model /usr/stud/roschman/ECGAnalysis/models/transformer/config_pretraining_transformer.yaml --config_data /usr/stud/roschman/ECGAnalysis/data/uea_dataset.yaml
