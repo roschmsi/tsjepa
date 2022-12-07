@@ -17,7 +17,9 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from data.dataset import ECGDataset, classes, load_and_split_dataframe, normal_class
+from data.ecg_dataset import classes, load_ecg_dataset, normal_class
+from data.uea_dataset import load_uea_dataset
+from data.fc_dataset import load_fc_dataset
 from factory import model_factory, optimizer_factory, pipeline_factory
 from loss import get_loss
 from options import Options
@@ -55,38 +57,25 @@ def main(config):
     logger.addHandler(file_handler)
     logger.info("Running:\n{}\n".format(" ".join(sys.argv)))
 
-    # build ecg data
-    train_df, val_df, test_df = load_and_split_dataframe(
-        subset=config.data.subset, debug=config.debug
-    )
     if config.debug:
         config.training.batch_size = 1
         config.val_interval = 1000
 
-    train_dataset = ECGDataset(
-        train_df,
-        window=config.data.window,
-        num_windows=config.data.num_windows_train,
-        src_path=config.data.dir,
-        filter_bandwidth=config.data.filter_bandwidth,
-        fs=config.data.fs,
-    )
-    val_dataset = ECGDataset(
-        val_df,
-        window=config.data.window,
-        num_windows=config.data.num_windows_val,
-        src_path=config.data.dir,
-        filter_bandwidth=config.data.filter_bandwidth,
-        fs=config.data.fs,
-    )
-    test_dataset = ECGDataset(
-        test_df,
-        window=config.data.window,
-        num_windows=config.data.num_windows_test,
-        src_path=config.data.dir,
-        filter_bandwidth=config.data.filter_bandwidth,
-        fs=config.data.fs,
-    )
+    # build ecg data
+    if config.data.type == "ecg":
+        train_dataset, val_dataset, test_dataset = load_ecg_dataset(config)
+    elif config.data.type == "uea":
+        train_dataset, val_dataset, test_dataset, config_data = load_uea_dataset(
+            config.data, debug=config.debug
+        )
+        config.data = config_data
+    elif config.data.type == "uea":
+        train_dataset, val_dataset, test_dataset, config_data = load_fc_dataset(
+            config.data, debug=config.debug
+        )
+        config.data = config_data
+    else:
+        raise ValueError("Dataset type is not specified")
 
     # create model
     logger.info("Creating model ...")
@@ -130,7 +119,10 @@ def main(config):
     # initialize data generator and runner
     dataset_class, collate_fn, runner_class = pipeline_factory(config)
 
-    max_len = config.data.window * config.data.fs
+    if "max_seq_len" in config.data.keys():
+        max_len = config.data.max_seq_len
+    else:
+        max_len = config.data.window * config.data.fs
 
     if config.test:  # Only evaluate and skip training
         test_dataset = dataset_class(test_dataset)
@@ -149,6 +141,7 @@ def main(config):
             loss_module,
             print_interval=config["print_interval"],
             console=config["console"],
+            multilabel=config.data.multilabel,
         )
 
         aggr_metrics_test, _ = test_evaluator.evaluate(keep_all=True)
@@ -179,6 +172,7 @@ def main(config):
         l2_reg=None,
         print_interval=config["print_interval"],
         console=config["console"],
+        multilabel=config.data.multilabel,
     )
 
     val_dataset = dataset_class(val_dataset)
@@ -197,6 +191,7 @@ def main(config):
         loss_module,
         print_interval=config["print_interval"],
         console=config["console"],
+        multilabel=config.data.multilabel,
     )
 
     tb_writer = SummaryWriter(config.output_dir)

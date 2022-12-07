@@ -65,6 +65,7 @@ def create_output_directory(config):
     formatted_timestamp = initial_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
     config["initial_timestamp"] = formatted_timestamp
     formatted_model_config = (
+        f"_data={config.data.type}"
         f"_set={config.data.subset}_window={config.data.window}_fs={config.data.fs}"
         f"_bs={config.training.batch_size}_lr={config.training.batch_size}"
     )
@@ -101,9 +102,9 @@ def setup(args):
         config: configuration dictionary
     """
     config = args.__dict__  # configuration dictionary
-    model_config = load_config_yaml(config["config_path"])
+    model_config = load_config_yaml(config["config_model"])
     config.update(model_config)
-    data_config = load_config_yaml("data/dataset.yaml")
+    data_config = load_config_yaml(config["config_data"])  # "data/dataset.yaml"
     config.update(data_config)
     config = EasyDict(config)
 

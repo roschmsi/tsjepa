@@ -10,6 +10,8 @@ from loss import l2_reg_loss
 from physionet_evaluation.evaluate_12ECG_score import compute_auc
 from utils import Printer, readable_time, save_model
 
+from sklearn.metrics import roc_auc_score
+
 logger = logging.getLogger("__main__")
 val_times = {"total_time": 0, "count": 0}
 
@@ -85,6 +87,7 @@ class BaseRunner(object):
         l2_reg=None,
         print_interval=10,
         console=True,
+        multilabel=False,
     ):
 
         self.model = model
@@ -95,6 +98,7 @@ class BaseRunner(object):
         self.l2_reg = l2_reg
         self.print_interval = print_interval
         self.printer = Printer(console=console)
+        self.multilabel = multilabel
 
         self.epoch_metrics = OrderedDict()
 
@@ -259,7 +263,9 @@ class SupervisedRunner(BaseRunner):
             predictions = self.model(X, padding_masks)
 
             # (batch_size,) loss for each sample in the batch
-            loss = torch.mean(self.loss_module(predictions, targets), axis=1)
+            # TODO make sure that loss has here dimension Nx1
+            # loss = torch.mean(self.loss_module(predictions, targets), axis=1)
+            loss = self.loss_module(predictions, targets)
             batch_loss = torch.sum(loss)
             # mean loss (over samples) used for optimization
             mean_loss = batch_loss / len(loss)
@@ -299,7 +305,13 @@ class SupervisedRunner(BaseRunner):
 
         lbls = np.concatenate(lbls)
         probs = np.concatenate(probs)
-        auroc, auprc = compute_auc(lbls, probs)
+
+        if self.multilabel:
+            auroc, _ = compute_auc(lbls, probs)
+        else:
+            probs = torch.nn.functional.softmax(torch.from_numpy(probs), dim=1).numpy()
+            auroc = roc_auc_score(lbls, probs, multi_class="ovo")
+
         self.epoch_metrics["auroc"] = auroc
 
         return self.epoch_metrics
@@ -332,7 +344,9 @@ class SupervisedRunner(BaseRunner):
             predictions = self.model(X, padding_masks)
 
             # (batch_size,) loss for each sample in the batch
-            loss = torch.mean(self.loss_module(predictions, targets), axis=1)
+            # TODO make sure that dimension is Nx1
+            # loss = torch.mean(self.loss_module(predictions, targets), axis=1)
+            loss = self.loss_module(predictions, targets)
             batch_loss = torch.sum(loss)
             # mean loss (over samples) used for optimization
             mean_loss = batch_loss / len(loss)
@@ -360,7 +374,13 @@ class SupervisedRunner(BaseRunner):
 
         lbls = np.concatenate(lbls)
         probs = np.concatenate(probs)
-        auroc, auprc = compute_auc(lbls, probs)
+
+        if self.multilabel:
+            auroc, _ = compute_auc(lbls, probs)
+        else:
+            probs = torch.nn.functional.softmax(torch.from_numpy(probs), dim=1).numpy()
+            auroc = roc_auc_score(lbls, probs, multi_class="ovo")
+
         self.epoch_metrics["auroc"] = auroc
 
         if keep_all:

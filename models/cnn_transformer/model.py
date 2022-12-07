@@ -207,3 +207,36 @@ class CNNEncoder(nn.Module):
         out = out.mean(-1)
         out = self.fc(out)
         return out
+
+
+class CNNEncoderInsectWingbeat(nn.Module):
+    def __init__(
+        self,
+        feat_dim,
+        d_model,
+        num_classes,
+    ):
+        super(CNNEncoderInsectWingbeat, self).__init__()
+
+        self.encoder = nn.Sequential(  # downsampling factor = 20
+            nn.Conv1d(feat_dim, 128, kernel_size=5, stride=1, padding=0, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(feat_dim, 128, kernel_size=3, stride=1, padding=0, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(feat_dim, 128, kernel_size=3, stride=1, padding=0, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            # nn.Conv1d(128, d_model, kernel_size=3, stride=1, padding=0, bias=False),
+            # nn.BatchNorm1d(d_model),
+            # nn.ReLU(inplace=True),
+        )
+        self.fc = nn.Linear(d_model, num_classes)
+
+    def forward(self, x, padding_mask=None):
+        x = x.transpose(1, 2)
+        out = self.encoder(x)  # encoded sequence is batch_sz x nb_ch x seq_len
+        out = out.mean(-1)
+        out = self.fc(out)
+        return out

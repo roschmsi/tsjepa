@@ -8,7 +8,11 @@ from data.dataset import (
     collate_superv,
     collate_unsuperv,
 )
-from models.cnn_transformer.model import CNNEncoder, CNNTransformer
+from models.cnn_transformer.model import (
+    CNNEncoder,
+    CNNEncoderInsectWingbeat,
+    CNNTransformer,
+)
 from models.fedformer.model import (
     CNNDecompTimeFreqEncoder,
     CNNFEDformerEncoder,
@@ -54,7 +58,10 @@ def optimizer_factory(config, model):
 
 def model_factory(config):
     feat_dim = config.data.feat_dim  # dimensionality of data features
-    max_seq_len = config.data.window * config.data.fs
+    if "max_seq_len" in config.data.keys():
+        max_seq_len = config.data.max_seq_len
+    else:
+        max_seq_len = config.data.window * config.data.fs
 
     if config.model.name == "pretraining_transformer":
         return TSTransformerEncoder(
@@ -111,6 +118,12 @@ def model_factory(config):
         return CNNDecompTimeFreqEncoder(config.model, config.data)
     elif config.model.name == "cnn_encoder":
         return CNNEncoder(
+            feat_dim=feat_dim,
+            d_model=config.model.d_model,
+            num_classes=config.data.num_classes,
+        )
+    elif config.model.name == "cnn_encoder_insectwingbeat":
+        return CNNEncoderInsectWingbeat(
             feat_dim=feat_dim,
             d_model=config.model.d_model,
             num_classes=config.data.num_classes,

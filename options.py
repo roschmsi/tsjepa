@@ -6,9 +6,14 @@ class Options(object):
         self.parser = argparse.ArgumentParser(description="Run pipeline for all models")
 
         self.parser.add_argument(
-            "--config",
-            dest="config_path",
-            help="Configuration .json file (optional). Overwrites existing command-line args!",
+            "--config_model",
+            dest="config_model",
+            help="model configuration",
+        )
+        self.parser.add_argument(
+            "--config_data",
+            dest="config_data",
+            help="dataset configuration",
         )
         self.parser.add_argument(
             "--description",
