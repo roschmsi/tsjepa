@@ -1,6 +1,6 @@
 import torch
 
-from data.dataset import ECGDataset, load_and_split_dataframe
+from data.ecg_dataset import ECGDataset, load_and_split_dataframe
 from options import Options
 from utils import (
     seed_everything,

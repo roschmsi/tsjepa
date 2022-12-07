@@ -1,0 +1,21 @@
+data:
+  type: "uea"
+  data_dir: "/usr/stud/roschman/datasets/Multivariate_ts/InsectWingbeat"  # InsectWingbeat"
+  pattern: "TRAIN"
+  val_pattern: "TEST"
+  test_pattern: null
+  test_from: null
+  limit_size: ""
+  task: "classification"
+  subset: null
+  window: null
+  fs: null
+  limit_size: null
+  test_only: False
+  normalization: 'standardization'
+  subsample_factor: null
+  test_ratio: 0
+  val_ratio: 0
+  output_dir: "/usr/stud/roschman/datasets"
+  norm_from: null
+  multilabel: False
