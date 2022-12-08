@@ -5,15 +5,36 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Run any model",
+            "name": "Train model",
             "type": "python",
             "request": "launch",
             "program": "/usr/stud/roschman/ECGAnalysis/main.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "--config",
+                "--config_model",
+                "/usr/stud/roschman/ECGAnalysis/models/cnn_transformer/config_cnn_encoder.yaml",
+                "--config_data",
+                "/usr/stud/roschman/ECGAnalysis/data/fc_dataset.yaml",
+                "--debug",
+            ]
+        },
+        {
+            "name": "Test data",
+            "type": "python",
+            "request": "launch",
+            "program": "/usr/stud/roschman/ECGAnalysis/data/uea_dataset.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "/usr/stud/roschman/ECGAnalysis/",
+            "env": {
+                "PYTHONPATH": "${cwd}"
+            },
+            "args": [
+                "--config_model",
                 "/usr/stud/roschman/ECGAnalysis/models/transformer/config_transformer.yaml",
+                "--config_data",
+                "/usr/stud/roschman/ECGAnalysis/data/uea_dataset.yaml",
                 "--debug",
             ]
         },
@@ -25,7 +46,7 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "--config",
+                "--config_model",
                 "/usr/stud/roschman/ECGAnalysis/models/transformer/config_transformer.yaml",
             ]
         }
