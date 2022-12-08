@@ -69,11 +69,10 @@ def main(config):
             config.data, debug=config.debug
         )
         config.data = config_data
-    elif config.data.type == "uea":
-        train_dataset, val_dataset, test_dataset, config_data = load_fc_dataset(
+    elif config.data.type == "fc":
+        train_dataset, val_dataset, test_dataset = load_fc_dataset(
             config.data, debug=config.debug
         )
-        config.data = config_data
     else:
         raise ValueError("Dataset type is not specified")
 

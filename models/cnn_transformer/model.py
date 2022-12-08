@@ -219,14 +219,14 @@ class CNNEncoderInsectWingbeat(nn.Module):
         super(CNNEncoderInsectWingbeat, self).__init__()
 
         self.encoder = nn.Sequential(  # downsampling factor = 20
-            nn.Conv1d(feat_dim, 128, kernel_size=5, stride=1, padding=0, bias=False),
-            nn.BatchNorm1d(128),
+            nn.Conv1d(feat_dim, 256, kernel_size=5, stride=1, padding=0, bias=False),
+            nn.BatchNorm1d(256),
             nn.ReLU(inplace=True),
-            nn.Conv1d(feat_dim, 128, kernel_size=3, stride=1, padding=0, bias=False),
-            nn.BatchNorm1d(128),
+            nn.Conv1d(256, 512, kernel_size=3, stride=1, padding=0, bias=False),
+            nn.BatchNorm1d(512),
             nn.ReLU(inplace=True),
-            nn.Conv1d(feat_dim, 128, kernel_size=3, stride=1, padding=0, bias=False),
-            nn.BatchNorm1d(128),
+            nn.Conv1d(512, d_model, kernel_size=3, stride=1, padding=0, bias=False),
+            nn.BatchNorm1d(d_model),
             nn.ReLU(inplace=True),
             # nn.Conv1d(128, d_model, kernel_size=3, stride=1, padding=0, bias=False),
             # nn.BatchNorm1d(d_model),

@@ -1,6 +1,6 @@
 model:
   name: "cnn_encoder_insectwingbeat"
-  d_model: 256
+  d_model: 1024
 training:
   epochs: 400
   batch_size: 8
