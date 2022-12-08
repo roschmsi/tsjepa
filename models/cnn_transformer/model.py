@@ -209,16 +209,16 @@ class CNNEncoder(nn.Module):
         return out
 
 
-class CNNEncoderInsectWingbeat(nn.Module):
+class CNNEncoder3L(nn.Module):
     def __init__(
         self,
         feat_dim,
         d_model,
         num_classes,
     ):
-        super(CNNEncoderInsectWingbeat, self).__init__()
+        super(CNNEncoder3L, self).__init__()
 
-        self.encoder = nn.Sequential(  # downsampling factor = 20
+        self.encoder = nn.Sequential(
             nn.Conv1d(feat_dim, 256, kernel_size=5, stride=1, padding=0, bias=False),
             nn.BatchNorm1d(256),
             nn.ReLU(inplace=True),
@@ -228,9 +228,12 @@ class CNNEncoderInsectWingbeat(nn.Module):
             nn.Conv1d(512, d_model, kernel_size=3, stride=1, padding=0, bias=False),
             nn.BatchNorm1d(d_model),
             nn.ReLU(inplace=True),
-            # nn.Conv1d(128, d_model, kernel_size=3, stride=1, padding=0, bias=False),
-            # nn.BatchNorm1d(d_model),
-            # nn.ReLU(inplace=True),
+            nn.Conv1d(d_model, d_model, kernel_size=3, stride=1, padding=0, bias=False),
+            nn.BatchNorm1d(d_model),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(d_model, d_model, kernel_size=3, stride=1, padding=0, bias=False),
+            nn.BatchNorm1d(d_model),
+            nn.ReLU(inplace=True),
         )
         self.fc = nn.Linear(d_model, num_classes)
 

@@ -10,7 +10,7 @@ from data.dataset import (
 )
 from models.cnn_transformer.model import (
     CNNEncoder,
-    CNNEncoderInsectWingbeat,
+    CNNEncoder3L,
     CNNTransformer,
 )
 from models.fedformer.model import (
@@ -122,8 +122,8 @@ def model_factory(config):
             d_model=config.model.d_model,
             num_classes=config.data.num_classes,
         )
-    elif config.model.name == "cnn_encoder_insectwingbeat":
-        return CNNEncoderInsectWingbeat(
+    elif config.model.name == "cnn_encoder_3l":
+        return CNNEncoder3L(
             feat_dim=feat_dim,
             d_model=config.model.d_model,
             num_classes=config.data.num_classes,
