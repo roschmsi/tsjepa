@@ -67,7 +67,7 @@ def create_output_directory(config):
     formatted_model_config = (
         f"_data={config.data.type}"
         f"_set={config.data.subset}_window={config.data.window}_fs={config.data.fs}"
-        f"_bs={config.training.batch_size}_lr={config.training.batch_size}"
+        f"_bs={config.training.batch_size}_lr={config.training.lr}"
     )
     formatted_model_config += check_config(config)
 
