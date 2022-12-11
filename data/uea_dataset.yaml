@@ -19,3 +19,4 @@ data:
   output_dir: "/usr/stud/roschman/datasets"
   norm_from: null
   multilabel: False
+  augment: True

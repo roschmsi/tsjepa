@@ -60,6 +60,7 @@ def main(config):
     if config.debug:
         config.training.batch_size = 1
         config.val_interval = 1000
+        config.data.augment = False
 
     # build ecg data
     if config.data.type == "ecg":

@@ -13,9 +13,9 @@
             "justMyCode": true,
             "args": [
                 "--config_model",
-                "/usr/stud/roschman/ECGAnalysis/models/cnn_transformer/config_cnn_encoder.yaml",
+                "/usr/stud/roschman/ECGAnalysis/models/transformer/config_transformer.yaml",
                 "--config_data",
-                "/usr/stud/roschman/ECGAnalysis/data/fc_dataset.yaml",
+                "/usr/stud/roschman/ECGAnalysis/data/ecg_dataset.yaml",
                 "--debug",
             ]
         },
@@ -35,6 +35,25 @@
                 "/usr/stud/roschman/ECGAnalysis/models/transformer/config_transformer.yaml",
                 "--config_data",
                 "/usr/stud/roschman/ECGAnalysis/data/uea_dataset.yaml",
+                "--debug",
+            ]
+        },
+        {
+            "name": "Test augmentation",
+            "type": "python",
+            "request": "launch",
+            "program": "/usr/stud/roschman/ECGAnalysis/data/test_augmentation.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "/usr/stud/roschman/ECGAnalysis/",
+            "env": {
+                "PYTHONPATH": "${cwd}"
+            },
+            "args": [
+                "--config_model",
+                "/usr/stud/roschman/ECGAnalysis/models/transformer/config_transformer.yaml",
+                "--config_data",
+                "/usr/stud/roschman/ECGAnalysis/data/ecg_dataset.yaml",
                 "--debug",
             ]
         },

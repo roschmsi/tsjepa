@@ -24,6 +24,7 @@ from models.transformer.model import (
     TSTransformerEncoder,
     TSTransformerEncoderClassifier,
 )
+from models.transformer.optimizer import RAdam
 from runner import SupervisedRunner, UnsupervisedRunner
 
 
@@ -52,7 +53,11 @@ def pipeline_factory(config):
 
 def optimizer_factory(config, model):
     # for initial experiments only use Adam optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.training.lr)
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=config.training.lr,
+        #  weight_decay=0.1
+    )
     return optimizer
 
 

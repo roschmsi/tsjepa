@@ -1,16 +1,12 @@
 data:
   type: "fc"
   window: 10  # sec
-  num_windows_train: 1
-  num_windows_val: 1
-  num_windows_test: 1
   fs: 250  # Hz
-  filter_bandwidth: [3, 45]  # Hz
   num_classes: 7
   feat_dim: 7
   subset: "all"
   multilabel: True
-
+  augment: True
   root_path: "/usr/stud/roschman/datasets/forecasting_datasets/ETT-small"
   data_path: "ETTm1.csv"
   data: ETTm1

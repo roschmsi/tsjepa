@@ -5,6 +5,8 @@ from scipy.io import loadmat
 from scipy.signal import decimate, resample
 from biosppy.signals.tools import filter_signal
 import pandas as pd
+from data.augmentation import Augmenter, augment
+import random
 
 
 classes = sorted(
@@ -50,6 +52,12 @@ def load_ecg_dataset(config):
     # filter for ptb-xl data
     if config.data.subset == "ptb-xl":
         data_df = data_df[data_df["Patient"].str.contains("HR")].reset_index(drop=True)
+    elif config.data.subset == "ptb-xl-5000":
+        data_df = data_df[data_df["Patient"].str.contains("HR")].reset_index(drop=True)
+        data_df = data_df[:5000]
+    elif config.data.subset == "ptb-xl-1000":
+        data_df = data_df[data_df["Patient"].str.contains("HR")].reset_index(drop=True)
+        data_df = data_df[:1000]
     elif config.data.subset == "all":
         pass
     else:
@@ -76,6 +84,7 @@ def load_ecg_dataset(config):
         src_path=config.data.dir,
         filter_bandwidth=config.data.filter_bandwidth,
         fs=config.data.fs,
+        aug=config.data.augment,
     )
     val_dataset = ECGDataset(
         val_df,
@@ -84,6 +93,7 @@ def load_ecg_dataset(config):
         src_path=config.data.dir,
         filter_bandwidth=config.data.filter_bandwidth,
         fs=config.data.fs,
+        aug=False,
     )
     test_dataset = ECGDataset(
         test_df,
@@ -92,24 +102,27 @@ def load_ecg_dataset(config):
         src_path=config.data.dir,
         filter_bandwidth=config.data.filter_bandwidth,
         fs=config.data.fs,
+        aug=False,
     )
 
     return train_dataset, val_dataset, test_dataset
 
 
 class ECGDataset(Dataset):
-    def __init__(self, df, window, num_windows, src_path, filter_bandwidth, fs):
+    def __init__(self, df, window, num_windows, src_path, filter_bandwidth, fs, aug):
         """Return randome window length segments from ecg signal, pad if window is too large
         df: trn_df, val_df or tst_df
         window: ecg window length e.g 2500 (5 seconds)
         nb_windows: number of windows to sample from record
         """
         self.df = df
-        self.window = window * fs
+        self.window = window
         self.num_windows = num_windows
         self.src_path = Path(src_path)
         self.filter_bandwidth = filter_bandwidth
         self.fs = fs
+        self.augment = aug
+        self.augmentation_prob = 0.5
 
     def __len__(self):
         return len(self.df)
@@ -136,6 +149,15 @@ class ECGDataset(Dataset):
 
         # starts = np.random.randint(seq_len - self.window + 1, size=self.nb_windows) # get start indices of ecg segment
         # data = np.array([data[:,start:start+self.window] for start in starts])
+
+        if self.augment and random.random() < self.augmentation_prob:
+            data = np.expand_dims(data.transpose(), 0)
+            data = augment(
+                data,
+                length=data.shape[1],
+                sample_rate=self.fs,
+            )
+            data = data.squeeze().transpose()
 
         return data.transpose(), lbl
 
