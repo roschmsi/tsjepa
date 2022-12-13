@@ -20,6 +20,7 @@ from models.fedformer.model import (
     DecompFEDformerEncoder,
     FEDformerEncoder,
 )
+from models.residual_cnn_att.model import ResidualCNNAtt
 from models.transformer.model import (
     TSTransformerEncoder,
     TSTransformerEncoderClassifier,
@@ -53,11 +54,14 @@ def pipeline_factory(config):
 
 def optimizer_factory(config, model):
     # for initial experiments only use Adam optimizer
-    optimizer = torch.optim.Adam(
-        model.parameters(),
-        lr=config.training.lr,
-        #  weight_decay=0.1
-    )
+    if config.training.optimizer == "Adam":
+        optimizer = torch.optim.Adam(
+            model.parameters(),
+            lr=config.training.lr,
+            weight_decay=config.training.weight_decay,
+        )
+    elif config.training.optimizer == "RAdam":
+        optimizer = RAdam(model.parameters(), lr=config.training.lr)
     return optimizer
 
 
@@ -133,6 +137,8 @@ def model_factory(config):
             d_model=config.model.d_model,
             num_classes=config.data.num_classes,
         )
+    elif config.model.name == "residual_cnn_att":
+        return ResidualCNNAtt(nOUT=config.data.num_classes)
     else:
         raise ValueError(
             "Model class for task '{}' does not exist".format(config["task"])
