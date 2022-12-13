@@ -20,6 +20,22 @@ logger = logging.getLogger(__name__)
 
 def check_config(config):
     dir = ""
+    # check for dataset
+    if "set" in config.data.keys():
+        dir += f"_set={config.data.subset}"
+    if "window" in config.data.keys():
+        dir += f"_window={config.data.window}"
+    if "fs" in config.data.keys():
+        dir += f"_fs={config.data.fs}"
+
+    # check for training parameters
+    if "batch_size" in config.training.keys():
+        dir += f"_bs={config.training.batch_size}"
+    if "optimizer" in config.training.keys():
+        dir += f"_opt={config.training.optimizer}"
+    if "lr" in config.training.keys():
+        dir += f"_lr={config.training.lr}"
+
     # check for transformer parameters
     if "d_model" in config.model.keys():
         dir += f"_dmodel={config.model.d_model}"
@@ -64,11 +80,8 @@ def create_output_directory(config):
     output_dir = os.path.join(output_dir, config.model.name)
     formatted_timestamp = initial_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
     config["initial_timestamp"] = formatted_timestamp
-    formatted_model_config = (
-        f"_data={config.data.type}"
-        f"_set={config.data.subset}_window={config.data.window}_fs={config.data.fs}"
-        f"_bs={config.training.batch_size}_lr={config.training.lr}"
-    )
+
+    formatted_model_config = f"_data={config.data.type}"
     formatted_model_config += check_config(config)
 
     if not config.description == "":
