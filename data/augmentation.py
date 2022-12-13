@@ -74,17 +74,17 @@ class Augmenter:
 
 def augment(X, length, sample_rate):
     policy = [
-        AddNoise(loc=0, scale=(0.1, 0.5)),
+        AddNoise(loc=0, scale=(0.1, 0.2)),
         Crop(
             size=(
-                int(0.5 * length),
+                int(0.8 * length),
                 int(1.0 * length),
             ),
             resize=int(length),
         ),
-        Drift(max_drift=0.5, kind="multiplicative"),
+        Drift(max_drift=0.25, kind="multiplicative"),
         Dropout(
-            p=0.1,
+            p=0.05,
             fill=0,
             size=[
                 # int(0.001 * sample_rate),
@@ -94,9 +94,9 @@ def augment(X, length, sample_rate):
             ],
         ),
         Pool(size=[2, 3, 5]),
-        Quantize(n_levels=[10, 20, 30]),
+        Quantize(n_levels=[5, 10, 15]),
         Reverse(),
-        TimeWarp(n_speed_change=3, max_speed_ratio=(2, 3)),
+        # TimeWarp(n_speed_change=3, max_speed_ratio=(2, 3)),
     ]
 
     idx = int(np.random.choice(len(policy), size=1))
