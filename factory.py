@@ -114,6 +114,7 @@ def model_factory(config):
             num_classes=config.data.num_classes,
             max_seq_len=max_seq_len,
             dropout=config.model.dropout,
+            num_cnn=config.model.num_cnn,
         )
     elif config.model.name == "fedformer_encoder":
         return FEDformerEncoder(config.model, config.data)
@@ -130,6 +131,7 @@ def model_factory(config):
             feat_dim=feat_dim,
             d_model=config.model.d_model,
             num_classes=config.data.num_classes,
+            num_cnn=config.model.num_cnn,
         )
     elif config.model.name == "cnn_encoder_3l":
         return CNNEncoder3L(

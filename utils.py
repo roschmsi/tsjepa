@@ -49,6 +49,8 @@ def check_config(config):
         dir += f"_dropout={config.model.dropout}"
     if "pos_encoding" in config.model.keys():
         dir += f"_pe={config.model.pos_encoding}"
+    if "num_cnn" in config.model.keys():
+        dir += f"_num_cnn={config.model.num_cnn}"
 
     # check for pretraining parameters
     if "masking_ratio" in config.model.keys():

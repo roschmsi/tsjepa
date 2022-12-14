@@ -88,6 +88,7 @@ class BaseRunner(object):
         print_interval=10,
         console=True,
         multilabel=False,
+        scheduler=None,
     ):
 
         self.model = model
@@ -99,6 +100,7 @@ class BaseRunner(object):
         self.print_interval = print_interval
         self.printer = Printer(console=console)
         self.multilabel = multilabel
+        self.scheduler = scheduler
 
         self.epoch_metrics = OrderedDict()
 
@@ -305,6 +307,9 @@ class SupervisedRunner(BaseRunner):
 
         lbls = np.concatenate(lbls)
         probs = np.concatenate(probs)
+
+        if self.scheduler:
+            self.scheduler.step()
 
         if self.multilabel:
             auroc, _ = compute_auc(lbls, probs)

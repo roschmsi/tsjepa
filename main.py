@@ -38,6 +38,8 @@ from utils import (
     setup,
 )
 
+import torch.optim as optim
+
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO
 )
@@ -65,7 +67,7 @@ def main(config):
     # build ecg data
     if config.data.type == "ecg":
         train_dataset, val_dataset, test_dataset = load_ecg_dataset(config)
-    elif config.data.type == "uea":
+    elif config.data.type in ["insect_wingbeat", "phoneme_spectra"]:
         train_dataset, val_dataset, test_dataset, config_data = load_uea_dataset(
             config.data, debug=config.debug
         )
@@ -97,6 +99,10 @@ def main(config):
     )
 
     optimizer = optimizer_factory(config, model)
+    if config.training.scheduler:
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
+    else:
+        scheduler = None
 
     # options to continue training from previous model
     start_epoch = 0
@@ -173,6 +179,7 @@ def main(config):
         print_interval=config["print_interval"],
         console=config["console"],
         multilabel=config.data.multilabel,
+        scheduler=scheduler,
     )
 
     val_dataset = dataset_class(val_dataset)

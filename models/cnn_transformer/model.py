@@ -122,17 +122,24 @@ class CNNTransformer(nn.Module):
         num_classes,
         max_seq_len,
         dropout,
+        num_cnn,
     ):
         super(CNNTransformer, self).__init__()
 
-        self.encoder = nn.Sequential(  # downsampling factor = 20
-            nn.Conv1d(feat_dim, 128, kernel_size=14, stride=3, padding=2, bias=False),
-            nn.BatchNorm1d(128),
+        modules = [
+            nn.Conv1d(
+                feat_dim, d_model, kernel_size=14, stride=3, padding=2, bias=False
+            ),
+            nn.BatchNorm1d(d_model),
             nn.ReLU(inplace=True),
-            nn.Conv1d(128, 256, kernel_size=14, stride=3, padding=0, bias=False),
-            nn.BatchNorm1d(256),
+            nn.Conv1d(
+                d_model, d_model, kernel_size=14, stride=3, padding=0, bias=False
+            ),
+            nn.BatchNorm1d(d_model),
             nn.ReLU(inplace=True),
-            nn.Conv1d(256, d_model, kernel_size=10, stride=2, padding=0, bias=False),
+            nn.Conv1d(
+                d_model, d_model, kernel_size=10, stride=2, padding=0, bias=False
+            ),
             nn.BatchNorm1d(d_model),
             nn.ReLU(inplace=True),
             nn.Conv1d(
@@ -150,7 +157,13 @@ class CNNTransformer(nn.Module):
             ),
             nn.BatchNorm1d(d_model),
             nn.ReLU(inplace=True),
-        )
+        ]
+
+        modules = modules[: (3 * num_cnn)]
+
+        self.encoder = nn.Sequential(*modules)
+
+        # self.encoder = nn.Linear(feat_dim, d_model)
         self.transformer = Transformer(
             d_model, num_heads, d_ff, num_layers, max_seq_len, dropout=dropout
         )
@@ -159,6 +172,8 @@ class CNNTransformer(nn.Module):
     def forward(self, x, padding_mask=None):
         x = x.transpose(1, 2)
         z = self.encoder(x)  # encoded sequence is batch_sz x nb_ch x seq_len
+        # z = self.encoder(x)  # for linear encoder
+        # z = z.transpose(1, 2)
         out = self.transformer(z)  # transformer output is batch_sz x d_model
         out = self.fc(out)
         return out
@@ -170,17 +185,24 @@ class CNNEncoder(nn.Module):
         feat_dim,
         d_model,
         num_classes,
+        num_cnn,
     ):
         super(CNNEncoder, self).__init__()
 
-        self.encoder = nn.Sequential(  # downsampling factor = 20
-            nn.Conv1d(feat_dim, 128, kernel_size=14, stride=3, padding=2, bias=False),
-            nn.BatchNorm1d(128),
+        modules = [
+            nn.Conv1d(
+                feat_dim, d_model, kernel_size=14, stride=3, padding=2, bias=False
+            ),
+            nn.BatchNorm1d(d_model),
             nn.ReLU(inplace=True),
-            nn.Conv1d(128, 256, kernel_size=14, stride=3, padding=0, bias=False),
-            nn.BatchNorm1d(256),
+            nn.Conv1d(
+                d_model, d_model, kernel_size=14, stride=3, padding=0, bias=False
+            ),
+            nn.BatchNorm1d(d_model),
             nn.ReLU(inplace=True),
-            nn.Conv1d(256, d_model, kernel_size=10, stride=2, padding=0, bias=False),
+            nn.Conv1d(
+                d_model, d_model, kernel_size=10, stride=2, padding=0, bias=False
+            ),
             nn.BatchNorm1d(d_model),
             nn.ReLU(inplace=True),
             nn.Conv1d(
@@ -198,7 +220,11 @@ class CNNEncoder(nn.Module):
             ),
             nn.BatchNorm1d(d_model),
             nn.ReLU(inplace=True),
-        )
+        ]
+
+        modules = modules[: (3 * num_cnn)]
+        self.encoder = nn.Sequential(*modules)
+
         self.fc = nn.Linear(d_model, num_classes)
 
     def forward(self, x, padding_mask=None):
