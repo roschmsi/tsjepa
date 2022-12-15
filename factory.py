@@ -20,6 +20,7 @@ from models.fedformer.model import (
     DecompFEDformerEncoder,
     FEDformerEncoder,
 )
+from models.gtn.model import GatedTransformer
 from models.residual_cnn_att.model import ResidualCNNAtt
 from models.transformer.model import (
     TSTransformerEncoder,
@@ -141,6 +142,23 @@ def model_factory(config):
         )
     elif config.model.name == "residual_cnn_att":
         return ResidualCNNAtt(nOUT=config.data.num_classes)
+    elif config.model.name == "gtn":
+        DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        return GatedTransformer(
+            d_model=config.model.d_model,
+            d_input=max_seq_len,
+            d_channel=feat_dim,
+            d_output=config.data.num_classes,
+            d_hidden=config.model.d_ff,
+            q=config.model.q,
+            v=config.model.v,
+            h=config.model.h,
+            num_layers=config.model.num_layers,
+            dropout=config.model.dropout,
+            pe=True,
+            mask=config.model.mask,
+            device=DEVICE,
+        )
     else:
         raise ValueError(
             "Model class for task '{}' does not exist".format(config["task"])

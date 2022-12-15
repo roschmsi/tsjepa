@@ -1,0 +1,27 @@
+model:
+  name: "gtn"
+  d_model: 256
+  d_ff: 512
+  # num_heads: 8
+  num_layers: 4
+  q: 8
+  v: 8
+  h: 8
+  mask: True
+  dropout: 0.2
+  pos_encoding: fixed                                                                
+training:
+  optimizer: Adam
+  epochs: 400
+  batch_size: 8
+  num_workers: 4
+  lr: 0.0001
+  weight_decay: 0
+  patience: 20
+  scheduler: False
+evaluation:
+  beta: 2
+  class_weights: null
+  weights_file: "/usr/stud/roschman/ECGAnalysis/physionet_evaluation/weights.csv"
+output_dir: "/usr/stud/roschman/ECGAnalysis/output"
+task: "classification"
