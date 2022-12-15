@@ -1,12 +1,16 @@
 model:
-  name: "cnn_encoder_3l"
-  d_model: 1024
+  name: "cnn_encoder"
+  d_model: 256
+  num_cnn: 5
 training:
   epochs: 400
   batch_size: 32
   num_workers: 4
   patience: 20
+  optimizer: Adam
   lr: 0.0001
+  weight_decay: 0
+  scheduler: False
 evaluation:
   beta: 2
   class_weights: null

@@ -1,10 +1,7 @@
 data:
   type: "fc"
-  window: 10  # sec
-  fs: 250  # Hz
   num_classes: 7
   feat_dim: 7
-  subset: "all"
   multilabel: True
   augment: True
   root_path: "/usr/stud/roschman/datasets/forecasting_datasets/ETT-small"

@@ -1,15 +1,12 @@
 data:
-  type: "uea"
-  data_dir: "/usr/stud/roschman/datasets/Multivariate_ts/InsectWingbeat"  # InsectWingbeat"
+  type: "phoneme_spectra"
+  data_dir: "/usr/stud/roschman/datasets/Multivariate_ts/PhonemeSpectra"
   pattern: "TRAIN"
   val_pattern: "TEST"
   test_pattern: null
   test_from: null
   limit_size: ""
   task: "classification"
-  subset: null
-  window: null
-  fs: null
   limit_size: null
   test_only: False
   normalization: 'standardization'
