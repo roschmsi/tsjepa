@@ -13,7 +13,7 @@
             "justMyCode": true,
             "args": [
                 "--config_model",
-                "/usr/stud/roschman/ECGAnalysis/models/transformer/config_transformer.yaml",
+                "/usr/stud/roschman/ECGAnalysis/models/gtn/config_gtn.yaml",
                 "--config_data",
                 "/usr/stud/roschman/ECGAnalysis/data/ecg_dataset.yaml",
                 "--debug",
@@ -32,9 +32,9 @@
             },
             "args": [
                 "--config_model",
-                "/usr/stud/roschman/ECGAnalysis/models/transformer/config_transformer.yaml",
+                "/usr/stud/roschman/ECGAnalysis/models/transformer/config_cnn_transformer.yaml",
                 "--config_data",
-                "/usr/stud/roschman/ECGAnalysis/data/uea_dataset.yaml",
+                "/usr/stud/roschman/ECGAnalysis/data/ecg_dataset.yaml",
                 "--debug",
             ]
         },
