@@ -5,8 +5,10 @@ from torch.nn import functional as F
 
 
 def get_loss(config):
-    if config["task"] == "imputation":
+    if config["task"] == "imputation" and not config.model.use_patch:
         return MaskedMSELoss(reduction="none")
+    if config["task"] == "imputation" and config.model.use_patch:
+        return MaskedPatchLoss()
     elif config["task"] == "classification":
         if config.data.multilabel:
             return BCEWithLogitsLoss(reduction="none")
@@ -47,7 +49,6 @@ class MaskedMSELoss(nn.Module):
     """Masked MSE Loss"""
 
     def __init__(self, reduction: str = "mean"):
-
         super().__init__()
 
         self.reduction = reduction
@@ -76,3 +77,14 @@ class MaskedMSELoss(nn.Module):
         masked_true = torch.masked_select(y_true, mask)
 
         return self.mse_loss(masked_pred, masked_true)
+
+
+class MaskedPatchLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, preds, target, mask):
+        loss = (preds - target) ** 2
+        loss = loss.mean(dim=-1)
+        loss = (loss * mask).sum() / mask.sum()
+        return loss

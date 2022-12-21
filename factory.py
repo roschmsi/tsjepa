@@ -4,7 +4,11 @@ import torch
 
 from data.dataset import (
     ClassificationDataset,
+    ClassificationPatchDataset,
     ImputationDataset,
+    ImputationPatchDataset,
+    collate_patch_superv,
+    collate_patch_unsuperv,
     collate_superv,
     collate_unsuperv,
 )
@@ -27,14 +31,16 @@ from models.transformer.model import (
     TSTransformerEncoderClassifier,
 )
 from models.transformer.optimizer import RAdam
-from runner import SupervisedRunner, UnsupervisedRunner
+from runner import SupervisedRunner, UnsupervisedPatchRunner, UnsupervisedRunner
+
+from models.patch_tst.model import PatchTST
 
 
 def pipeline_factory(config):
     """For the task specified in the configuration returns the corresponding combination of
     Dataset class, collate function and Runner class."""
 
-    if config["task"] == "imputation":
+    if config["task"] == "imputation" and not config.model.use_patch:
         return (
             partial(
                 ImputationDataset,
@@ -47,8 +53,29 @@ def pipeline_factory(config):
             collate_unsuperv,
             UnsupervisedRunner,
         )
-    elif config["task"] == "classification":
+    elif config["task"] == "imputation" and config.model.use_patch:
+        return (
+            partial(
+                ImputationPatchDataset,
+                masking_ratio=config.model["masking_ratio"],
+                patch_len=config.model.patch_len,
+                stride=config.model.stride,
+            ),
+            collate_patch_unsuperv,
+            UnsupervisedPatchRunner,
+        )
+    elif config["task"] == "classification" and not config.model.use_patch:
         return ClassificationDataset, collate_superv, SupervisedRunner
+    elif config["task"] == "classification" and config.model.use_patch:
+        return (
+            partial(
+                ClassificationPatchDataset,
+                patch_len=config.model.patch_len,
+                stride=config.model.stride,
+            ),
+            collate_patch_superv,
+            SupervisedRunner,
+        )
     else:
         raise NotImplementedError("Task '{}' not implemented".format(config["task"]))
 
@@ -67,7 +94,6 @@ def optimizer_factory(config, model):
 
 
 def model_factory(config):
-    feat_dim = config.data.feat_dim  # dimensionality of data features
     if "max_seq_len" in config.data.keys():
         max_seq_len = config.data.max_seq_len
     else:
@@ -75,7 +101,7 @@ def model_factory(config):
 
     if config.model.name == "pretraining_transformer":
         return TSTransformerEncoder(
-            feat_dim=feat_dim,
+            feat_dim=config.data.feat_dim,
             max_len=max_seq_len,
             d_model=config.model["d_model"],
             num_heads=config.model["num_heads"],
@@ -92,7 +118,7 @@ def model_factory(config):
         or config.model.name == "finetuning_transformer"
     ):
         return TSTransformerEncoderClassifier(
-            feat_dim=feat_dim,
+            feat_dim=config.data.feat_dim,
             max_len=max_seq_len,
             d_model=config.model["d_model"],
             num_heads=config.model["num_heads"],
@@ -107,7 +133,7 @@ def model_factory(config):
         )
     elif config.model.name == "cnn_transformer":
         return CNNTransformer(
-            feat_dim=feat_dim,
+            feat_dim=config.data.feat_dim,
             d_model=config.model.d_model,
             num_heads=config.model.num_heads,
             d_ff=config.model.d_ff,
@@ -129,14 +155,14 @@ def model_factory(config):
         return CNNDecompTimeFreqEncoder(config.model, config.data)
     elif config.model.name == "cnn_encoder":
         return CNNEncoder(
-            feat_dim=feat_dim,
+            feat_dim=config.data.feat_dim,
             d_model=config.model.d_model,
             num_classes=config.data.num_classes,
             num_cnn=config.model.num_cnn,
         )
     elif config.model.name == "cnn_encoder_3l":
         return CNNEncoder3L(
-            feat_dim=feat_dim,
+            feat_dim=config.data.feat_dim,
             d_model=config.model.d_model,
             num_classes=config.data.num_classes,
         )
@@ -147,7 +173,7 @@ def model_factory(config):
         return GatedTransformer(
             d_model=config.model.d_model,
             d_input=max_seq_len,
-            d_channel=feat_dim,
+            d_channel=config.data.feat_dim,
             d_output=config.data.num_classes,
             d_hidden=config.model.d_ff,
             q=config.model.q,
@@ -158,6 +184,72 @@ def model_factory(config):
             pe=True,
             mask=config.model.mask,
             device=DEVICE,
+        )
+    elif config.model.name == "finetuning_patch_tst":
+        num_patch = (
+            max(max_seq_len, config.model.patch_len) - config.model.patch_len
+        ) // config.model.stride + 1
+        return PatchTST(
+            c_in=config.data.feat_dim,
+            target_dim=config.data.num_classes,
+            patch_len=config.model.patch_len,
+            stride=config.model.stride,
+            num_patch=num_patch,
+            n_layers=config.model.num_layers,
+            n_heads=config.model.num_heads,
+            d_model=config.model.d_model,
+            shared_embedding=True,
+            d_ff=config.model.d_ff,
+            dropout=config.model.dropout,
+            head_dropout=config.model.head_dropout,
+            act="relu",
+            head_type="classification",
+            res_attention=False,
+        )
+    elif config.model.name == "pretraining_patch_tst":
+        num_patch = (
+            max(max_seq_len, config.model.patch_len) - config.model.patch_len
+        ) // config.model.stride + 1
+        print("number of patches:", num_patch)
+        return PatchTST(
+            c_in=config.data.feat_dim,
+            target_dim=config.data.feat_dim,
+            patch_len=config.model.patch_len,
+            stride=config.model.stride,
+            num_patch=num_patch,
+            n_layers=config.model.num_layers,
+            n_heads=config.model.num_heads,
+            d_model=config.model.d_model,
+            shared_embedding=True,
+            d_ff=config.model.d_ff,
+            dropout=config.model.dropout,
+            head_dropout=config.model.head_dropout,
+            act="relu",
+            head_type="pretrain",
+            res_attention=False,
+        )
+    elif config.model.name == "patch_tst":
+        num_patch = (
+            max(max_seq_len, config.model.patch_len) - config.model.patch_len
+        ) // config.model.stride + 1
+        print("number of patches:", num_patch)
+
+        return PatchTST(
+            c_in=config.data.feat_dim,
+            target_dim=config.data.num_classes,
+            patch_len=config.model.patch_len,
+            stride=config.model.stride,
+            num_patch=num_patch,
+            n_layers=config.model.num_layers,
+            n_heads=config.model.num_heads,
+            d_model=config.model.d_model,
+            shared_embedding=True,
+            d_ff=config.model.d_ff,
+            dropout=config.model.dropout,
+            head_dropout=config.model.head_dropout,
+            act="relu",
+            head_type="classification",
+            res_attention=False,
         )
     else:
         raise ValueError(

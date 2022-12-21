@@ -67,6 +67,23 @@ class ClassificationDataset(Dataset):
         return len(self.ecg_dataset)
 
 
+class ClassificationPatchDataset(Dataset):
+    def __init__(self, ecg_dataset, patch_len=16, stride=8):
+        super(ClassificationPatchDataset, self).__init__()
+        self.ecg_dataset = ecg_dataset
+        self.patch_len = patch_len
+        self.stride = stride
+
+    def __getitem__(self, ind):
+        X, y = self.ecg_dataset.__getitem__(ind)
+        X = torch.from_numpy(X).unsqueeze(0)
+        X = create_patch(X, self.patch_len, self.stride)
+        return X.squeeze(), torch.from_numpy(y)
+
+    def __len__(self):
+        return len(self.ecg_dataset)
+
+
 def collate_superv(data, max_len=None):
     """Build mini-batch tensors from a list of (X, mask) tuples. Mask input. Create
     Args:
@@ -99,6 +116,53 @@ def collate_superv(data, max_len=None):
     for i in range(batch_size):
         end = min(lengths[i], max_len)
         X[i, :end, :] = features[i][:end, :]
+
+    targets = torch.stack(labels, dim=0)  # (batch_size, num_labels)
+
+    # padding mask was dtype=torch.int16 and thus negative when over 32000
+    padding_masks = padding_mask(
+        torch.tensor(lengths, dtype=torch.int32), max_len=max_len
+    )  # (batch_size, padded_length) boolean tensor, "1" means keep
+
+    return X, targets.float(), padding_masks
+
+
+def collate_patch_superv(data, max_len=None):
+    """Build mini-batch tensors from a list of (X, mask) tuples. Mask input. Create
+    Args:
+        data: len(batch_size) list of tuples (X, y).
+            - X: torch tensor of shape (seq_length, feat_dim); variable seq_length.
+            - y: torch tensor of shape (num_labels,) : class indices or numerical targets
+                (for classification or regression, respectively). num_labels > 1 for multi-task models
+        max_len: global fixed sequence length. Used for architectures requiring fixed length input,
+            where the batch length cannot vary dynamically. Longer sequences are clipped, shorter are padded with 0s
+    Returns:
+        X: (batch_size, padded_length, feat_dim) torch tensor of masked features (input)
+        targets: (batch_size, padded_length, feat_dim) torch tensor of unmasked features (output)
+        target_masks: (batch_size, padded_length, feat_dim) boolean torch tensor
+            0 indicates masked values to be predicted, 1 indicates unaffected/"active" feature values
+        padding_masks: (batch_size, padded_length) boolean tensor, 1 means keep vector at this position, 0 means padding
+    """
+
+    batch_size = len(data)
+    features, labels = zip(*data)
+
+    patch_len = 16
+    stride = 8
+    num_patch = (max(max_len, patch_len) - patch_len) // stride + 1
+
+    # Stack and pad features and masks (convert 2D to 3D tensors, i.e. add batch dimension)
+    lengths = [
+        X.shape[0] for X in features
+    ]  # original sequence length for each time series
+    max_len = num_patch
+    X = torch.zeros(
+        batch_size, max_len, features[0].shape[1], features[0].shape[2]
+    )  # (batch_size, padded_length, feat_dim)
+    for i in range(batch_size):
+        end = min(lengths[i], max_len)
+        # draw random index, not ecg data from beginning
+        X[i, :end, :, :] = features[i][:end, :, :]
 
     targets = torch.stack(labels, dim=0)  # (batch_size, num_labels)
 
@@ -176,6 +240,62 @@ def collate_unsuperv(data, max_len=None, mask_compensation=False):
     )  # (batch_size, padded_length) boolean tensor, "1" means keep
     target_masks = ~target_masks  # inverse logic: 0 now means ignore, 1 means predict
     return X, targets, target_masks, padding_masks
+
+
+def collate_patch_unsuperv(data, max_len=None, mask_compensation=False):
+    """Build mini-batch tensors from a list of (X, mask) tuples. Mask input. Create
+    Args:
+        data: len(batch_size) list of tuples (X, mask).
+            - X: torch tensor of shape (seq_length, feat_dim); variable seq_length.
+            - mask: boolean torch tensor of shape (seq_length, feat_dim); variable seq_length.
+        max_len: global fixed sequence length. Used for architectures requiring fixed length input,
+            where the batch length cannot vary dynamically. Longer sequences are clipped, shorter are padded with 0s
+    Returns:
+        X: (batch_size, padded_length, feat_dim) torch tensor of masked features (input)
+        targets: (batch_size, padded_length, feat_dim) torch tensor of unmasked features (output)
+        target_masks: (batch_size, padded_length, feat_dim) boolean torch tensor
+            0 indicates masked values to be predicted, 1 indicates unaffected/"active" feature values
+        padding_masks: (batch_size, padded_length) boolean tensor, 1 means keep vector at this position, 0 ignore (padding)
+    """
+
+    batch_size = len(data)
+    features, targets, masks = zip(*data)
+
+    patch_len = 16
+    stride = 8
+    num_patch = (max(max_len, patch_len) - patch_len) // stride + 1
+
+    # Stack and pad features and masks (convert 2D to 3D tensors, i.e. add batch dimension)
+    # Stack and pad features and masks (convert 2D to 3D tensors, i.e. add batch dimension)
+    lengths = [
+        X.shape[0] for X in features
+    ]  # original sequence length for each time series
+    max_len = num_patch
+    X_col = torch.zeros(
+        batch_size, max_len, features[0].shape[1], features[0].shape[2]
+    )  # (batch_size, padded_length, feat_dim)
+    for i in range(batch_size):
+        end = min(lengths[i], max_len)
+        X_col[i, :end, :, :] = features[i][:end, :, :]
+
+    # features = torch.stack(features)
+    targets_col = torch.zeros(
+        batch_size, max_len, features[0].shape[1], features[0].shape[2]
+    )  # (batch_size, padded_length, feat_dim)
+    for i in range(batch_size):
+        end = min(lengths[i], max_len)
+        targets_col[i, :end, :, :] = targets[i][:end, :, :]
+
+    masks_col = torch.zeros(batch_size, max_len, features[0].shape[1])
+    for i in range(batch_size):
+        end = min(lengths[i], max_len)
+        masks_col[i, :end, :] = masks[i][:end, :]
+
+    padding_masks = padding_mask(
+        torch.tensor(lengths, dtype=torch.int32), max_len=max_len
+    )  # (batch_size, padded_length) boolean tensor, "1" means keep
+    # target_masks = ~target_masks  # inverse logic: 0 now means ignore, 1 means predict
+    return X_col, targets_col, masks_col, padding_masks
 
 
 def noise_mask(
@@ -293,3 +413,86 @@ def padding_mask(lengths, max_len=None):
         .repeat(batch_size, 1)
         .lt(lengths.unsqueeze(1))
     )
+
+
+class ImputationPatchDataset(Dataset):
+    """Dynamically computes missingness (noise) mask for each sample"""
+
+    def __init__(self, ecg_dataset, masking_ratio=0.15, patch_len=16, stride=8):
+        super(ImputationPatchDataset, self).__init__()
+        self.ecg_dataset = ecg_dataset
+        self.masking_ratio = masking_ratio
+        self.patch_len = patch_len
+        self.stride = stride
+
+    def __getitem__(self, ind):
+        """
+        For a given integer index, returns the corresponding (seq_length, feat_dim) array and a noise mask of same shape
+        Args:
+            ind: integer index of sample in dataset
+        Returns:
+            X: (seq_length, feat_dim) tensor of the multivariate time series corresponding to a sample
+            mask: (seq_length, feat_dim) boolean tensor: 0s mask and predict, 1s: unaffected input
+            ID: ID of sample
+        """
+        X, _ = self.ecg_dataset.__getitem__(ind)
+
+        X = torch.from_numpy(X).unsqueeze(0)
+
+        X = create_patch(X, self.patch_len, self.stride)
+        X_masked, _, mask = random_patch_masking(X, self.masking_ratio)
+
+        return X_masked.squeeze(), X.squeeze(), mask.squeeze()
+
+    def __len__(self):
+        return len(self.ecg_dataset)
+
+
+def random_patch_masking(xb, mask_ratio):
+    # xb: [bs x num_patch x n_vars x patch_len]
+    bs, L, nvars, D = xb.shape
+    x = xb.clone()
+
+    len_keep = int(L * (1 - mask_ratio))
+
+    noise = torch.rand(
+        bs, L, nvars, device=xb.device
+    )  # noise in [0, 1], bs x L x nvars
+
+    # sort noise for each sample
+    ids_shuffle = torch.argsort(noise, dim=1)  # ascend: small is keep, large is remove
+    ids_restore = torch.argsort(ids_shuffle, dim=1)  # ids_restore: [bs x L x nvars]
+
+    # keep the first subset
+    ids_keep = ids_shuffle[:, :len_keep, :]  # ids_keep: [bs x len_keep x nvars]
+    x_kept = torch.gather(
+        x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, 1, D)
+    )  # x_kept: [bs x len_keep x nvars  x patch_len]
+
+    # removed x
+    x_removed = torch.zeros(
+        bs, L - len_keep, nvars, D, device=xb.device
+    )  # x_removed: [bs x (L-len_keep) x nvars x patch_len]
+    x_ = torch.cat([x_kept, x_removed], dim=1)  # x_: [bs x L x nvars x patch_len]
+
+    # combine the kept part and the removed one
+    x_masked = torch.gather(
+        x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, 1, D)
+    )  # x_masked: [bs x num_patch x nvars x patch_len]
+
+    # generate the binary mask: 0 is keep, 1 is remove
+    mask = torch.ones([bs, L, nvars], device=x.device)  # mask: [bs x num_patch x nvars]
+    mask[:, :len_keep, :] = 0
+    # unshuffle to get the binary mask
+    mask = torch.gather(mask, dim=1, index=ids_restore)  # [bs x num_patch x nvars]
+    return x_masked, x_kept, mask
+
+
+def create_patch(xb, patch_len, stride):
+    """
+    xb: [bs x seq_len x n_vars]
+    """
+    xb = xb.unfold(
+        dimension=1, size=patch_len, step=stride
+    )  # xb: [bs x num_patch x n_vars x patch_len]
+    return xb
