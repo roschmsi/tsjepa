@@ -5,7 +5,7 @@ from scipy.io import loadmat
 from scipy.signal import decimate, resample
 from biosppy.signals.tools import filter_signal
 import pandas as pd
-from data.augmentation import Augmenter, augment
+from data.augmentation import augment
 import random
 
 
@@ -50,15 +50,19 @@ def load_ecg_dataset(config):
     ).reset_index(drop=True)
 
     # filter for ptb-xl data
-    if config.data.subset == "ptb-xl":
+    if config.data.set == "ptb-xl":
         data_df = data_df[data_df["Patient"].str.contains("HR")].reset_index(drop=True)
-    elif config.data.subset == "ptb-xl-5000":
+    elif config.data.set == "ptb-xl-5000":
         data_df = data_df[data_df["Patient"].str.contains("HR")].reset_index(drop=True)
-        data_df = data_df[:5000]
-    elif config.data.subset == "ptb-xl-1000":
+        data_df = data_df.sample(frac=5000 / len(data_df), random_state=42).reset_index(
+            drop=True
+        )
+    elif config.data.set == "ptb-xl-1000":
         data_df = data_df[data_df["Patient"].str.contains("HR")].reset_index(drop=True)
-        data_df = data_df[:1000]
-    elif config.data.subset == "all":
+        data_df = data_df.sample(frac=1000 / len(data_df), random_state=42).reset_index(
+            drop=True
+        )
+    elif config.data.set == "ecg":
         pass
     else:
         raise ValueError("Subset not specified")
@@ -132,7 +136,7 @@ class ECGDataset(Dataset):
         row = self.df.iloc[idx]
         filename = str(self.src_path / (row.Patient + ".hea"))
         data, hdr = load_challenge_data(filename, fs=self.fs)
-        # seq_len = data.shape[-1]  # get the length of the ecg sequence
+        seq_len = data.shape[-1]  # get the length of the ecg sequence
 
         # Apply band pass filter
         # if self.filter_bandwidth is not None:
@@ -147,8 +151,12 @@ class ECGDataset(Dataset):
         #     data = np.pad(data, ((0,0),(0,pad+1)))
         #     seq_len = data.shape[-1] # get the new length of the ecg sequence
 
-        # starts = np.random.randint(seq_len - self.window + 1, size=self.nb_windows) # get start indices of ecg segment
-        # data = np.array([data[:,start:start+self.window] for start in starts])
+        max_start = seq_len - self.window * self.fs + 1
+        max_start = max_start if max_start > 1 else 1
+        start = np.random.randint(max_start, size=1)[
+            0
+        ]  # get start indices of ecg segment
+        data = data[:, start : start + self.window * self.fs]
 
         if self.augment and random.random() < self.augmentation_prob:
             data = np.expand_dims(data.transpose(), 0)
