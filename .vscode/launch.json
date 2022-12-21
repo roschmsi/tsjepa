@@ -13,10 +13,13 @@
             "justMyCode": true,
             "args": [
                 "--config_model",
-                "/usr/stud/roschman/ECGAnalysis/models/gtn/config_gtn.yaml",
+                "/usr/stud/roschman/ECGAnalysis/models/patch_tst/config_pretraining_patch_tst.yaml",
                 "--config_data",
                 "/usr/stud/roschman/ECGAnalysis/data/ecg_dataset.yaml",
+                // "--load_model",
+                // "/usr/stud/roschman/ECGAnalysis/output/pretraining_patch_tst/2022-12-19_11-11-44_data=ptb-xl_window=10_fs=100_augment=False_bs=32_opt=Adam_lr=0.0001_dmodel=256_dff=512_nlayers=8_nheads=8_dropout=0.1_maskratio=0.4/checkpoints/model_best.pth",
                 "--debug",
+                // "--change_output"
             ]
         },
         {
