@@ -1,5 +1,5 @@
 data:
-  type: "phoneme_spectra"
+  set: "phoneme_spectra"
   data_dir: "/usr/stud/roschman/datasets/Multivariate_ts/PhonemeSpectra"
   pattern: "TRAIN"
   val_pattern: "TEST"

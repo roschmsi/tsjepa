@@ -1,5 +1,5 @@
 data:
-  type: "ecg"
+  set: "ecg"
   dir: "/usr/stud/roschman/datasets/physionet_2020"
   window: 10  # sec
   num_windows_train: 1
@@ -9,6 +9,5 @@ data:
   filter_bandwidth: [1, 47]  # Hz
   num_classes: 27
   feat_dim: 12
-  subset: "all"
   multilabel: True
   augment: True

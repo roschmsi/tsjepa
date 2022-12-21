@@ -1,5 +1,5 @@
 data:
-  type: "fc"
+  set: "ettm1"
   num_classes: 7
   feat_dim: 7
   multilabel: True

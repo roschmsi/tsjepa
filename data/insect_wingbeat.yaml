@@ -1,5 +1,5 @@
 data:
-  type: "insect_wingbeat"
+  set: "insect_wingbeat"
   data_dir: "/usr/stud/roschman/datasets/Multivariate_ts/InsectWingbeat"
   pattern: "TRAIN"
   val_pattern: "TEST"
