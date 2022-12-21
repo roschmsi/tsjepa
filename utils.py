@@ -21,12 +21,12 @@ logger = logging.getLogger(__name__)
 def check_config(config):
     dir = ""
     # check for dataset
-    if "set" in config.data.keys():
-        dir += f"_set={config.data.subset}"
     if "window" in config.data.keys():
         dir += f"_window={config.data.window}"
     if "fs" in config.data.keys():
         dir += f"_fs={config.data.fs}"
+    if "augment" in config.data.keys():
+        dir += f"_augment={config.data.augment}"
 
     # check for training parameters
     if "batch_size" in config.training.keys():
@@ -83,7 +83,7 @@ def create_output_directory(config):
     formatted_timestamp = initial_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
     config["initial_timestamp"] = formatted_timestamp
 
-    formatted_model_config = f"_data={config.data.type}"
+    formatted_model_config = f"_data={config.data.set}"
     formatted_model_config += check_config(config)
 
     if not config.description == "":
@@ -161,7 +161,7 @@ def load_model(
     state_dict = deepcopy(checkpoint["state_dict"])
     if change_output:
         for key, val in checkpoint["state_dict"].items():
-            if key.startswith("output_layer"):
+            if key.startswith("output_layer") or key.startswith("head"):
                 state_dict.pop(key)
     model.load_state_dict(state_dict, strict=False)
     print("Loaded model from {}. Epoch: {}".format(model_path, checkpoint["epoch"]))

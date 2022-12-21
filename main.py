@@ -65,14 +65,14 @@ def main(config):
         config.data.augment = False
 
     # build ecg data
-    if config.data.type == "ecg":
+    if config.data.set in ["ecg", "ptb-xl", "ptb-xl-1000", "ptb-xl-5000"]:
         train_dataset, val_dataset, test_dataset = load_ecg_dataset(config)
-    elif config.data.type in ["insect_wingbeat", "phoneme_spectra"]:
+    elif config.data.set in ["insect_wingbeat", "phoneme_spectra"]:
         train_dataset, val_dataset, test_dataset, config_data = load_uea_dataset(
             config.data, debug=config.debug
         )
         config.data = config_data
-    elif config.data.type == "fc":
+    elif config.data.set in ["ettm1"]:
         train_dataset, val_dataset, test_dataset = load_fc_dataset(
             config.data, debug=config.debug
         )
