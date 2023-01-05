@@ -4,8 +4,10 @@ import torch
 
 from data.dataset import (
     ClassificationDataset,
+    ClassificationMAEPatchDataset,
     ClassificationPatchDataset,
     ImputationDataset,
+    ImputationMAEPatchDataset,
     ImputationPatchDataset,
     collate_patch_superv,
     collate_patch_unsuperv,
@@ -25,13 +27,19 @@ from models.fedformer.model import (
     FEDformerEncoder,
 )
 from models.gtn.model import GatedTransformer
+from models.masked_autoencoder.model import MaskedAutoencoderTST
 from models.residual_cnn_att.model import ResidualCNNAtt
 from models.transformer.model import (
     TSTransformerEncoder,
     TSTransformerEncoderClassifier,
 )
 from models.transformer.optimizer import RAdam
-from runner import SupervisedRunner, UnsupervisedPatchRunner, UnsupervisedRunner
+from runner import (
+    SupervisedRunner,
+    UnsupervisedAERunner,
+    UnsupervisedPatchRunner,
+    UnsupervisedRunner,
+)
 
 from models.patch_tst.model import PatchTST
 
@@ -53,6 +61,39 @@ def pipeline_factory(config):
             collate_unsuperv,
             UnsupervisedRunner,
         )
+    elif config["task"] == "autoencoder_pretraining" and config.model.use_patch:
+        return (
+            partial(
+                ImputationMAEPatchDataset,
+                masking_ratio=config.model.masking_ratio,
+                patch_len=config.model.patch_len,
+                stride=config.model.stride,
+            ),
+            partial(
+                collate_patch_unsuperv,
+                patch_len=config.model.patch_len,
+                stride=config.model.stride,
+            ),
+            UnsupervisedAERunner,
+        )
+    elif (
+        config.model.name == "finetuning_masked_autoencoder" and config.model.use_patch
+    ):
+        return (
+            partial(
+                ClassificationMAEPatchDataset,
+                masking_ratio=config.model.masking_ratio,
+                patch_len=config.model.patch_len,
+                stride=config.model.stride,
+            ),
+            partial(
+                collate_patch_superv,
+                patch_len=config.model.patch_len,
+                stride=config.model.stride,
+                masking_ratio=config.model.masking_ratio,
+            ),
+            SupervisedRunner,
+        )
     elif config["task"] == "imputation" and config.model.use_patch:
         return (
             partial(
@@ -61,7 +102,11 @@ def pipeline_factory(config):
                 patch_len=config.model.patch_len,
                 stride=config.model.stride,
             ),
-            collate_patch_unsuperv,
+            partial(
+                collate_patch_unsuperv,
+                patch_len=config.model.patch_len,
+                stride=config.model.stride,
+            ),
             UnsupervisedPatchRunner,
         )
     elif config["task"] == "classification" and not config.model.use_patch:
@@ -73,7 +118,12 @@ def pipeline_factory(config):
                 patch_len=config.model.patch_len,
                 stride=config.model.stride,
             ),
-            collate_patch_superv,
+            partial(
+                collate_patch_superv,
+                patch_len=config.model.patch_len,
+                stride=config.model.stride,
+                masking_ratio=config.model.masking_ratio,
+            ),
             SupervisedRunner,
         )
     else:
@@ -206,6 +256,28 @@ def model_factory(config):
             head_type="classification",
             res_attention=False,
         )
+    elif config.model.name == "finetuning_masked_autoencoder":
+        num_patch = (
+            max(max_seq_len, config.model.patch_len) - config.model.patch_len
+        ) // config.model.stride + 1
+        num_patch = int((1 - config.model.masking_ratio) * num_patch)
+        return PatchTST(
+            c_in=config.data.feat_dim,
+            target_dim=config.data.num_classes,
+            patch_len=config.model.patch_len,
+            stride=config.model.stride,
+            num_patch=num_patch,
+            n_layers=config.model.enc_num_layers,
+            n_heads=config.model.enc_num_heads,
+            d_model=config.model.enc_d_model,
+            shared_embedding=True,
+            d_ff=config.model.enc_d_ff,
+            dropout=config.model.dropout,
+            head_dropout=config.model.head_dropout,
+            act="relu",
+            head_type="classification",
+            res_attention=False,
+        )
     elif config.model.name == "pretraining_patch_tst":
         num_patch = (
             max(max_seq_len, config.model.patch_len) - config.model.patch_len
@@ -249,6 +321,34 @@ def model_factory(config):
             head_dropout=config.model.head_dropout,
             act="relu",
             head_type="classification",
+            res_attention=False,
+        )
+    elif config.model.name == "pretraining_masked_autoencoder":
+        num_patch = (
+            max(max_seq_len, config.model.patch_len) - config.model.patch_len
+        ) // config.model.stride + 1
+        print("number of patches:", num_patch)
+
+        return MaskedAutoencoderTST(
+            c_in=config.data.feat_dim,
+            target_dim=config.data.feat_dim,
+            patch_len=config.model.patch_len,
+            stride=config.model.stride,
+            num_patch=num_patch,
+            masking_ratio=config.model.masking_ratio,
+            enc_n_layers=config.model.enc_num_layers,
+            enc_n_heads=config.model.enc_num_heads,
+            enc_d_model=config.model.enc_d_model,
+            enc_d_ff=config.model.enc_d_ff,
+            dec_n_layers=config.model.dec_num_layers,
+            dec_n_heads=config.model.dec_num_heads,
+            dec_d_model=config.model.dec_d_model,
+            dec_d_ff=config.model.dec_d_ff,
+            shared_embedding=True,
+            dropout=config.model.dropout,
+            head_dropout=config.model.head_dropout,
+            act="relu",
+            head_type="pretraining",
             res_attention=False,
         )
     else:

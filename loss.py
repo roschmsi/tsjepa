@@ -14,7 +14,8 @@ def get_loss(config):
             return BCEWithLogitsLoss(reduction="none")
         else:  # one class per time series
             return NoFussCrossEntropyLoss(reduction="none")
-
+    elif config["task"] == "autoencoder_pretraining":
+        return MaskedPatchLoss()
     else:
         raise ValueError(
             "Loss module for task '{}' does not exist".format(config["task"])

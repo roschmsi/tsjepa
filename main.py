@@ -100,7 +100,7 @@ def main(config):
 
     optimizer = optimizer_factory(config, model)
     if config.training.scheduler:
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
     else:
         scheduler = None
 
@@ -145,6 +145,7 @@ def main(config):
             test_loader,
             device,
             loss_module,
+            mixup_alpha=config.data.mixup_alpha,
             print_interval=config["print_interval"],
             console=config["console"],
             multilabel=config.data.multilabel,
@@ -176,6 +177,7 @@ def main(config):
         loss_module,
         optimizer,
         l2_reg=None,
+        mixup_alpha=config.data.mixup_alpha,
         print_interval=config["print_interval"],
         console=config["console"],
         multilabel=config.data.multilabel,
@@ -196,6 +198,7 @@ def main(config):
         val_loader,
         device,
         loss_module,
+        mixup_alpha=config.data.mixup_alpha,
         print_interval=config["print_interval"],
         console=config["console"],
         multilabel=config.data.multilabel,
