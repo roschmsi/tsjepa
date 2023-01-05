@@ -27,6 +27,8 @@ def check_config(config):
         dir += f"_fs={config.data.fs}"
     if "augment" in config.data.keys():
         dir += f"_augment={config.data.augment}"
+    if "mixup_alpha" in config.data.keys():
+        dir += f"_mixup={config.data.mixup_alpha}"
 
     # check for training parameters
     if "batch_size" in config.training.keys():
@@ -161,9 +163,21 @@ def load_model(
     state_dict = deepcopy(checkpoint["state_dict"])
     if change_output:
         for key, val in checkpoint["state_dict"].items():
-            if key.startswith("output_layer") or key.startswith("head"):
+            if (
+                key.startswith("output_layer")
+                or key.startswith("head")
+                or key.startswith("decoder")
+            ):
                 state_dict.pop(key)
-    model.load_state_dict(state_dict, strict=False)
+    # TODO load weights for maetst correctly
+    # renamed_state_dict = {}
+    # for k in state_dict.keys():
+    #     renamed_state_dict[f"backbone.{k}"] = state_dict[k]
+    # state_dict = renamed_state_dict
+    missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+    # TODO check norm
+    print(f"Missing keys: {missing_keys}")
+    print(f"Unexpected keys: {unexpected_keys}")
     print("Loaded model from {}. Epoch: {}".format(model_path, checkpoint["epoch"]))
 
     # resume optimizer parameters

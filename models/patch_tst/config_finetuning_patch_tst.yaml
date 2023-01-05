@@ -7,7 +7,8 @@ model:
   dropout: 0.1
   head_dropout: 0.1
   patch_len: 16
-  stride: 8
+  stride: 16
+  masking_ratio: 0
   use_patch: True
   freeze: False
   l2_reg: 0
@@ -15,7 +16,7 @@ model:
 training:
   optimizer: Adam
   epochs: 400
-  batch_size: 64
+  batch_size: 128
   num_workers: 4
   lr: 0.0001
   weight_decay: 0

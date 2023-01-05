@@ -1,6 +1,6 @@
 data:
-  set: "ecg"
-  dir: "/usr/stud/roschman/datasets/physionet_2020"
+  set: "ptb-xl"
+  dir: "/storage/user/roschman/datasets/physionet_2020"
   window: 10  # sec
   num_windows_train: 1
   num_windows_val: 1
@@ -11,3 +11,4 @@ data:
   feat_dim: 12
   multilabel: True
   augment: True
+  mixup_alpha: 0
