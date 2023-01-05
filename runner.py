@@ -16,6 +16,28 @@ logger = logging.getLogger("__main__")
 val_times = {"total_time": 0, "count": 0}
 
 
+def mixup_data(x, y, alpha=1.0, use_cuda=True):
+    """Returns mixed inputs, pairs of targets, and lambda"""
+    if alpha > 0:
+        lam = np.random.beta(alpha, alpha)
+    else:
+        lam = 1
+
+    batch_size = x.size()[0]
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+    else:
+        index = torch.randperm(batch_size)
+
+    mixed_x = lam * x + (1 - lam) * x[index, :]
+    y_a, y_b = y, y[index]
+    return mixed_x, y_a, y_b, lam
+
+
+def mixup_criterion(criterion, pred, y_a, y_b, lam):
+    return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
+
+
 def validate(
     val_evaluator,
     tensorboard_writer,
@@ -89,6 +111,7 @@ class BaseRunner(object):
         console=True,
         multilabel=False,
         scheduler=None,
+        mixup_alpha=0,
     ):
 
         self.model = model
@@ -103,6 +126,7 @@ class BaseRunner(object):
         self.scheduler = scheduler
 
         self.epoch_metrics = OrderedDict()
+        self.mixup_alpha = mixup_alpha
 
     def train_epoch(self, epoch_num=None):
         raise NotImplementedError("Please override in child class")
@@ -261,13 +285,25 @@ class SupervisedRunner(BaseRunner):
             targets = targets.to(self.device)
             padding_masks = padding_masks.to(self.device)  # 0s: ignore
 
+            if self.mixup_alpha > 0:
+                X, targets_a, targets_b, lam = mixup_data(
+                    X, targets, self.mixup_alpha, use_cuda=True
+                )
+
             # classification: (batch_size, num_classes) of logits
+
             predictions = self.model(X, padding_masks)
 
             # (batch_size,) loss for each sample in the batch
             # TODO make sure that loss has here dimension Nx1
             # loss = torch.mean(self.loss_module(predictions, targets), axis=1)
-            loss = self.loss_module(predictions, targets)
+            if self.mixup_alpha > 0:
+                loss = mixup_criterion(
+                    self.loss_module, predictions, targets_a, targets_b, lam
+                )
+            else:
+                loss = self.loss_module(predictions, targets)
+
             batch_loss = torch.sum(loss)
             # mean loss (over samples) used for optimization
             mean_loss = batch_loss / len(loss)
@@ -402,7 +438,7 @@ class UnsupervisedPatchRunner(BaseRunner):
 
         for i, batch in enumerate(self.dataloader):
 
-            X, targets, target_masks, padding_masks = batch
+            X, _, targets, target_masks, padding_masks, ids_restore = batch
             targets = targets.to(self.device)
 
             # 1s: mask and predict, 0s: unaffected input (ignore)
@@ -465,7 +501,7 @@ class UnsupervisedPatchRunner(BaseRunner):
 
         for i, batch in enumerate(self.dataloader):
 
-            X, targets, target_masks, padding_masks = batch
+            X, _, targets, target_masks, padding_masks, _ = batch
             targets = targets.to(self.device)
 
             # 1s: mask and predict, 0s: unaffected input (ignore)
@@ -474,6 +510,123 @@ class UnsupervisedPatchRunner(BaseRunner):
 
             # (batch_size, padded_length, feat_dim)
             predictions = self.model(X.to(self.device), padding_masks)
+
+            # Cascade noise masks (batch_size, padded_length, feat_dim) and padding masks (batch_size, padded_length)
+            target_masks = target_masks * padding_masks.unsqueeze(-1)
+
+            # (num_active,) individual loss (square error per element) for each active value in batch
+            loss = self.loss_module(predictions, targets, target_masks)
+            mean_loss = torch.sum(loss)
+            # mean loss (over active elements) used for optimization
+            # mean_loss = batch_loss / len(loss)
+
+            if keep_all:
+                per_batch["target_masks"].append(target_masks.cpu().numpy())
+                per_batch["targets"].append(targets.cpu().numpy())
+                per_batch["predictions"].append(predictions.cpu().numpy())
+                per_batch["metrics"].append([loss.cpu().numpy()])
+
+            metrics = {"loss": mean_loss}
+            if i % self.print_interval == 0:
+                ending = "" if epoch_num is None else "Epoch {} ".format(epoch_num)
+                self.print_callback(i, metrics, prefix="Evaluating " + ending)
+
+            # total_active_elements += len(loss)
+            epoch_loss += mean_loss
+
+        # average loss per element for whole epoch
+        # epoch_loss = epoch_loss / total_active_elements
+        self.epoch_metrics["epoch"] = epoch_num
+        self.epoch_metrics["loss"] = epoch_loss
+
+        if keep_all:
+            return self.epoch_metrics, per_batch
+        else:
+            return self.epoch_metrics
+
+
+class UnsupervisedAERunner(BaseRunner):
+    def train_epoch(self, epoch_num=None):
+
+        self.model = self.model.train()
+        epoch_loss = 0
+
+        for i, batch in enumerate(self.dataloader):
+
+            _, X_kept, targets, target_masks, padding_masks, ids_restore = batch
+            targets = targets.to(self.device)
+
+            # 1s: mask and predict, 0s: unaffected input (ignore)
+            target_masks = target_masks.to(self.device)
+            padding_masks = padding_masks.to(self.device)  # 0s: ignore
+            ids_restore = ids_restore.to(self.device)
+
+            # (batch_size, padded_length, feat_dim)
+            predictions = self.model(X_kept.to(self.device), padding_masks, ids_restore)
+
+            # Cascade noise masks (batch_size, padded_length, feat_dim) and padding masks (batch_size, padded_length)
+            target_masks = target_masks * padding_masks.unsqueeze(-1)
+
+            # (num_active,) individual loss (square error per element) for each active value in batch
+            loss = self.loss_module(predictions, targets, target_masks)
+            mean_loss = torch.sum(loss)
+            # mean loss (over active elements) used for optimization
+            # mean_loss = batch_loss / len(loss)
+
+            if self.l2_reg:
+                total_loss = mean_loss + self.l2_reg * l2_reg_loss(self.model)
+            else:
+                total_loss = mean_loss
+
+            # Zero gradients, perform a backward pass, and update the weights.
+            self.optimizer.zero_grad()
+            total_loss.backward()
+
+            # torch.nn.utils.clip_grad_value_(self.model.parameters(), clip_value=1.0)
+            # torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=4.0)
+            self.optimizer.step()
+
+            metrics = {"loss": mean_loss.item()}
+            if i % self.print_interval == 0:
+                ending = "" if epoch_num is None else "Epoch {} ".format(epoch_num)
+                self.print_callback(i, metrics, prefix="Training " + ending)
+
+            with torch.no_grad():
+                # total_active_elements += len(loss)
+                epoch_loss += mean_loss.item()
+
+        # average loss per element for whole epoch
+        # epoch_loss = epoch_loss / total_active_elements
+        self.epoch_metrics["epoch"] = epoch_num
+        self.epoch_metrics["loss"] = epoch_loss
+        return self.epoch_metrics
+
+    def evaluate(self, epoch_num=None, keep_all=True):
+
+        self.model = self.model.eval()
+
+        epoch_loss = 0  # total loss of epoch
+
+        if keep_all:
+            per_batch = {
+                "target_masks": [],
+                "targets": [],
+                "predictions": [],
+                "metrics": [],
+            }
+
+        for i, batch in enumerate(self.dataloader):
+
+            X, X_kept, targets, target_masks, padding_masks, ids_restore = batch
+            targets = targets.to(self.device)
+
+            # 1s: mask and predict, 0s: unaffected input (ignore)
+            target_masks = target_masks.to(self.device)
+            padding_masks = padding_masks.to(self.device)  # 0s: ignore
+            ids_restore = ids_restore.to(self.device)
+
+            # (batch_size, padded_length, feat_dim)
+            predictions = self.model(X_kept.to(self.device), padding_masks, ids_restore)
 
             # Cascade noise masks (batch_size, padded_length, feat_dim) and padding masks (batch_size, padded_length)
             target_masks = target_masks * padding_masks.unsqueeze(-1)
