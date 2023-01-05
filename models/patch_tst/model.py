@@ -97,7 +97,7 @@ class PatchTST(nn.Module):
                 self.n_vars, d_model, target_dim, head_dropout, y_range
             )
         elif head_type == "classification":
-            self.head = ClassificationHead(
+            self.head = ClassificationPoolHead(
                 self.n_vars, d_model, target_dim, head_dropout
             )
 
@@ -155,6 +155,27 @@ class ClassificationHead(nn.Module):
         x = x[
             :, :, :, -1
         ]  # only consider the last item in the sequence, x: bs x nvars x d_model
+        x = self.flatten(x)  # x: bs x nvars * d_model
+        x = self.dropout(x)
+        y = self.linear(x)  # y: bs x n_classes
+        return y
+
+
+class ClassificationPoolHead(nn.Module):
+    def __init__(self, n_vars, d_model, n_classes, head_dropout):
+        super().__init__()
+        self.flatten = nn.Flatten(start_dim=1)
+        self.dropout = nn.Dropout(head_dropout)
+        self.linear = nn.Linear(n_vars * d_model, n_classes)
+
+    def forward(self, x):
+        """
+        x: [bs x nvars x d_model x num_patch]
+        output: [bs x n_classes]
+        """
+        x = x.mean(
+            -1
+        )  # only consider the last item in the sequence, x: bs x nvars x d_model
         x = self.flatten(x)  # x: bs x nvars * d_model
         x = self.dropout(x)
         y = self.linear(x)  # y: bs x n_classes
