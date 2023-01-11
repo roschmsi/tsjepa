@@ -13,16 +13,16 @@ model:
   patch_len: 16
   stride: 16
   use_patch: True
-  masking_ratio: 0.5
+  masking_ratio: 0.1
 training:
   optimizer: Adam
   epochs: 400
   batch_size: 32
-  num_workers: 4
+  num_workers: 2
   lr: 0.001
   weight_decay: 0
   patience: 20
-  scheduler: True
+  scheduler: False
 evaluation:
   beta: 2
   class_weights: null

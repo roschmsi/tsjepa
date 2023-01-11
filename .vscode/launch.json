@@ -13,7 +13,22 @@
             "justMyCode": true,
             "args": [
                 "--config_model",
-                "/usr/stud/roschman/ECGAnalysis/models/masked_autoencoder/config_masked_autoencoder.yaml",
+                "/usr/stud/roschman/ECGAnalysis/models/patch_tst/config_patch_tst.yaml",
+                "--config_data",
+                "/usr/stud/roschman/ECGAnalysis/data/ecg_dataset.yaml",
+                "--debug",
+            ]
+        },
+        {
+            "name": "Tune model",
+            "type": "python",
+            "request": "launch",
+            "program": "/usr/stud/roschman/ECGAnalysis/tune.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--config_model",
+                "/usr/stud/roschman/ECGAnalysis/models/patch_tst/config_patch_tst.yaml",
                 "--config_data",
                 "/usr/stud/roschman/ECGAnalysis/data/ecg_dataset.yaml",
                 "--debug",

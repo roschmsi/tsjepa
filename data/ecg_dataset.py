@@ -46,7 +46,8 @@ normal_class = "426783006"
 
 def load_ecg_dataset(config):
     data_df = pd.read_csv(
-        "data/records_stratified_10_folds_v2.csv", index_col=0
+        "/home/stud/roschman/ECGAnalysis/data/records_stratified_10_folds_v2.csv",
+        index_col=0,
     ).reset_index(drop=True)
 
     # filter for ptb-xl data

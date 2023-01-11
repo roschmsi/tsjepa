@@ -16,8 +16,6 @@ from models.patch_tst.model import TSTEncoder
 
 
 class MaskedAutoencoderTST(nn.Module):
-    """Masked Autoencoder with VisionTransformer backbone"""
-
     def __init__(
         self,
         num_patch: int,
