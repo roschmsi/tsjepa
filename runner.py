@@ -98,6 +98,34 @@ def validate(
     return aggr_metrics, best_metrics, best_value
 
 
+def validate_without_logging(
+    val_evaluator,
+    config,
+    best_metrics,
+    best_value,
+    epoch,
+):
+    eval_start_time = time.time()
+    with torch.no_grad():
+        aggr_metrics, _ = val_evaluator.evaluate(epoch, keep_all=True)
+    eval_runtime = time.time() - eval_start_time
+
+    global val_times
+    val_times["total_time"] += eval_runtime
+    val_times["count"] += 1
+
+    if aggr_metrics["loss"] < best_value:
+        best_value = aggr_metrics["loss"]
+        # save_model(
+        #     os.path.join(config["checkpoint_dir"], "model_best.pth"),
+        #     epoch,
+        #     val_evaluator.model,
+        # )
+        best_metrics = aggr_metrics.copy()
+
+    return aggr_metrics, best_metrics, best_value
+
+
 class BaseRunner(object):
     def __init__(
         self,
@@ -328,9 +356,9 @@ class SupervisedRunner(BaseRunner):
             lbls.append(targets.data.cpu().numpy())
 
             metrics = {"loss": mean_loss.item()}
-            if i % self.print_interval == 0:
-                ending = "" if epoch_num is None else "Epoch {} ".format(epoch_num)
-                self.print_callback(i, metrics, prefix="Training " + ending)
+            # if i % self.print_interval == 0:
+            #     ending = "" if epoch_num is None else "Epoch {} ".format(epoch_num)
+            #     self.print_callback(i, metrics, prefix="Training " + ending)
 
             with torch.no_grad():
                 total_samples += len(loss)
@@ -401,9 +429,9 @@ class SupervisedRunner(BaseRunner):
             per_batch["metrics"].append([loss.cpu().numpy()])
 
             metrics = {"loss": mean_loss}
-            if i % self.print_interval == 0:
-                ending = "" if epoch_num is None else "Epoch {} ".format(epoch_num)
-                self.print_callback(i, metrics, prefix="Evaluating " + ending)
+            # if i % self.print_interval == 0:
+            #     ending = "" if epoch_num is None else "Epoch {} ".format(epoch_num)
+            #     self.print_callback(i, metrics, prefix="Evaluating " + ending)
 
             total_samples += len(loss)
             epoch_loss += batch_loss
@@ -526,7 +554,7 @@ class UnsupervisedPatchRunner(BaseRunner):
                 per_batch["predictions"].append(predictions.cpu().numpy())
                 per_batch["metrics"].append([loss.cpu().numpy()])
 
-            metrics = {"loss": mean_loss}
+            metrics = {"loss": mean_loss.item()}
             if i % self.print_interval == 0:
                 ending = "" if epoch_num is None else "Epoch {} ".format(epoch_num)
                 self.print_callback(i, metrics, prefix="Evaluating " + ending)
@@ -537,7 +565,7 @@ class UnsupervisedPatchRunner(BaseRunner):
         # average loss per element for whole epoch
         # epoch_loss = epoch_loss / total_active_elements
         self.epoch_metrics["epoch"] = epoch_num
-        self.epoch_metrics["loss"] = epoch_loss
+        self.epoch_metrics["loss"] = epoch_loss.item()
 
         if keep_all:
             return self.epoch_metrics, per_batch

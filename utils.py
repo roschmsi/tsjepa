@@ -18,6 +18,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def check_config_data(config):
+    dir = ""
+    if "window" in config.data.keys():
+        dir += f"_window={config.data.window}"
+    if "fs" in config.data.keys():
+        dir += f"_fs={config.data.fs}"
+    if "augment" in config.data.keys():
+        dir += f"_augment={config.data.augment}"
+    if "mixup_alpha" in config.data.keys():
+        dir += f"_mixup={config.data.mixup_alpha}"
+
+    return dir
+
+
 def check_config(config):
     dir = ""
     # check for dataset
@@ -109,6 +123,36 @@ def create_dirs(dirs):
     except Exception as err:
         print("Creating directories error: {0}".format(err))
         exit(-1)
+
+
+def setup_tuning(args):
+    config = args.__dict__  # configuration dictionary
+    model_config = load_config_yaml(config["config_model"])
+    config.update(model_config)
+    data_config = load_config_yaml(config["config_data"])  # "data/dataset.yaml"
+    config.update(data_config)
+    config = EasyDict(config)
+
+    initial_timestamp = datetime.now()
+    formatted_timestamp = initial_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
+    config["formatted_timestamp"] = formatted_timestamp
+
+    output_path = os.path.join(
+        os.getcwd(), "output", config.model.name, formatted_timestamp
+    )
+
+    os.makedirs(output_path, exist_ok=True)
+
+    # Save configuration as json file
+    with open(
+        os.path.join(output_path, "configuration.json"),
+        "w",
+    ) as fp:
+        json.dump(config, fp, indent=4, sort_keys=True)
+
+    # logger.info("Stored configuration file in '{}'".format(output_dir))
+
+    return config
 
 
 def setup(args):
