@@ -28,6 +28,12 @@ from models.fedformer.model import (
 )
 from models.gtn.model import GatedTransformer
 from models.masked_autoencoder.model import MaskedAutoencoderTST
+from models.masked_autoencoder.pretraining_masked_autoencoder_search_space import (
+    get_pretraining_masked_autoencoder_search_space,
+)
+from models.patch_tst.patch_tst_search_space import (
+    get_patch_tst_search_space,
+)
 from models.residual_cnn_att.model import ResidualCNNAtt
 from models.transformer.model import (
     TSTransformerEncoder,
@@ -282,7 +288,7 @@ def model_factory(config):
         num_patch = (
             max(max_seq_len, config.model.patch_len) - config.model.patch_len
         ) // config.model.stride + 1
-        print("number of patches:", num_patch)
+        # print("number of patches:", num_patch)
         return PatchTST(
             c_in=config.data.feat_dim,
             target_dim=config.data.feat_dim,
@@ -304,7 +310,7 @@ def model_factory(config):
         num_patch = (
             max(max_seq_len, config.model.patch_len) - config.model.patch_len
         ) // config.model.stride + 1
-        print("number of patches:", num_patch)
+        # print("number of patches:", num_patch)
 
         return PatchTST(
             c_in=config.data.feat_dim,
@@ -327,7 +333,7 @@ def model_factory(config):
         num_patch = (
             max(max_seq_len, config.model.patch_len) - config.model.patch_len
         ) // config.model.stride + 1
-        print("number of patches:", num_patch)
+        # print("number of patches:", num_patch)
 
         return MaskedAutoencoderTST(
             c_in=config.data.feat_dim,
@@ -355,3 +361,12 @@ def model_factory(config):
         raise ValueError(
             "Model class for task '{}' does not exist".format(config["task"])
         )
+
+
+def tune_factory(config):
+    if config.model.name == "patch_tst":
+        config = get_patch_tst_search_space(config)
+    if config.model.name == "petraining_masked_autoencoder":
+        config = get_pretraining_masked_autoencoder_search_space(config)
+
+    return config
