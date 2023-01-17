@@ -50,7 +50,7 @@ def train(config):
         config.training.batch_size = 1
         config.val_interval = 1
         config.data.augment = False
-
+        config.training.epochs = 10
     # build ecg data
     if config.data.set in ["ecg", "ptb-xl", "ptb-xl-1000", "ptb-xl-5000"]:
         train_dataset, val_dataset, test_dataset = load_ecg_dataset(config)
@@ -231,16 +231,22 @@ def train(config):
         torch.save((model.state_dict(), optimizer.state_dict()), "model/checkpoint.pth")
         checkpoint = Checkpoint.from_directory("model")
 
-        session.report(
-            dict(loss=metrics_values[1].item(), auroc=metrics_values[2]),
-            checkpoint=checkpoint,
-        )
+        if len(metrics_values) == 3:
+            session.report(
+                dict(loss=metrics_values[1].item(), auroc=metrics_values[2]),
+                checkpoint=checkpoint,
+            )
+        else:
+            session.report(
+                dict(loss=metrics_values[1].item()),
+                checkpoint=checkpoint,
+            )
 
         if patience_count > config.training.patience:
             break
 
 
-def main(config, num_samples=25):
+def main(config, num_samples=3):
     config = tune_factory(config)
     # sched = ASHAScheduler()
 
