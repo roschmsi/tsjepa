@@ -20,7 +20,12 @@ from tqdm import tqdm
 from data.ecg_dataset import classes, load_ecg_dataset, normal_class
 from data.uea_dataset import load_uea_dataset
 from data.fc_dataset import load_fc_dataset
-from factory import model_factory, optimizer_factory, pipeline_factory
+from factory import (
+    model_factory,
+    optimizer_factory,
+    pipeline_factory,
+    scheduler_factory,
+)
 from loss import get_loss
 from options import Options
 from physionet_evaluation.evaluate_12ECG_score import (
@@ -37,8 +42,6 @@ from utils import (
     seed_everything,
     setup,
 )
-
-import torch.optim as optim
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO
@@ -99,10 +102,7 @@ def main(config):
     )
 
     optimizer = optimizer_factory(config, model)
-    if config.training.scheduler:
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
-    else:
-        scheduler = None
+    scheduler = scheduler_factory(config, optimizer)
 
     # options to continue training from previous model
     start_epoch = 0
@@ -165,7 +165,7 @@ def main(config):
     train_loader = DataLoader(
         dataset=train_dataset,
         batch_size=config.training.batch_size,
-        shuffle=True,
+        shuffle=False if config.debug else True,
         num_workers=config.training.num_workers,
         pin_memory=True,
         collate_fn=lambda x: collate_fn(x, max_len=max_len),

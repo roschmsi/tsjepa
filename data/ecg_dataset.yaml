@@ -1,5 +1,5 @@
 data:
-  set: "ecg"
+  set: "ptb-xl"
   dir: "/storage/user/roschman/datasets/physionet_2020"
   window: 10  # sec
   num_windows_train: 1

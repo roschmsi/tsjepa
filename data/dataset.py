@@ -424,12 +424,15 @@ def padding_mask(lengths, max_len=None):
 class ImputationPatchDataset(Dataset):
     """Dynamically computes missingness (noise) mask for each sample"""
 
-    def __init__(self, ecg_dataset, masking_ratio=0.15, patch_len=16, stride=8):
+    def __init__(
+        self, ecg_dataset, masking_ratio=0.15, patch_len=16, stride=8, debug=False
+    ):
         super(ImputationPatchDataset, self).__init__()
         self.ecg_dataset = ecg_dataset
         self.masking_ratio = masking_ratio
         self.patch_len = patch_len
         self.stride = stride
+        self.debug = debug
 
     def __getitem__(self, ind):
         """
@@ -447,7 +450,7 @@ class ImputationPatchDataset(Dataset):
 
         X = create_patch(X, self.patch_len, self.stride)
         X_masked, X_kept, mask, ids_restore = random_patch_masking(
-            X, self.masking_ratio
+            X, self.masking_ratio, debug=self.debug
         )
 
         return (
@@ -465,12 +468,15 @@ class ImputationPatchDataset(Dataset):
 class ImputationMAEPatchDataset(Dataset):
     """Dynamically computes missingness (noise) mask for each sample"""
 
-    def __init__(self, ecg_dataset, masking_ratio=0.15, patch_len=16, stride=8):
+    def __init__(
+        self, ecg_dataset, masking_ratio=0.15, patch_len=16, stride=8, debug=False
+    ):
         super(ImputationMAEPatchDataset, self).__init__()
         self.ecg_dataset = ecg_dataset
         self.masking_ratio = masking_ratio
         self.patch_len = patch_len
         self.stride = stride
+        self.debug = debug
 
     def __getitem__(self, ind):
         """
@@ -488,7 +494,7 @@ class ImputationMAEPatchDataset(Dataset):
 
         X = create_patch(X, self.patch_len, self.stride)
         X_masked, X_kept, mask, ids_restore = random_mae_patch_masking(
-            X, self.masking_ratio
+            X, self.masking_ratio, debug=self.debug
         )
 
         return (
@@ -506,12 +512,15 @@ class ImputationMAEPatchDataset(Dataset):
 class ClassificationMAEPatchDataset(Dataset):
     """Dynamically computes missingness (noise) mask for each sample"""
 
-    def __init__(self, ecg_dataset, masking_ratio=0.15, patch_len=16, stride=8):
+    def __init__(
+        self, ecg_dataset, masking_ratio=0.15, patch_len=16, stride=8, debug=False
+    ):
         super(ClassificationMAEPatchDataset, self).__init__()
         self.ecg_dataset = ecg_dataset
         self.masking_ratio = masking_ratio
         self.patch_len = patch_len
         self.stride = stride
+        self.debug = debug
 
     def __getitem__(self, ind):
         """
@@ -528,7 +537,7 @@ class ClassificationMAEPatchDataset(Dataset):
         X = torch.from_numpy(X).unsqueeze(0)
 
         X = create_patch(X, self.patch_len, self.stride)
-        _, X_kept, _, _ = random_mae_patch_masking(X, self.masking_ratio)
+        _, X_kept, _, _ = random_mae_patch_masking(X, self.masking_ratio, debug=True)
 
         return (X_kept.squeeze(), torch.from_numpy(y))
 
@@ -536,16 +545,22 @@ class ClassificationMAEPatchDataset(Dataset):
         return len(self.ecg_dataset)
 
 
-def random_mae_patch_masking(xb, mask_ratio):
+def random_mae_patch_masking(xb, mask_ratio, debug):
     # xb: [bs x num_patch x n_vars x patch_len]
     bs, L, nvars, D = xb.shape
     x = xb.clone()
 
     len_keep = int(L * (1 - mask_ratio))
 
-    noise = torch.rand(
-        bs, L, nvars, device=xb.device
-    )  # noise in [0, 1], bs x L x nvars
+    if debug:
+        noise = torch.rand(
+            size=(bs, L, nvars), device=xb.device, generator=torch.Generator()
+        )  # noise in [0, 1], bs x L x nvars
+    else:
+        noise = torch.rand(
+            size=(bs, L, nvars),
+            device=xb.device,
+        )
 
     # sort noise for each sample
     ids_shuffle = torch.argsort(noise, dim=1)  # ascend: small is keep, large is remove
@@ -576,16 +591,22 @@ def random_mae_patch_masking(xb, mask_ratio):
     return x_masked, x_kept, mask, ids_restore
 
 
-def random_patch_masking(xb, mask_ratio):
+def random_patch_masking(xb, mask_ratio, debug):
     # xb: [bs x num_patch x n_vars x patch_len]
     bs, L, nvars, D = xb.shape
     x = xb.clone()
 
     len_keep = int(L * (1 - mask_ratio))
 
-    noise = torch.rand(
-        bs, L, nvars, device=xb.device
-    )  # noise in [0, 1], bs x L x nvars
+    if debug:
+        noise = torch.rand(
+            size=(bs, L, nvars), device=xb.device, generator=torch.Generator()
+        )  # noise in [0, 1], bs x L x nvars
+    else:
+        noise = torch.rand(
+            size=(bs, L, nvars),
+            device=xb.device,
+        )
 
     # sort noise for each sample
     ids_shuffle = torch.argsort(noise, dim=1)  # ascend: small is keep, large is remove

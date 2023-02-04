@@ -597,7 +597,7 @@ class UnsupervisedAERunner(BaseRunner):
 
             # (num_active,) individual loss (square error per element) for each active value in batch
             loss = self.loss_module(predictions, targets, target_masks)
-            mean_loss = torch.sum(loss)
+            mean_loss = torch.sum(loss) / (predictions.shape[0] * predictions.shape[2])
             # mean loss (over active elements) used for optimization
             # mean_loss = batch_loss / len(loss)
 
@@ -626,7 +626,7 @@ class UnsupervisedAERunner(BaseRunner):
         # average loss per element for whole epoch
         # epoch_loss = epoch_loss / total_active_elements
         self.epoch_metrics["epoch"] = epoch_num
-        self.epoch_metrics["loss"] = epoch_loss
+        self.epoch_metrics["loss"] = epoch_loss / len(self.dataloader)
         return self.epoch_metrics
 
     def evaluate(self, epoch_num=None, keep_all=True):
@@ -661,7 +661,7 @@ class UnsupervisedAERunner(BaseRunner):
 
             # (num_active,) individual loss (square error per element) for each active value in batch
             loss = self.loss_module(predictions, targets, target_masks)
-            mean_loss = torch.sum(loss)
+            mean_loss = torch.sum(loss) / (predictions.shape[0] * predictions.shape[2])
             # mean loss (over active elements) used for optimization
             # mean_loss = batch_loss / len(loss)
 
@@ -682,7 +682,7 @@ class UnsupervisedAERunner(BaseRunner):
         # average loss per element for whole epoch
         # epoch_loss = epoch_loss / total_active_elements
         self.epoch_metrics["epoch"] = epoch_num
-        self.epoch_metrics["loss"] = epoch_loss
+        self.epoch_metrics["loss"] = epoch_loss / len(self.dataloader)
 
         if keep_all:
             return self.epoch_metrics, per_batch

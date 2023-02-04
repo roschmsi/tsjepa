@@ -115,8 +115,6 @@ class MaskedAutoencoderTST(nn.Module):
         self.decoder_pred = nn.Linear(dec_d_model, patch_len)
         # --------------------------------------------------------------------------
 
-        self.norm_pix_loss = norm_pix_loss
-
         self.dropout = nn.Dropout(dropout)
 
     def forward_encoder(self, x, padding_mask=None):

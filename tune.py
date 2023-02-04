@@ -50,7 +50,7 @@ def train(config):
         config.training.batch_size = 1
         config.val_interval = 1
         config.data.augment = False
-        config.training.epochs = 10
+        config.training.epochs = 100
     # build ecg data
     if config.data.set in ["ecg", "ptb-xl", "ptb-xl-1000", "ptb-xl-5000"]:
         train_dataset, val_dataset, test_dataset = load_ecg_dataset(config)
@@ -246,7 +246,7 @@ def train(config):
             break
 
 
-def main(config, num_samples=3):
+def main(config, num_samples=25):
     config = tune_factory(config)
     # sched = ASHAScheduler()
 
@@ -269,7 +269,7 @@ def main(config, num_samples=3):
         run_config=air.RunConfig(
             name=config["formatted_timestamp"],
             local_dir=f"/home/stud/roschman/ECGAnalysis/output/{config.model.name}",
-            stop=stopper,
+            # stop=stopper,
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_score_attribute="loss",
                 num_to_keep=1,

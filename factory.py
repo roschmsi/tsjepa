@@ -74,6 +74,7 @@ def pipeline_factory(config):
                 masking_ratio=config.model.masking_ratio,
                 patch_len=config.model.patch_len,
                 stride=config.model.stride,
+                debug=config.debug,
             ),
             partial(
                 collate_patch_unsuperv,
@@ -107,6 +108,7 @@ def pipeline_factory(config):
                 masking_ratio=config.model["masking_ratio"],
                 patch_len=config.model.patch_len,
                 stride=config.model.stride,
+                debug=config.debug,
             ),
             partial(
                 collate_patch_unsuperv,
@@ -144,9 +146,28 @@ def optimizer_factory(config, model):
             lr=config.training.lr,
             weight_decay=config.training.weight_decay,
         )
+    elif config.training.optimizer == "AdamW":
+        optimizer = torch.optim.AdamW(
+            model.parameters(),
+            lr=config.training.lr,
+            weight_decay=config.training.weight_decay,
+        )
     elif config.training.optimizer == "RAdam":
         optimizer = RAdam(model.parameters(), lr=config.training.lr)
     return optimizer
+
+
+def scheduler_factory(config, optimizer):
+    if config.training.scheduler == "StepLR":
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer=optimizer, step_size=10, gamma=0.1
+        )
+    elif config.training.scheduler == "CosineAnnealingWarmRestarts":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer=optimizer, T_0=10
+        )
+
+    return scheduler
 
 
 def model_factory(config):
@@ -356,6 +377,7 @@ def model_factory(config):
             act="relu",
             head_type="pretraining",
             res_attention=False,
+            pe="sincos",
         )
     else:
         raise ValueError(
@@ -366,7 +388,7 @@ def model_factory(config):
 def tune_factory(config):
     if config.model.name == "patch_tst":
         config = get_patch_tst_search_space(config)
-    if config.model.name == "petraining_masked_autoencoder":
+    if config.model.name == "pretraining_masked_autoencoder":
         config = get_pretraining_masked_autoencoder_search_space(config)
 
     return config

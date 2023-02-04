@@ -25,9 +25,9 @@ def get_pretraining_masked_autoencoder_search_space(config):
 
     config.model.patch_len = tune.sample_from(lambda _: 2 ** np.random.randint(3, 6))
     config.model.stride = tune.sample_from(
-        lambda spec: int(spec.config.model.patch_len // 2)
+        lambda spec: int(spec.config.model.patch_len)
     )
 
-    config.mode.masking_ratio = tune.quniform(0.2, 0.7, 0.1)
+    config.model.masking_ratio = tune.quniform(0.2, 0.7, 0.1)
 
     return config

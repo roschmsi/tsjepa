@@ -5,6 +5,23 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: Aktuelle Datei",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                // "--config_model",
+                // "/usr/stud/roschman/ECGAnalysis/models/masked_autoencoder/config_pretraining_masked_autoencoder.yaml",
+                "--config_model",
+                "/usr/stud/roschman/ECGAnalysis/models/masked_autoencoder/config_pretraining_masked_autoencoder.yaml",
+                "--config_data",
+                "/usr/stud/roschman/ECGAnalysis/data/ecg_dataset.yaml",
+                "--debug",
+            ]
+        },
+        {
             "name": "Train supervised model",
             "type": "python",
             "request": "launch",
@@ -28,7 +45,7 @@
             "justMyCode": true,
             "args": [
                 "--config_model",
-                "/usr/stud/roschman/ECGAnalysis/models/patch_tst/config_patch_tst.yaml",
+                "/usr/stud/roschman/ECGAnalysis/models/masked_autoencoder/config_pretraining_masked_autoencoder.yaml",
                 "--config_data",
                 "/usr/stud/roschman/ECGAnalysis/data/ecg_dataset.yaml",
                 "--debug",
@@ -58,7 +75,6 @@
             "request": "launch",
             "program": "/usr/stud/roschman/ECGAnalysis/main.py",
             "console": "integratedTerminal",
-            "justMyCode": true,
             "args": [
                 "--config_model",
                 // "/usr/stud/roschman/ECGAnalysis/models/patch_tst/config_pretraining_patch_tst.yaml",
