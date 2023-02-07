@@ -246,7 +246,9 @@ def collate_unsuperv(data, max_len=None, mask_compensation=False):
     return X, targets, target_masks, padding_masks
 
 
-def collate_patch_unsuperv(data, max_len=None, patch_len=None, stride=None):
+def collate_patch_unsuperv(
+    data, max_len=None, patch_len=None, stride=None, masking_ratio=0
+):
     """Build mini-batch tensors from a list of (X, mask) tuples. Mask input. Create
     Args:
         data: len(batch_size) list of tuples (X, mask).
@@ -265,22 +267,30 @@ def collate_patch_unsuperv(data, max_len=None, patch_len=None, stride=None):
     batch_size = len(data)
     features, X_kept, targets, masks, ids_restore = zip(*data)
 
-    # patch_len = 16
-    # stride = 8
     num_patch = (max(max_len, patch_len) - patch_len) // stride + 1
 
-    # Stack and pad features and masks (convert 2D to 3D tensors, i.e. add batch dimension)
     # Stack and pad features and masks (convert 2D to 3D tensors, i.e. add batch dimension)
     lengths = [
         X.shape[0] for X in features
     ]  # original sequence length for each time series
     max_len = num_patch
+
+    lengths_kept = [X.shape[0] for X in X_kept]
+    max_len_kept = int(num_patch * (1 - masking_ratio))
+
     X_col = torch.zeros(
         batch_size, max_len, features[0].shape[1], features[0].shape[2]
     )  # (batch_size, padded_length, feat_dim)
+    X_kept_padded = torch.zeros(
+        batch_size, max_len_kept, X_kept[0].shape[1], X_kept[0].shape[2]
+    )
+
     for i in range(batch_size):
         end = min(lengths[i], max_len)
         X_col[i, :end, :, :] = features[i][:end, :, :]
+
+        end_kept = min(lengths_kept[i], max_len_kept)
+        X_kept_padded[i, :end_kept, :, :] = X_kept[i][:end_kept, :, :]
 
     # features = torch.stack(features)
     targets_col = torch.zeros(
@@ -299,9 +309,27 @@ def collate_patch_unsuperv(data, max_len=None, patch_len=None, stride=None):
         torch.tensor(lengths, dtype=torch.int32), max_len=max_len
     )  # (batch_size, padded_length) boolean tensor, "1" means keep
     # target_masks = ~target_masks  # inverse logic: 0 now means ignore, 1 means predict
-    ids_restore = torch.stack(ids_restore, dim=0)
-    X_kept = torch.stack(X_kept).float()
-    return X_col, X_kept, targets_col, masks_col, padding_masks, ids_restore
+
+    padding_masks_kept = padding_mask(
+        torch.tensor(lengths_kept, dtype=torch.int32), max_len=max_len_kept
+    )
+
+    ids_restore = torch.stack(
+        [
+            torch.cat([ids, torch.zeros(max_len - len(ids), 12, dtype=torch.int)])
+            for ids in ids_restore
+        ]
+    )
+
+    return (
+        X_col,
+        X_kept_padded,
+        targets_col,
+        masks_col,
+        padding_masks,
+        padding_masks_kept,
+        ids_restore,
+    )
 
 
 def noise_mask(
