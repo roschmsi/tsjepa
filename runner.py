@@ -9,33 +9,12 @@ import torch
 from loss import l2_reg_loss
 from physionet_evaluation.evaluate_12ECG_score import compute_auc
 from utils import Printer, readable_time, save_model
+from data.mixup import mixup_data, mixup_criterion
 
 from sklearn.metrics import roc_auc_score
 
 logger = logging.getLogger("__main__")
 val_times = {"total_time": 0, "count": 0}
-
-
-def mixup_data(x, y, alpha=1.0, use_cuda=True):
-    """Returns mixed inputs, pairs of targets, and lambda"""
-    if alpha > 0:
-        lam = np.random.beta(alpha, alpha)
-    else:
-        lam = 1
-
-    batch_size = x.size()[0]
-    if use_cuda:
-        index = torch.randperm(batch_size).cuda()
-    else:
-        index = torch.randperm(batch_size)
-
-    mixed_x = lam * x + (1 - lam) * x[index, :]
-    y_a, y_b = y, y[index]
-    return mixed_x, y_a, y_b, lam
-
-
-def mixup_criterion(criterion, pred, y_a, y_b, lam):
-    return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 
 def validate(
@@ -355,14 +334,14 @@ class SupervisedRunner(BaseRunner):
             probs.append(prob)
             lbls.append(targets.data.cpu().numpy())
 
-            metrics = {"loss": mean_loss.item()}
+            # metrics = {"loss": mean_loss.item()}
             # if i % self.print_interval == 0:
             #     ending = "" if epoch_num is None else "Epoch {} ".format(epoch_num)
             #     self.print_callback(i, metrics, prefix="Training " + ending)
 
             with torch.no_grad():
                 total_samples += len(loss)
-                epoch_loss += batch_loss.item()
+                epoch_loss += mean_loss.item()
 
         # average loss per sample for whole epoch
         epoch_loss = epoch_loss / total_samples
@@ -413,12 +392,8 @@ class SupervisedRunner(BaseRunner):
             predictions = self.model(X, padding_masks)
 
             # (batch_size,) loss for each sample in the batch
-            # TODO make sure that dimension is Nx1
-            # loss = torch.mean(self.loss_module(predictions, targets), axis=1)
             loss = self.loss_module(predictions, targets)
             batch_loss = torch.sum(loss)
-            # mean loss (over samples) used for optimization
-            mean_loss = batch_loss / len(loss)
 
             prob = predictions.sigmoid().data.cpu().numpy()
             probs.append(prob)
@@ -427,11 +402,6 @@ class SupervisedRunner(BaseRunner):
             per_batch["targets"].append(targets.cpu().numpy())
             per_batch["predictions"].append(predictions.cpu().numpy())
             per_batch["metrics"].append([loss.cpu().numpy()])
-
-            metrics = {"loss": mean_loss}
-            # if i % self.print_interval == 0:
-            #     ending = "" if epoch_num is None else "Epoch {} ".format(epoch_num)
-            #     self.print_callback(i, metrics, prefix="Evaluating " + ending)
 
             total_samples += len(loss)
             epoch_loss += batch_loss
@@ -466,7 +436,7 @@ class UnsupervisedPatchRunner(BaseRunner):
 
         for i, batch in enumerate(self.dataloader):
 
-            X, _, targets, target_masks, padding_masks, ids_restore = batch
+            X, _, targets, target_masks, padding_masks, _ = batch
             targets = targets.to(self.device)
 
             # 1s: mask and predict, 0s: unaffected input (ignore)
@@ -482,8 +452,6 @@ class UnsupervisedPatchRunner(BaseRunner):
             # (num_active,) individual loss (square error per element) for each active value in batch
             loss = self.loss_module(predictions, targets, target_masks)
             mean_loss = torch.sum(loss)
-            # mean loss (over active elements) used for optimization
-            # mean_loss = batch_loss / len(loss)
 
             if self.l2_reg:
                 total_loss = mean_loss + self.l2_reg * l2_reg_loss(self.model)
@@ -508,9 +476,8 @@ class UnsupervisedPatchRunner(BaseRunner):
                 epoch_loss += mean_loss.item()
 
         # average loss per element for whole epoch
-        # epoch_loss = epoch_loss / total_active_elements
         self.epoch_metrics["epoch"] = epoch_num
-        self.epoch_metrics["loss"] = epoch_loss
+        self.epoch_metrics["loss"] = epoch_loss / len(self.dataloader)
         return self.epoch_metrics
 
     def evaluate(self, epoch_num=None, keep_all=True):
@@ -543,8 +510,8 @@ class UnsupervisedPatchRunner(BaseRunner):
             target_masks = target_masks * padding_masks.unsqueeze(-1)
 
             # (num_active,) individual loss (square error per element) for each active value in batch
-            loss = self.loss_module(predictions, targets, target_masks)
-            mean_loss = torch.sum(loss)
+            mean_loss = self.loss_module(predictions, targets, target_masks)
+            # mean_loss = torch.sum(loss)
             # mean loss (over active elements) used for optimization
             # mean_loss = batch_loss / len(loss)
 
@@ -552,7 +519,7 @@ class UnsupervisedPatchRunner(BaseRunner):
                 per_batch["target_masks"].append(target_masks.cpu().numpy())
                 per_batch["targets"].append(targets.cpu().numpy())
                 per_batch["predictions"].append(predictions.cpu().numpy())
-                per_batch["metrics"].append([loss.cpu().numpy()])
+                per_batch["metrics"].append([mean_loss.cpu().numpy()])
 
             metrics = {"loss": mean_loss.item()}
             if i % self.print_interval == 0:
@@ -565,7 +532,7 @@ class UnsupervisedPatchRunner(BaseRunner):
         # average loss per element for whole epoch
         # epoch_loss = epoch_loss / total_active_elements
         self.epoch_metrics["epoch"] = epoch_num
-        self.epoch_metrics["loss"] = epoch_loss.item()
+        self.epoch_metrics["loss"] = epoch_loss.item() / len(self.dataloader)
 
         if keep_all:
             return self.epoch_metrics, per_batch
@@ -573,7 +540,7 @@ class UnsupervisedPatchRunner(BaseRunner):
             return self.epoch_metrics
 
 
-class UnsupervisedAERunner(BaseRunner):
+class UnsupervisedMAERunner(BaseRunner):
     def train_epoch(self, epoch_num=None):
 
         self.model = self.model.train()
@@ -581,7 +548,15 @@ class UnsupervisedAERunner(BaseRunner):
 
         for i, batch in enumerate(self.dataloader):
 
-            _, X_kept, targets, target_masks, padding_masks, ids_restore = batch
+            (
+                _,
+                X_kept,
+                targets,
+                target_masks,
+                padding_masks,
+                padding_masks_kept,
+                ids_restore,
+            ) = batch
             targets = targets.to(self.device)
 
             # 1s: mask and predict, 0s: unaffected input (ignore)
@@ -590,16 +565,15 @@ class UnsupervisedAERunner(BaseRunner):
             ids_restore = ids_restore.to(self.device)
 
             # (batch_size, padded_length, feat_dim)
-            predictions = self.model(X_kept.to(self.device), padding_masks, ids_restore)
+            predictions = self.model(
+                X_kept.to(self.device), padding_masks, padding_masks_kept, ids_restore
+            )
 
             # Cascade noise masks (batch_size, padded_length, feat_dim) and padding masks (batch_size, padded_length)
             target_masks = target_masks * padding_masks.unsqueeze(-1)
 
             # (num_active,) individual loss (square error per element) for each active value in batch
-            loss = self.loss_module(predictions, targets, target_masks)
-            mean_loss = torch.sum(loss) / (predictions.shape[0] * predictions.shape[2])
-            # mean loss (over active elements) used for optimization
-            # mean_loss = batch_loss / len(loss)
+            mean_loss = self.loss_module(predictions, targets, target_masks)
 
             if self.l2_reg:
                 total_loss = mean_loss + self.l2_reg * l2_reg_loss(self.model)
@@ -645,7 +619,15 @@ class UnsupervisedAERunner(BaseRunner):
 
         for i, batch in enumerate(self.dataloader):
 
-            X, X_kept, targets, target_masks, padding_masks, ids_restore = batch
+            (
+                X,
+                X_kept,
+                targets,
+                target_masks,
+                padding_masks,
+                padding_masks_kept,
+                ids_restore,
+            ) = batch
             targets = targets.to(self.device)
 
             # 1s: mask and predict, 0s: unaffected input (ignore)
@@ -654,14 +636,16 @@ class UnsupervisedAERunner(BaseRunner):
             ids_restore = ids_restore.to(self.device)
 
             # (batch_size, padded_length, feat_dim)
-            predictions = self.model(X_kept.to(self.device), padding_masks, ids_restore)
+            predictions = self.model(
+                X_kept.to(self.device), padding_masks, padding_masks_kept, ids_restore
+            )
 
             # Cascade noise masks (batch_size, padded_length, feat_dim) and padding masks (batch_size, padded_length)
             target_masks = target_masks * padding_masks.unsqueeze(-1)
 
             # (num_active,) individual loss (square error per element) for each active value in batch
-            loss = self.loss_module(predictions, targets, target_masks)
-            mean_loss = torch.sum(loss) / (predictions.shape[0] * predictions.shape[2])
+            mean_loss = self.loss_module(predictions, targets, target_masks)
+            # mean_loss = torch.sum(loss) / (predictions.shape[0] * predictions.shape[2])
             # mean loss (over active elements) used for optimization
             # mean_loss = batch_loss / len(loss)
 
@@ -669,7 +653,7 @@ class UnsupervisedAERunner(BaseRunner):
                 per_batch["target_masks"].append(target_masks.cpu().numpy())
                 per_batch["targets"].append(targets.cpu().numpy())
                 per_batch["predictions"].append(predictions.cpu().numpy())
-                per_batch["metrics"].append([loss.cpu().numpy()])
+                per_batch["metrics"].append([mean_loss.cpu().numpy()])
 
             metrics = {"loss": mean_loss}
             if i % self.print_interval == 0:
@@ -677,12 +661,12 @@ class UnsupervisedAERunner(BaseRunner):
                 self.print_callback(i, metrics, prefix="Evaluating " + ending)
 
             # total_active_elements += len(loss)
-            epoch_loss += mean_loss
+            epoch_loss += mean_loss.item()
 
         # average loss per element for whole epoch
         # epoch_loss = epoch_loss / total_active_elements
         self.epoch_metrics["epoch"] = epoch_num
-        self.epoch_metrics["loss"] = epoch_loss / len(self.dataloader)
+        self.epoch_metrics["loss"] = epoch_loss.item() / len(self.dataloader)
 
         if keep_all:
             return self.epoch_metrics, per_batch
