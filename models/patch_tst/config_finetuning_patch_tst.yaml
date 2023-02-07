@@ -10,15 +10,15 @@ model:
   stride: 16
   masking_ratio: 0
   use_patch: True
-  freeze: False
+  freeze: True
   l2_reg: 0
   global_reg: False
 training:
   optimizer: Adam
   epochs: 400
-  batch_size: 128
+  batch_size: 64
   num_workers: 4
-  lr: 0.0001
+  lr: 0.001
   weight_decay: 0
   patience: 20
   scheduler: False
