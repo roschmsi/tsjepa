@@ -207,11 +207,7 @@ def load_model(
     state_dict = deepcopy(checkpoint["state_dict"])
     if change_output:
         for key, val in checkpoint["state_dict"].items():
-            if (
-                key.startswith("output_layer")
-                or key.startswith("head")
-                or key.startswith("decoder")
-            ):
+            if key.startswith("head") or key.startswith("decoder"):
                 state_dict.pop(key)
     # TODO load weights for maetst correctly
     # renamed_state_dict = {}

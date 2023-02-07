@@ -86,11 +86,10 @@ def main(config):
     logger.info("Creating model ...")
     model = model_factory(config)
 
-    # freeze all weights except for output layer in classification task
-    if config.model.name == "transformer_finetuning":
+    if "freeze" in config.model.keys():
         if config.model.freeze:
             for name, param in model.named_parameters():
-                if name.startswith("output_layer"):
+                if name.startswith("head"):
                     param.requires_grad = True
                 else:
                     param.requires_grad = False
@@ -120,7 +119,7 @@ def main(config):
     model.to(device)
 
     # initialize loss
-    loss_module = get_loss(config)
+    criterion = get_loss(config)
 
     # initialize data generator and runner
     dataset_class, collate_fn, runner_class = pipeline_factory(config)
@@ -144,7 +143,7 @@ def main(config):
             model,
             test_loader,
             device,
-            loss_module,
+            criterion,
             mixup_alpha=config.data.mixup_alpha,
             print_interval=config["print_interval"],
             console=config["console"],
@@ -174,7 +173,7 @@ def main(config):
         model,
         train_loader,
         device,
-        loss_module,
+        criterion,
         optimizer,
         l2_reg=None,
         mixup_alpha=config.data.mixup_alpha,
@@ -197,7 +196,7 @@ def main(config):
         model,
         val_loader,
         device,
-        loss_module,
+        criterion,
         mixup_alpha=config.data.mixup_alpha,
         print_interval=config["print_interval"],
         console=config["console"],
@@ -214,13 +213,6 @@ def main(config):
     metrics = []
     best_metrics = {}
 
-    # Evaluate on validation before training
-    # aggr_metrics_val, best_metrics, best_value = validate(
-    #     val_evaluator, tb_writer, config, best_metrics, best_value, epoch=0
-    # )
-    # metrics_names, metrics_values = zip(*aggr_metrics_val.items())
-    # metrics.append(list(metrics_values))
-
     logger.info("Starting training...")
 
     for epoch in tqdm(
@@ -230,7 +222,7 @@ def main(config):
     ):
         mark = epoch if config["save_all"] else "last"
 
-        # train the runner
+        # train model
         epoch_start_time = time.time()
         aggr_metrics_train = trainer.train_epoch(epoch)
         epoch_end_time = time.time()
@@ -247,12 +239,8 @@ def main(config):
             num_samples=len(train_dataset),
         )
 
-        # evaluate if first or last epoch or at specified interval
-        if (
-            (epoch == config.training.epochs)
-            or (epoch == start_epoch + 1)
-            or (epoch % config["val_interval"] == 0)
-        ):
+        # evaluate model
+        if epoch % config["val_interval"] == 0:
             prev_best_value = best_value
             aggr_metrics_val, best_metrics, best_value = validate(
                 val_evaluator,
@@ -263,8 +251,8 @@ def main(config):
                 epoch,
             )
 
-            metrics_names, metrics_values = zip(*aggr_metrics_val.items())
-            metrics.append(list(metrics_values))
+            metrics_val_names, metrics_val_values = zip(*aggr_metrics_val.items())
+            metrics.append(list(metrics_val_values))
 
             if best_value < prev_best_value:
                 patience_count = 0
@@ -289,30 +277,32 @@ def main(config):
         model, model_path=os.path.join(config["checkpoint_dir"], "model_best.pth")
     )
 
-    for thr in np.arange(0.0, 1.0, step):
-        lbls = []
-        probs = []
+    if config.task == "classification":
 
-        for batch in val_loader:
+        for thr in np.arange(0.0, 1.0, step):
+            lbls = []
+            probs = []
 
-            X, targets, padding_masks = batch
-            X = X.to(device)
-            targets = targets.to(device)
-            padding_masks = padding_masks.to(device)
+            for batch in val_loader:
 
-            predictions = model(X, padding_masks)
-            prob = predictions.sigmoid().data.cpu().numpy()
-            probs.append(prob)
-            lbls.append(targets.data.cpu().numpy())
+                X, targets, padding_masks = batch
+                X = X.to(device)
+                targets = targets.to(device)
+                padding_masks = padding_masks.to(device)
 
-        lbls = np.concatenate(lbls)
-        probs = np.concatenate(probs)
+                predictions = model(X, padding_masks)
+                prob = predictions.sigmoid().data.cpu().numpy()
+                probs.append(prob)
+                lbls.append(targets.data.cpu().numpy())
 
-        preds = (probs > thr).astype(np.int)
-        challenge_metric = compute_challenge_metric(
-            weights, lbls, preds, classes, normal_class
-        )
-        scores.append(challenge_metric)
+            lbls = np.concatenate(lbls)
+            probs = np.concatenate(probs)
+
+            preds = (probs > thr).astype(np.int)
+            challenge_metric = compute_challenge_metric(
+                weights, lbls, preds, classes, normal_class
+            )
+            scores.append(challenge_metric)
 
     # Best thrs and preds
     scores = np.array(scores)
