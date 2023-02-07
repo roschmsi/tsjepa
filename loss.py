@@ -7,15 +7,16 @@ from torch.nn import functional as F
 def get_loss(config):
     if config["task"] == "imputation" and not config.model.use_patch:
         return MaskedMSELoss(reduction="none")
-    if config["task"] == "imputation" and config.model.use_patch:
+    if (
+        config["task"] == "pretraining_patch_tst"
+        or config["task"] == "pretraining_masked_autoencoder"
+    ):
         return MaskedPatchLoss()
     elif config["task"] == "classification":
         if config.data.multilabel:
             return BCEWithLogitsLoss(reduction="none")
         else:  # one class per time series
             return NoFussCrossEntropyLoss(reduction="none")
-    elif config["task"] == "autoencoder_pretraining":
-        return MaskedPatchLoss()
     else:
         raise ValueError(
             "Loss module for task '{}' does not exist".format(config["task"])
@@ -26,7 +27,7 @@ def l2_reg_loss(model):
     """Returns the squared L2 norm of output layer of given model"""
 
     for name, param in model.named_parameters():
-        if name == "output_layer.weight":
+        if name == "head.weight":
             return torch.sum(torch.square(param))
 
 
@@ -86,6 +87,8 @@ class MaskedPatchLoss(nn.Module):
 
     def forward(self, preds, target, mask):
         loss = (preds - target) ** 2
+        # mean loss per patch
         loss = loss.mean(dim=-1)
+        # mean loss on removed patches
         loss = (loss * mask).sum() / mask.sum()
         return loss

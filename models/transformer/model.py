@@ -215,7 +215,7 @@ class TSTransformerEncoder(nn.Module):
 
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers)
 
-        self.output_layer = nn.Linear(d_model, feat_dim)
+        self.head = nn.Linear(d_model, feat_dim)
 
         self.act = _get_activation_fn(activation)
 
@@ -248,7 +248,7 @@ class TSTransformerEncoder(nn.Module):
         output = output.permute(1, 0, 2)  # (batch_size, seq_length, d_model)
         output = self.dropout1(output)
         # Most probably defining a Linear(d_model,feat_dim) vectorizes the operation over (seq_length, batch_size).
-        output = self.output_layer(output)  # (batch_size, seq_length, feat_dim)
+        output = self.head(output)  # (batch_size, seq_length, feat_dim)
 
         return output
 
@@ -310,13 +310,13 @@ class TSTransformerEncoderClassifier(nn.Module):
 
         self.feat_dim = feat_dim
         self.num_classes = num_classes
-        self.output_layer = self.build_output_module(d_model, max_len, num_classes)
+        self.head = self.build_output_module(d_model, max_len, num_classes)
 
     def build_output_module(self, d_model, max_len, num_classes):
-        output_layer = nn.Linear(d_model * max_len, num_classes)
+        head = nn.Linear(d_model * max_len, num_classes)
         # no softmax (or log softmax), because CrossEntropyLoss does this internally. If probabilities are needed,
         # add F.log_softmax and use NLLoss
-        return output_layer
+        return head
 
     def forward(self, X, padding_masks):
         """
@@ -348,6 +348,6 @@ class TSTransformerEncoderClassifier(nn.Module):
         output = output.reshape(
             output.shape[0], -1
         )  # (batch_size, seq_length * d_model)
-        output = self.output_layer(output)  # (batch_size, num_classes)
+        output = self.head(output)  # (batch_size, num_classes)
 
         return output

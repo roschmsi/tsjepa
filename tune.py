@@ -73,7 +73,7 @@ def train(config):
     if config.model.name == "transformer_finetuning":
         if config.model.freeze:
             for name, param in model.named_parameters():
-                if name.startswith("output_layer"):
+                if name.startswith("head"):
                     param.requires_grad = True
                 else:
                     param.requires_grad = False
@@ -190,7 +190,6 @@ def train(config):
     patience_count = 0
 
     # (for validation) list of lists: for each epoch, stores metrics like loss, ...
-    metrics = []
     best_metrics = {}
 
     # Evaluate on validation before training
@@ -206,7 +205,7 @@ def train(config):
         # mark = epoch if config["save_all"] else "last"
 
         # train the runner
-        trainer.train_epoch(epoch)
+        metrics_train = trainer.train_epoch(epoch)
 
         # evaluate if first or last epoch or at specified interval
         # if epoch % config["val_interval"] == 0:
@@ -219,8 +218,7 @@ def train(config):
             epoch,
         )
 
-        metrics_names, metrics_values = zip(*aggr_metrics_val.items())
-        metrics.append(list(metrics_values))
+        metrics_val_names, metrics_val_values = zip(*aggr_metrics_val.items())
 
         if best_value < prev_best_value:
             patience_count = 0
@@ -231,14 +229,14 @@ def train(config):
         torch.save((model.state_dict(), optimizer.state_dict()), "model/checkpoint.pth")
         checkpoint = Checkpoint.from_directory("model")
 
-        if len(metrics_values) == 3:
+        if len(metrics_val_values) == 3:
             session.report(
-                dict(loss=metrics_values[1].item(), auroc=metrics_values[2]),
+                dict(loss=metrics_val_values[1].item(), auroc=metrics_val_values[2]),
                 checkpoint=checkpoint,
             )
         else:
             session.report(
-                dict(loss=metrics_values[1].item()),
+                dict(loss=metrics_val_values[1].item()),
                 checkpoint=checkpoint,
             )
 
