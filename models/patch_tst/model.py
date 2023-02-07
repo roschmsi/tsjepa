@@ -379,7 +379,7 @@ class TSTEncoder(nn.Module):
         )
         self.res_attention = res_attention
 
-    def forward(self, src: Tensor):
+    def forward(self, src: Tensor, key_padding_mask=None):
         """
         src: tensor [bs x q_len x d_model]
         """
@@ -387,7 +387,9 @@ class TSTEncoder(nn.Module):
         scores = None
         if self.res_attention:
             for mod in self.layers:
-                output, scores = mod(output, prev=scores)
+                output, scores = mod(
+                    output, prev=scores, key_padding_mask=key_padding_mask
+                )
             return output
         else:
             for mod in self.layers:
@@ -458,7 +460,9 @@ class TSTEncoderLayer(nn.Module):
         self.pre_norm = pre_norm
         self.store_attn = store_attn
 
-    def forward(self, src: Tensor, prev: Optional[Tensor] = None):
+    def forward(
+        self, src: Tensor, prev: Optional[Tensor] = None, key_padding_mask=None
+    ):
         """
         src: tensor [bs x q_len x d_model]
         """
@@ -467,9 +471,13 @@ class TSTEncoderLayer(nn.Module):
             src = self.norm_attn(src)
         # Multi-Head attention
         if self.res_attention:
-            src2, attn, scores = self.self_attn(src, src, src, prev)
+            src2, attn, scores = self.self_attn(
+                src, src, src, prev, key_padding_mask=key_padding_mask
+            )
         else:
-            src2, attn = self.self_attn(src, src, src)
+            src2, attn = self.self_attn(
+                src, src, src, key_padding_mask=key_padding_mask
+            )
         if self.store_attn:
             self.attn = attn
         # Add & Norm
