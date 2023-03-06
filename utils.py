@@ -18,31 +18,28 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def check_config_data(config):
-    dir = ""
-    if "window" in config.data.keys():
-        dir += f"_window={config.data.window}"
-    if "fs" in config.data.keys():
-        dir += f"_fs={config.data.fs}"
-    if "augment" in config.data.keys():
-        dir += f"_augment={config.data.augment}"
-    if "mixup_alpha" in config.data.keys():
-        dir += f"_mixup={config.data.mixup_alpha}"
-
-    return dir
-
-
 def check_config(config):
     dir = ""
     # check for dataset
-    if "window" in config.data.keys():
-        dir += f"_window={config.data.window}"
-    if "fs" in config.data.keys():
-        dir += f"_fs={config.data.fs}"
+    if "set" in config.data.keys():
+        dir += f"_data={config.data.set}"
     if "augment" in config.data.keys():
         dir += f"_augment={config.data.augment}"
     if "mixup_alpha" in config.data.keys():
         dir += f"_mixup={config.data.mixup_alpha}"
+
+    # check patch parameters
+    if "patch_len" in config.model.keys():
+        dir += f"_patch={config.model.patch_len}"
+    if "stride" in config.model.keys():
+        dir += f"_stride={config.model.stride}"
+        # check for pretraining parameters
+    if "masking_ratio" in config.model.keys() and config.model.masking_ratio > 0:
+        dir += f"_mratio={config.model.masking_ratio}"
+    if "masking_ratio_pretraining" in config.model.keys():
+        dir += f"_premratio={config.model.masking_ratio_pretraining}"
+    if "mean_mask_length" in config.model.keys():
+        dir += f"_mlen={config.model.mean_mask_length}"
 
     # check for training parameters
     if "batch_size" in config.training.keys():
@@ -68,11 +65,7 @@ def check_config(config):
     if "num_cnn" in config.model.keys():
         dir += f"_num_cnn={config.model.num_cnn}"
 
-    # check for pretraining parameters
-    if "masking_ratio" in config.model.keys():
-        dir += f"_maskratio={config.model.masking_ratio}"
-    if "mean_mask_length" in config.model.keys():
-        dir += f"_masklen={config.model.mean_mask_length}"
+    # check for masked autoencoder parameters
 
     # check for fedformer parameters
     if "version" in config.model.keys():
@@ -99,17 +92,15 @@ def create_output_directory(config):
     formatted_timestamp = initial_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
     config["initial_timestamp"] = formatted_timestamp
 
-    formatted_model_config = f"_data={config.data.set}"
-    formatted_model_config += check_config(config)
+    formatted_model_config = check_config(config)
 
     if not config.description == "":
         config.description = "_" + config.description
     if config.debug:
         config.description = config.description + "_debug"
 
-    output_dir = os.path.join(
-        output_dir, formatted_timestamp + formatted_model_config + config.description
-    )
+    # remove formatted timestamp to enable requeue
+    output_dir = os.path.join(output_dir, formatted_model_config + config.description)
 
     return config, output_dir
 
@@ -162,6 +153,16 @@ def setup(args):
     Returns:
         config: configuration dictionary
     """
+    if args.resume:
+        loaded_config = load_config_yaml(
+            os.path.join(args.load_model, "configuration.json")
+        )
+        config = args.__dict__  # configuration dictionary
+        loaded_config.update(config)
+        loaded_config = EasyDict(loaded_config)
+        loaded_config.training.lr = float(loaded_config.training.lr)
+        return loaded_config
+
     config = args.__dict__  # configuration dictionary
     model_config = load_config_yaml(config["config_model"])
     config.update(model_config)
@@ -179,6 +180,42 @@ def setup(args):
         json.dump(config, fp, indent=4, sort_keys=True)
 
     logger.info("Stored configuration file in '{}'".format(output_dir))
+
+    # TODO assure that certain config values of loaded model match the current config
+    if args.finetune:
+        pretraining_config = load_config_yaml(
+            os.path.join(args.load_model, "configuration.json")
+        )
+        pretraining_config = EasyDict(pretraining_config)
+
+        keys = ["dropout", "patch_len", "stride", "use_patch"]
+
+        if config.model.name == "finetuning_patch_tst":
+            keys.extend(
+                [
+                    "d_model",
+                    "d_ff",
+                    "num_heads",
+                    "num_layers",
+                ]
+            )
+        if config.model.name == "finetuning_masked_autoencoder":
+            keys.extend(
+                [
+                    "enc_d_model",
+                    "enc_d_ff",
+                    "enc_num_heads",
+                    "enc_num_layers",
+                ]
+            )
+
+        for key in keys:
+            assert config.model[key] == pretraining_config.model[key]
+
+        assert (
+            config.model.masking_ratio_pretraining
+            == pretraining_config.model.masking_ratio
+        )
 
     return config
 
@@ -203,11 +240,16 @@ def load_model(
     lr=None,
 ):
     start_epoch = 0
+    # model_path = os.path.join(model_path, "checkpoints", "model_best.pth")
     checkpoint = torch.load(model_path, map_location=lambda storage, loc: storage)
     state_dict = deepcopy(checkpoint["state_dict"])
     if change_output:
         for key, val in checkpoint["state_dict"].items():
-            if key.startswith("head") or key.startswith("decoder"):
+            if (
+                key.startswith("head")
+                or key.startswith("decoder")
+                or key.startswith("encoder_pos_embed")
+            ):
                 state_dict.pop(key)
     # TODO load weights for maetst correctly
     # renamed_state_dict = {}
@@ -223,12 +265,12 @@ def load_model(
     # resume optimizer parameters
     if optimizer is not None and resume:
         if "optimizer" in checkpoint:
-            optimizer.load_state_dict(checkpoint["optimizer"])
+            # optimizer.load_state_dict(checkpoint["optimizer"])
             start_epoch = checkpoint["epoch"]
-            start_lr = lr
-            for param_group in optimizer.param_groups:
-                param_group["lr"] = start_lr
-            print("Resumed optimizer with start lr", start_lr)
+            # start_lr = lr
+            # for param_group in optimizer.param_groups:
+            #     param_group["lr"] = start_lr
+            # print("Resumed optimizer with start lr", start_lr)
         else:
             print("No optimizer parameters in checkpoint.")
     if optimizer is not None:
