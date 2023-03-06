@@ -14,15 +14,16 @@
             "justMyCode": true,
             "args": [
                 "--config_model",
+                // "/usr/stud/roschman/ECGAnalysis/models/mlp/config_mlp.yaml",
                 "/usr/stud/roschman/ECGAnalysis/models/masked_autoencoder/config_pretraining_masked_autoencoder.yaml",
                 // "--config_model",
                 // "/usr/stud/roschman/ECGAnalysis/models/patch_tst/config_pretraining_patch_tst.yaml",
                 "--config_data",
                 "/usr/stud/roschman/ECGAnalysis/data/ecg_dataset.yaml",
                 "--debug",
-                // "--load_model",
-                // "/home/stud/roschman/ECGAnalysis/output/pretraining_masked_autoencoder/2023-02-06_22-34-37_data=ecg_window=10_fs=100_augment=False_mixup=0_bs=64_opt=AdamW_lr=5e-05_dropout=0.1_maskratio=0.5/checkpoints/model_best.pth",
-                // "--change_output"
+                "--load_model",
+                "/home/stud/roschman/ECGAnalysis/output/pretraining_masked_autoencoder/2023-02-10_11-08-54_data=ecg_augment=False_mixup=0_patch=16_stride=16_mratio=0.5_bs=64_opt=AdamW_lr=5e-05_enclayers=8_encdmodel=256_declayers=2_decdmodel=256",
+                "--resume"
             ]
         },
         {
