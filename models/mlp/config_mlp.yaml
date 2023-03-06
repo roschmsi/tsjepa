@@ -1,19 +1,7 @@
 model:
-  name: "finetuning_patch_tst"
-  d_model: 256
-  d_ff: 512
-  num_heads: 8
-  num_layers: 8
-  dropout: 0.1
-  head_dropout: 0.1
-  masking_ratio: 0
-  masking_ratio_pretraining: 0.5
-  patch_len: 16
-  stride: 16
-  use_patch: True
-  freeze: False
-  l2_reg: 0
-  global_reg: False
+  name: "mlp"
+  dropout: 0.0
+  use_patch: False
 training:
   optimizer: AdamW
   epochs: 400

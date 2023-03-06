@@ -10,4 +10,9 @@
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 #SBATCH --no-requeue
 source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
-srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config_model /usr/stud/roschman/ECGAnalysis/models/patch_tst/config_finetuning_patch_tst.yaml --config_data /usr/stud/roschman/ECGAnalysis/data/ecg_dataset.yaml --load_model /home/stud/roschman/ECGAnalysis/output/pretraining_patch_tst/2023-02-07_08-51-49_data=ecg_window=10_fs=100_augment=False_mixup=0_bs=64_opt=AdamW_lr=5e-05_dmodel=256_dff=512_nlayers=8_nheads=8_dropout=0.1_maskratio=0.5/checkpoints/model_best.pth --change_output
+srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
+--config_model /usr/stud/roschman/ECGAnalysis/models/patch_tst/config_finetuning_patch_tst.yaml \
+--config_data /usr/stud/roschman/ECGAnalysis/data/ecg_dataset.yaml \
+--load_model /home/stud/roschman/ECGAnalysis/output/pretraining_patch_tst/2023-02-15_12-25-38_data=ecg_augment=False_mixup=0_patch=16_stride=16_mratio=0.5_bs=64_opt=AdamW_lr=5e-05_dmodel=256_dff=512_nlayers=8_nheads=8 \
+--change_output \
+--finetune

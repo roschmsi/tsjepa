@@ -9,10 +9,11 @@ model:
   patch_len: 16
   stride: 16
   use_patch: True
-  masking_ratio: 0.5
-  freeze: True
+  masking_ratio: 0
+  masking_ratio_pretraining: 0.3
+  freeze: False
 training:
-  optimizer: Adam
+  optimizer: AdamW
   epochs: 400
   batch_size: 64
   num_workers: 4

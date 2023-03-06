@@ -1,13 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name="pretrain patch tst"
+#SBATCH --job-name="pretrain patch tst 128"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:1,VRAM:16G
-#SBATCH --mem=16G
-#SBATCH --time=48:00:00
+#SBATCH --gres=gpu:1,VRAM:32G
+#SBATCH --mem=32G
+#SBATCH --time=96:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --output=/storage/slurm/logs/slurm-%j.out
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
-#SBATCH --no-requeue
 source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
-srun python3 /usr/stud/roschman/ECGAnalysis/main.py --config_model /usr/stud/roschman/ECGAnalysis/models/patch_tst/config_pretraining_patch_tst.yaml --config_data /usr/stud/roschman/ECGAnalysis/data/ecg_dataset.yaml
+srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
+--config_model /usr/stud/roschman/ECGAnalysis/models/patch_tst/config_pretraining_patch_tst.yaml \
+--config_data /usr/stud/roschman/ECGAnalysis/data/ecg_dataset.yaml
