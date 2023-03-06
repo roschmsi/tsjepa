@@ -108,13 +108,17 @@ def main(config):
 
     # load model and optimizer states
     if config.load_model:
+        if config.resume:
+            path = os.path.join(config["load_model"], "checkpoints", "model_last.pth")
+        else:
+            path = os.path.join(config["load_model"], "checkpoints", "model_best.pth")
+
         model, optimizer, start_epoch = load_model(
             model,
-            config["load_model"],  # load weights
+            path,  # load weights
             optimizer,
             config["resume"],  # load starting epoch and optimizer
             config["change_output"],  # finetuning on different task
-            config.training["lr"],
         )
     model.to(device)
 
@@ -222,6 +226,12 @@ def main(config):
     ):
         mark = epoch if config["save_all"] else "last"
 
+        # option to unfreeze entire model after initial linear probing
+        if "freeze" in config.model.keys():
+            if config.model.freeze and epoch >= config.model.freeze_epochs:
+                for name, param in model.named_parameters():
+                    param.requires_grad = True
+
         # train model
         epoch_start_time = time.time()
         aggr_metrics_train = trainer.train_epoch(epoch)
@@ -269,15 +279,15 @@ def main(config):
         if patience_count > config.training.patience:
             break
 
-    # load best model, compute physionet challenge metric
-    step = 0.02
-    scores = []
-    weights = load_weights(config.evaluation.weights_file, classes)
-    model = load_model(
-        model, model_path=os.path.join(config["checkpoint_dir"], "model_best.pth")
-    )
-
     if config.task == "classification":
+
+        # load best model, compute physionet challenge metric
+        step = 0.02
+        scores = []
+        weights = load_weights(config.evaluation.weights_file, classes)
+        model = load_model(
+            model, model_path=os.path.join(config["checkpoint_dir"], "model_best.pth")
+        )
 
         for thr in np.arange(0.0, 1.0, step):
             lbls = []
@@ -304,14 +314,17 @@ def main(config):
             )
             scores.append(challenge_metric)
 
-    # Best thrs and preds
-    scores = np.array(scores)
-    idxs = np.argmax(scores, axis=0)
-    thrs = np.array([idxs * step])
-    preds = (probs > thrs).astype(np.int)
+        # Best thrs and preds
+        scores = np.array(scores)
+        idxs = np.argmax(scores, axis=0)
+        thrs = np.array([idxs * step])
+        preds = (probs > thrs).astype(np.int)
+
+        logger.info(
+            "Best challenge score: {}. Threshold: {}".format(scores[idxs], thrs[0])
+        )
 
     logger.info("Best loss: {}. Other metrics: {}".format(best_value, best_metrics))
-    logger.info("Best challenge score: {}. Threshold: {}".format(scores[idxs], thrs[0]))
     logger.info("All Done!")
 
     total_runtime = time.time() - total_start_time
