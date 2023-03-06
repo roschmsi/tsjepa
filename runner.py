@@ -436,7 +436,7 @@ class UnsupervisedPatchRunner(BaseRunner):
 
         for i, batch in enumerate(self.dataloader):
 
-            X, _, targets, target_masks, padding_masks, _ = batch
+            X, _, targets, target_masks, padding_masks, _, _ = batch
             targets = targets.to(self.device)
 
             # 1s: mask and predict, 0s: unaffected input (ignore)
@@ -496,7 +496,7 @@ class UnsupervisedPatchRunner(BaseRunner):
 
         for i, batch in enumerate(self.dataloader):
 
-            X, _, targets, target_masks, padding_masks, _ = batch
+            X, _, targets, target_masks, padding_masks, _, _ = batch
             targets = targets.to(self.device)
 
             # 1s: mask and predict, 0s: unaffected input (ignore)
@@ -666,7 +666,7 @@ class UnsupervisedMAERunner(BaseRunner):
         # average loss per element for whole epoch
         # epoch_loss = epoch_loss / total_active_elements
         self.epoch_metrics["epoch"] = epoch_num
-        self.epoch_metrics["loss"] = epoch_loss.item() / len(self.dataloader)
+        self.epoch_metrics["loss"] = epoch_loss / len(self.dataloader)
 
         if keep_all:
             return self.epoch_metrics, per_batch
