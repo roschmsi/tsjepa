@@ -12,7 +12,11 @@
 import torch
 import torch.nn as nn
 from models.patch_tst.layers.pos_encoding import positional_encoding
-from models.patch_tst.model import ClassificationPoolHead, TSTEncoder
+from models.patch_tst.model import (
+    ClassificationHead,
+    ClassificationPoolHead,
+    TSTEncoder,
+)
 
 
 class MaskedAutoencoderTST(nn.Module):
@@ -241,7 +245,7 @@ class MaskedAutoencoderTSTClassifier(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
 
-        self.head = ClassificationPoolHead(
+        self.head = ClassificationHead(
             n_vars=self.n_vars,
             d_model=enc_d_model,
             n_classes=target_dim,
