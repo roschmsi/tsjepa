@@ -27,6 +27,11 @@ class Options(object):
             help="If set, will load `starting_epoch` and state of optimizer, besides model weights.",
         )
         self.parser.add_argument(
+            "--finetune",
+            action="store_true",
+            help="finetune a pretrained model",
+        )
+        self.parser.add_argument(
             "--test",
             action="store_true",
             help="only test model, no training",
