@@ -187,9 +187,8 @@ class TSTransformerEncoder(nn.Module):
     ):
         super(TSTransformerEncoder, self).__init__()
 
-        self.max_len = max_len
         self.d_model = d_model
-        self.n_heads = num_heads
+        self.num_heads = num_heads
 
         self.project_inp = nn.Linear(feat_dim, d_model)
         self.pos_enc = get_pos_encoder(pos_encoding)(
@@ -199,7 +198,7 @@ class TSTransformerEncoder(nn.Module):
         if norm == "LayerNorm":
             encoder_layer = TransformerEncoderLayer(
                 d_model,
-                self.n_heads,
+                self.num_heads,
                 d_ff,
                 dropout * (1.0 - freeze),
                 activation=activation,
@@ -207,7 +206,7 @@ class TSTransformerEncoder(nn.Module):
         else:
             encoder_layer = TransformerBatchNormEncoderLayer(
                 d_model,
-                self.n_heads,
+                self.num_heads,
                 d_ff,
                 dropout * (1.0 - freeze),
                 activation=activation,

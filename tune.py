@@ -12,7 +12,7 @@ from data.ecg_dataset import classes, load_ecg_dataset, normal_class
 from data.uea_dataset import load_uea_dataset
 from data.fc_dataset import load_fc_dataset
 from factory import model_factory, optimizer_factory, pipeline_factory, tune_factory
-from loss import get_loss
+from loss import get_criterion
 from options import Options
 from physionet_evaluation.evaluate_12ECG_score import (
     compute_challenge_metric,
@@ -47,19 +47,19 @@ def train(config):
     logger.addHandler(file_handler)
 
     if config["debug"]:
-        config.training.batch_size = 1
+        config.batch_size = 1
         config.val_interval = 1
-        config.data.augment = False
-        config.training.epochs = 100
+        config.augment = False
+        config.epochs = 100
     # build ecg data
-    if config.data.set in ["ecg", "ptb-xl", "ptb-xl-1000", "ptb-xl-5000"]:
+    if config.dataset in ["ecg", "ptb-xl", "ptb-xl-1000", "ptb-xl-5000"]:
         train_dataset, val_dataset, test_dataset = load_ecg_dataset(config)
-    elif config.data.set in ["insect_wingbeat", "phoneme_spectra"]:
+    elif config.dataset in ["insect_wingbeat", "phoneme_spectra"]:
         train_dataset, val_dataset, test_dataset, config_data = load_uea_dataset(
             config.data, debug=config.debug
         )
         config.data = config_data
-    elif config.data.set in ["ettm1"]:
+    elif config.dataset in ["ettm1"]:
         train_dataset, val_dataset, test_dataset = load_fc_dataset(
             config.data, debug=config.debug
         )
@@ -70,8 +70,8 @@ def train(config):
     model = model_factory(config)
 
     # freeze all weights except for output layer in classification task
-    if config.model.name == "transformer_finetuning":
-        if config.model.freeze:
+    if config.model_name == "transformer_finetuning":
+        if config.freeze:
             for name, param in model.named_parameters():
                 if name.startswith("head"):
                     param.requires_grad = True
@@ -79,7 +79,7 @@ def train(config):
                     param.requires_grad = False
 
     optimizer = optimizer_factory(config, model)
-    if config.training.scheduler:
+    if config.scheduler:
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
     else:
         scheduler = None
@@ -95,28 +95,28 @@ def train(config):
     #         optimizer,
     #         config["resume"],  # load starting epoch and optimizer
     #         config["change_output"],  # finetuning on different task
-    #         config.training["lr"],
+    #         config.lr,
     #     )
     model.to(device)
 
     # initialize loss
-    loss_module = get_loss(config)
+    loss_module = get_criterion(config)
 
     # initialize data generator and runner
     dataset_class, collate_fn, runner_class = pipeline_factory(config)
 
-    if "max_seq_len" in config.data.keys():
-        max_len = config.data.max_seq_len
+    if "max_seq_len" in config.keys():
+        max_len = config.max_seq_len
     else:
-        max_len = config.data.window * config.data.fs
+        max_len = config.window * config.fs
 
     if config.test:  # Only evaluate and skip training
         test_dataset = dataset_class(test_dataset)
         test_loader = DataLoader(
             dataset=test_dataset,
-            batch_size=config.training.batch_size,
+            batch_size=config.batch_size,
             shuffle=False,
-            num_workers=config.training.num_workers,
+            num_workers=config.num_workers,
             pin_memory=True,
             collate_fn=lambda x: collate_fn(x, max_len=max_len),
         )
@@ -125,10 +125,10 @@ def train(config):
             test_loader,
             device,
             loss_module,
-            mixup_alpha=config.data.mixup_alpha,
+            mixup=config.mixup,
             print_interval=config["print_interval"],
             console=config["console"],
-            multilabel=config.data.multilabel,
+            multilabel=config.multilabel,
         )
 
         aggr_metrics_test, _ = test_evaluator.evaluate(keep_all=True)
@@ -143,9 +143,9 @@ def train(config):
     train_dataset = dataset_class(train_dataset)
     train_loader = DataLoader(
         dataset=train_dataset,
-        batch_size=config.training.batch_size,
+        batch_size=config.batch_size,
         shuffle=True,
-        num_workers=config.training.num_workers,
+        num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=lambda x: collate_fn(x, max_len=max_len),
     )
@@ -156,19 +156,19 @@ def train(config):
         loss_module,
         optimizer,
         l2_reg=None,
-        mixup_alpha=config.data.mixup_alpha,
+        mixup=config.mixup,
         print_interval=config["print_interval"],
         console=config["console"],
-        multilabel=config.data.multilabel,
+        multilabel=config.multilabel,
         scheduler=scheduler,
     )
 
     val_dataset = dataset_class(val_dataset)
     val_loader = DataLoader(
         dataset=val_dataset,
-        batch_size=config.training.batch_size,
+        batch_size=config.batch_size,
         shuffle=False,
-        num_workers=config.training.num_workers,
+        num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=lambda x: collate_fn(x, max_len=max_len),
     )
@@ -177,10 +177,10 @@ def train(config):
         val_loader,
         device,
         loss_module,
-        mixup_alpha=config.data.mixup_alpha,
+        mixup=config.mixup,
         print_interval=config["print_interval"],
         console=config["console"],
-        multilabel=config.data.multilabel,
+        multilabel=config.multilabel,
     )
 
     # tb_writer = SummaryWriter(config.output_dir)
@@ -201,9 +201,7 @@ def train(config):
 
     # logger.info("Starting training...")
 
-    for epoch in range(start_epoch + 1, config.training.epochs + 1):
-        # mark = epoch if config["save_all"] else "last"
-
+    for epoch in range(start_epoch + 1, config.epochs + 1):
         # train the runner
         metrics_train = trainer.train_epoch(epoch)
 
@@ -240,7 +238,7 @@ def train(config):
                 checkpoint=checkpoint,
             )
 
-        if patience_count > config.training.patience:
+        if patience_count > config.patience:
             break
 
 
@@ -266,7 +264,7 @@ def main(config, num_samples=25):
         ),
         run_config=air.RunConfig(
             name=config["formatted_timestamp"],
-            local_dir=f"/home/stud/roschman/ECGAnalysis/output/{config.model.name}",
+            local_dir=f"/home/stud/roschman/ECGAnalysis/output/{config.model_name}",
             # stop=stopper,
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_score_attribute="loss",
@@ -289,7 +287,7 @@ def main(config, num_samples=25):
     # # load best model, compute physionet challenge metric
     # step = 0.02
     # scores = []
-    # weights = load_weights(config.evaluation.weights_file, classes)
+    # weights = load_weights(config.weights_file, classes)
 
     # for thr in np.arange(0.0, 1.0, step):
     #     lbls = []

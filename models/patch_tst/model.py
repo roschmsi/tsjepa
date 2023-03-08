@@ -26,9 +26,9 @@ class PatchTST(nn.Module):
         patch_len: int,
         stride: int,
         num_patch: int,
-        n_layers: int = 3,
+        num_layers: int = 3,
         d_model=128,
-        n_heads=16,
+        num_heads=16,
         shared_embedding=True,
         d_ff: int = 256,
         norm: str = "BatchNorm",
@@ -61,9 +61,9 @@ class PatchTST(nn.Module):
             c_in,
             num_patch=num_patch,
             patch_len=patch_len,
-            n_layers=n_layers,
+            num_layers=num_layers,
             d_model=d_model,
-            n_heads=n_heads,
+            num_heads=num_heads,
             shared_embedding=shared_embedding,
             d_ff=d_ff,
             attn_dropout=attn_dropout,
@@ -279,9 +279,9 @@ class PatchTSTEncoder(nn.Module):
         c_in,
         num_patch,
         patch_len,
-        n_layers=3,
+        num_layers=3,
         d_model=128,
-        n_heads=16,
+        num_heads=16,
         shared_embedding=True,
         d_ff=256,
         norm="BatchNorm",
@@ -321,7 +321,7 @@ class PatchTSTEncoder(nn.Module):
         # Encoder
         self.encoder = TSTEncoder(
             d_model,
-            n_heads,
+            num_heads,
             d_ff=d_ff,
             norm=norm,
             attn_dropout=attn_dropout,
@@ -329,7 +329,7 @@ class PatchTSTEncoder(nn.Module):
             pre_norm=pre_norm,
             activation=act,
             res_attention=res_attention,
-            n_layers=n_layers,
+            num_layers=num_layers,
             store_attn=store_attn,
         )
 
@@ -369,14 +369,14 @@ class TSTEncoder(nn.Module):
     def __init__(
         self,
         d_model,
-        n_heads,
+        num_heads,
         d_ff=None,
         norm="BatchNorm",
         attn_dropout=0.0,
         dropout=0.0,
         activation="gelu",
         res_attention=False,
-        n_layers=1,
+        num_layers=1,
         pre_norm=False,
         store_attn=False,
     ):
@@ -386,7 +386,7 @@ class TSTEncoder(nn.Module):
             [
                 TSTEncoderLayer(
                     d_model,
-                    n_heads=n_heads,
+                    num_heads=num_heads,
                     d_ff=d_ff,
                     norm=norm,
                     attn_dropout=attn_dropout,
@@ -396,7 +396,7 @@ class TSTEncoder(nn.Module):
                     pre_norm=pre_norm,
                     store_attn=store_attn,
                 )
-                for i in range(n_layers)
+                for i in range(num_layers)
             ]
         )
         self.res_attention = res_attention
@@ -423,7 +423,7 @@ class TSTEncoderLayer(nn.Module):
     def __init__(
         self,
         d_model,
-        n_heads,
+        num_heads,
         d_ff=256,
         store_attn=False,
         norm="BatchNorm",
@@ -436,16 +436,16 @@ class TSTEncoderLayer(nn.Module):
     ):
         super().__init__()
         assert (
-            not d_model % n_heads
-        ), f"d_model ({d_model}) must be divisible by n_heads ({n_heads})"
-        d_k = d_model // n_heads
-        d_v = d_model // n_heads
+            not d_model % num_heads
+        ), f"d_model ({d_model}) must be divisible by num_heads ({num_heads})"
+        d_k = d_model // num_heads
+        d_v = d_model // num_heads
 
         # Multi-Head attention
         self.res_attention = res_attention
         self.self_attn = MultiheadAttention(
             d_model,
-            n_heads,
+            num_heads,
             d_k,
             d_v,
             attn_dropout=attn_dropout,

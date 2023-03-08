@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 import torch
 
 
-class ImputationDataset(Dataset):
+class PretrainingDataset(Dataset):
     """Dynamically computes missingness (noise) mask for each sample"""
 
     def __init__(
@@ -15,7 +15,7 @@ class ImputationDataset(Dataset):
         distribution="geometric",
         exclude_feats=None,
     ):
-        super(ImputationDataset, self).__init__()
+        super(PretrainingDataset, self).__init__()
         self.ecg_dataset = ecg_dataset
         self.masking_ratio = masking_ratio
         self.mean_mask_length = mean_mask_length
@@ -149,9 +149,6 @@ def collate_patch_superv(
     batch_size = len(data)
     features, labels = zip(*data)
 
-    # patch_len = 16
-    # stride = 8
-    # masking_ratio = 0.4
     num_patch = (max(max_len, patch_len) - patch_len) // stride + 1
     num_patch = int((1 - masking_ratio) * num_patch)
 
@@ -449,13 +446,13 @@ def padding_mask(lengths, max_len=None):
     )
 
 
-class ImputationPatchDataset(Dataset):
+class PretrainingPatchDataset(Dataset):
     """Dynamically computes missingness (noise) mask for each sample"""
 
     def __init__(
         self, ecg_dataset, masking_ratio=0.15, patch_len=16, stride=8, debug=False
     ):
-        super(ImputationPatchDataset, self).__init__()
+        super(PretrainingPatchDataset, self).__init__()
         self.ecg_dataset = ecg_dataset
         self.masking_ratio = masking_ratio
         self.patch_len = patch_len
@@ -493,13 +490,13 @@ class ImputationPatchDataset(Dataset):
         return len(self.ecg_dataset)
 
 
-class ImputationMAEPatchDataset(Dataset):
+class MAEPretrainingPatchDataset(Dataset):
     """Dynamically computes missingness (noise) mask for each sample"""
 
     def __init__(
         self, ecg_dataset, masking_ratio=0.15, patch_len=16, stride=8, debug=False
     ):
-        super(ImputationMAEPatchDataset, self).__init__()
+        super(MAEPretrainingPatchDataset, self).__init__()
         self.ecg_dataset = ecg_dataset
         self.masking_ratio = masking_ratio
         self.patch_len = patch_len
@@ -537,13 +534,13 @@ class ImputationMAEPatchDataset(Dataset):
         return len(self.ecg_dataset)
 
 
-class ClassificationMAEPatchDataset(Dataset):
+class MAEClassificationPatchDataset(Dataset):
     """Dynamically computes missingness (noise) mask for each sample"""
 
     def __init__(
         self, ecg_dataset, masking_ratio=0.15, patch_len=16, stride=8, debug=False
     ):
-        super(ClassificationMAEPatchDataset, self).__init__()
+        super(MAEClassificationPatchDataset, self).__init__()
         self.ecg_dataset = ecg_dataset
         self.masking_ratio = masking_ratio
         self.patch_len = patch_len

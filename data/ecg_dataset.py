@@ -51,19 +51,19 @@ def load_ecg_dataset(config):
     ).reset_index(drop=True)
 
     # filter for ptb-xl data
-    if config.data.set == "ptb-xl":
+    if config.dataset == "ptb-xl":
         data_df = data_df[data_df["Patient"].str.contains("HR")].reset_index(drop=True)
-    elif config.data.set == "ptb-xl-5000":
+    elif config.dataset == "ptb-xl-5000":
         data_df = data_df[data_df["Patient"].str.contains("HR")].reset_index(drop=True)
         data_df = data_df.sample(frac=5000 / len(data_df), random_state=42).reset_index(
             drop=True
         )
-    elif config.data.set == "ptb-xl-1000":
+    elif config.dataset == "ptb-xl-1000":
         data_df = data_df[data_df["Patient"].str.contains("HR")].reset_index(drop=True)
         data_df = data_df.sample(frac=1000 / len(data_df), random_state=42).reset_index(
             drop=True
         )
-    elif config.data.set == "ecg":
+    elif config.dataset == "ecg":
         pass
     else:
         raise ValueError("Subset not specified")
@@ -82,31 +82,30 @@ def load_ecg_dataset(config):
         val_df = train_df[:1]
         test_df = train_df[:1]
 
+    config["filter_bandwidth"] = [3, 45]
+
     train_dataset = ECGDataset(
         train_df,
-        window=config.data.window,
-        num_windows=config.data.num_windows_train,
-        src_path=config.data.dir,
-        filter_bandwidth=config.data.filter_bandwidth,
-        fs=config.data.fs,
-        aug=config.data.augment,
+        window=config.window,
+        src_path=config.data_dir,
+        filter_bandwidth=config.filter_bandwidth,
+        fs=config.fs,
+        aug=config.augment,
     )
     val_dataset = ECGDataset(
         val_df,
-        window=config.data.window,
-        num_windows=config.data.num_windows_val,
-        src_path=config.data.dir,
-        filter_bandwidth=config.data.filter_bandwidth,
-        fs=config.data.fs,
+        window=config.window,
+        src_path=config.data_dir,
+        filter_bandwidth=config.filter_bandwidth,
+        fs=config.fs,
         aug=False,
     )
     test_dataset = ECGDataset(
         test_df,
-        window=config.data.window,
-        num_windows=config.data.num_windows_test,
-        src_path=config.data.dir,
-        filter_bandwidth=config.data.filter_bandwidth,
-        fs=config.data.fs,
+        window=config.window,
+        src_path=config.data_dir,
+        filter_bandwidth=config.filter_bandwidth,
+        fs=config.fs,
         aug=False,
     )
 
@@ -114,7 +113,7 @@ def load_ecg_dataset(config):
 
 
 class ECGDataset(Dataset):
-    def __init__(self, df, window, num_windows, src_path, filter_bandwidth, fs, aug):
+    def __init__(self, df, window, src_path, filter_bandwidth, fs, aug):
         """Return randome window length segments from ecg signal, pad if window is too large
         df: trn_df, val_df or tst_df
         window: ecg window length e.g 2500 (5 seconds)
@@ -122,7 +121,6 @@ class ECGDataset(Dataset):
         """
         self.df = df
         self.window = window
-        self.num_windows = num_windows
         self.src_path = Path(src_path)
         self.filter_bandwidth = filter_bandwidth
         self.fs = fs
