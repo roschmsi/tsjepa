@@ -1,17 +1,16 @@
-model:
-  name: "residual_cnn_att"
-training:
-  optimizer: Adam
-  epochs: 400
-  batch_size: 64
-  num_workers: 4
-  lr: 0.00001
-  weight_decay: 0.0001
-  patience: 20
-  scheduler: True
-evaluation:
-  beta: 2
-  class_weights: null
-  weights_file: "/usr/stud/roschman/ECGAnalysis/physionet_evaluation/weights.csv"
+# model:
+name: "residual_cnn_att"
+# training:
+optimizer: Adam
+epochs: 500
+batch_size: 64
+num_workers: 4
+lr: 0.00001
+weight_decay: 0.0001
+patience: 20
+scheduler: True
+# evaluation:
+beta: 2
+weights_file: "/usr/stud/roschman/ECGAnalysis/physionet_evaluation/weights.csv"
 output_dir: "/usr/stud/roschman/ECGAnalysis/output"
 task: "classification"

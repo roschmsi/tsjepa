@@ -1,29 +1,28 @@
-model:
-  name: "fedformer_encoder"
-  version: "Fourier"
-  mode_select: "random"
-  modes: 64
-  base: "legendre"
-  cross_activation: tanh
-  d_model: 256
-  num_heads: 8
-  num_layers: 8
-  d_ff: 2048
-  moving_avg: [1]
-  factor: 3
-  dropout: 0.2
-  output_attention: False
-  activation: "gelu"
-  L: 0
-training:
-  epochs: 400
-  batch_size: 8
-  num_workers: 4
-  patience: 10
-  lr: 0.0001
-evaluation:
-  beta: 2
-  class_weights: null
-  weights_file: "/usr/stud/roschman/ECGAnalysis/physionet_evaluation/weights.csv"
+# model:
+name: "fedformer_encoder"
+version: "Fourier"
+mode_select: "random"
+modes: 64
+base: "legendre"
+cross_activation: tanh
+d_model: 256
+num_heads: 8
+num_layers: 8
+d_ff: 2048
+moving_avg: [1]
+factor: 3
+dropout: 0.2
+output_attention: False
+activation: "gelu"
+L: 0
+# training:
+epochs: 500
+batch_size: 8
+num_workers: 4
+patience: 10
+lr: 0.0001
+# evaluation:
+beta: 2
+weights_file: "/usr/stud/roschman/ECGAnalysis/physionet_evaluation/weights.csv"
 output_dir: "/usr/stud/roschman/ECGAnalysis/output"
 task: "classification"

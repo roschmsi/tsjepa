@@ -1,14 +1,10 @@
-data:
-  set: "ecg"
-  dir: "/storage/user/roschman/datasets/physionet_2020"
-  window: 10  # sec
-  num_windows_train: 1
-  num_windows_val: 1
-  num_windows_test: 1
-  fs: 100  # Hz
-  filter_bandwidth: [3, 45]  # Hz
-  num_classes: 27
-  feat_dim: 12
-  multilabel: True
-  augment: False
-  mixup_alpha: 0
+dataset: "ecg"
+dir: "/storage/user/roschman/datasets/physionet_2020"
+window: 10  # sec
+fs: 100  # Hz
+filter_bandwidth: [3, 45]  # Hz
+num_classes: 27
+feat_dim: 12
+multilabel: True
+augment: False
+mixup: 0
