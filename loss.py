@@ -4,16 +4,16 @@ from torch.nn import BCEWithLogitsLoss
 from torch.nn import functional as F
 
 
-def get_loss(config):
-    if config["task"] == "imputation" and not config.model.use_patch:
-        return MaskedMSELoss(reduction="none")
+def get_criterion(config):
     if (
-        config["task"] == "pretraining_patch_tst"
-        or config["task"] == "pretraining_masked_autoencoder"
+        config.model_name == "pretraining_patch_tst"
+        or config.model_name == "pretraining_masked_autoencoder"
     ):
         return MaskedPatchLoss()
+    elif config.model_name == "pretraining_transformer":
+        return MaskedMSELoss(reduction="none")
     elif config["task"] == "classification":
-        if config.data.multilabel:
+        if config.multilabel:
             return BCEWithLogitsLoss(reduction="none")
         else:  # one class per time series
             return NoFussCrossEntropyLoss(reduction="none")
@@ -21,14 +21,6 @@ def get_loss(config):
         raise ValueError(
             "Loss module for task '{}' does not exist".format(config["task"])
         )
-
-
-def l2_reg_loss(model):
-    """Returns the squared L2 norm of output layer of given model"""
-
-    for name, param in model.named_parameters():
-        if name == "head.weight":
-            return torch.sum(torch.square(param))
 
 
 class NoFussCrossEntropyLoss(nn.CrossEntropyLoss):

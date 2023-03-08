@@ -19,16 +19,16 @@ if __name__ == "__main__":
 
     # build ecg data
     train_df, val_df, test_df = load_and_split_dataframe(
-        subset=config.data.subset, debug=config.debug
+        subset=config.subset, debug=config.debug
     )
 
     train_dataset = ECGDataset(
         train_df,
-        window=config.data.window,
-        num_windows=config.data.num_windows_train,
-        src_path=config.data.dir,
-        filter_bandwidth=config.data.filter_bandwidth,
-        fs=config.data.fs,
+        window=config.window,
+        num_windows=config.num_windows_train,
+        src_path=config.dir,
+        filter_bandwidth=config.filter_bandwidth,
+        fs=config.fs,
     )
     lengths = []
     for data in tqdm(iter(train_dataset)):
@@ -62,17 +62,17 @@ if __name__ == "__main__":
 
     val_dataset = ECGDataset(
         val_df,
-        window=config.data.window,
-        num_windows=config.data.num_windows_val,
-        src_path=config.data.dir,
-        filter_bandwidth=config.data.filter_bandwidth,
-        fs=config.data.fs,
+        window=config.window,
+        num_windows=config.num_windows_val,
+        src_path=config.dir,
+        filter_bandwidth=config.filter_bandwidth,
+        fs=config.fs,
     )
     test_dataset = ECGDataset(
         test_df,
-        window=config.data.window,
-        num_windows=config.data.num_windows_test,
-        src_path=config.data.dir,
-        filter_bandwidth=config.data.filter_bandwidth,
-        fs=config.data.fs,
+        window=config.window,
+        num_windows=config.num_windows_test,
+        src_path=config.dir,
+        filter_bandwidth=config.filter_bandwidth,
+        fs=config.fs,
     )

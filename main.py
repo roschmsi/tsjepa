@@ -18,15 +18,15 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from data.ecg_dataset import classes, load_ecg_dataset, normal_class
-from data.uea_dataset import load_uea_dataset
 from data.fc_dataset import load_fc_dataset
+from data.uea_dataset import load_uea_dataset
 from factory import (
     model_factory,
     optimizer_factory,
     pipeline_factory,
     scheduler_factory,
 )
-from loss import get_loss
+from loss import get_criterion
 from options import Options
 from physionet_evaluation.evaluate_12ECG_score import (
     compute_challenge_metric,
@@ -63,19 +63,19 @@ def main(config):
     logger.info("Running:\n{}\n".format(" ".join(sys.argv)))
 
     if config.debug:
-        config.training.batch_size = 1
+        config.batch_size = 1
         config.val_interval = 1000
-        config.data.augment = False
+        config.augment = False
 
     # build ecg data
-    if config.data.set in ["ecg", "ptb-xl", "ptb-xl-1000", "ptb-xl-5000"]:
+    if config.dataset in ["ecg", "ptb-xl", "ptb-xl-1000", "ptb-xl-5000"]:
         train_dataset, val_dataset, test_dataset = load_ecg_dataset(config)
-    elif config.data.set in ["insect_wingbeat", "phoneme_spectra"]:
+    elif config.dataset in ["insect_wingbeat", "phoneme_spectra"]:
         train_dataset, val_dataset, test_dataset, config_data = load_uea_dataset(
             config.data, debug=config.debug
         )
         config.data = config_data
-    elif config.data.set in ["ettm1"]:
+    elif config.dataset in ["ettm1"]:
         train_dataset, val_dataset, test_dataset = load_fc_dataset(
             config.data, debug=config.debug
         )
@@ -83,11 +83,10 @@ def main(config):
         raise ValueError("Dataset type is not specified")
 
     # create model
-    logger.info("Creating model ...")
     model = model_factory(config)
 
-    if "freeze" in config.model.keys():
-        if config.model.freeze:
+    if "freeze" in config.keys():
+        if config.freeze:
             for name, param in model.named_parameters():
                 if name.startswith("head"):
                     param.requires_grad = True
@@ -100,14 +99,13 @@ def main(config):
         "Trainable parameters: {}".format(count_parameters(model, trainable=True))
     )
 
+    # create optimizer and scheduler
     optimizer = optimizer_factory(config, model)
     scheduler = scheduler_factory(config, optimizer)
 
-    # options to continue training from previous model
-    start_epoch = 0
-
     # load model and optimizer states
-    if config.load_model:
+    start_epoch = 0
+    if config.resume or config.load_model:
         if config.resume:
             path = os.path.join(config["load_model"], "checkpoints", "model_last.pth")
         else:
@@ -115,31 +113,31 @@ def main(config):
 
         model, optimizer, start_epoch = load_model(
             model,
-            path,  # load weights
+            path,
             optimizer,
-            config["resume"],  # load starting epoch and optimizer
-            config["change_output"],  # finetuning on different task
+            resume=config["resume"],  # load starting epoch and optimizer
+            change_output=config["finetune"],  # finetuning on different task
         )
     model.to(device)
 
     # initialize loss
-    criterion = get_loss(config)
+    criterion = get_criterion(config)
 
     # initialize data generator and runner
     dataset_class, collate_fn, runner_class = pipeline_factory(config)
 
-    if "max_seq_len" in config.data.keys():
-        max_len = config.data.max_seq_len
+    if "max_seq_len" in config.keys():
+        max_len = config.max_seq_len
     else:
-        max_len = config.data.window * config.data.fs
+        max_len = config.window * config.fs
 
-    if config.test:  # Only evaluate and skip training
+    if config.test:
         test_dataset = dataset_class(test_dataset)
         test_loader = DataLoader(
             dataset=test_dataset,
-            batch_size=config.training.batch_size,
+            batch_size=config.batch_size,
             shuffle=False,
-            num_workers=config.training.num_workers,
+            num_workers=config.num_workers,
             pin_memory=True,
             collate_fn=lambda x: collate_fn(x, max_len=max_len),
         )
@@ -148,10 +146,10 @@ def main(config):
             test_loader,
             device,
             criterion,
-            mixup_alpha=config.data.mixup_alpha,
+            mixup=config.mixup,
             print_interval=config["print_interval"],
             console=config["console"],
-            multilabel=config.data.multilabel,
+            multilabel=config.multilabel,
         )
 
         aggr_metrics_test, _ = test_evaluator.evaluate(keep_all=True)
@@ -167,9 +165,9 @@ def main(config):
     train_dataset = dataset_class(train_dataset)
     train_loader = DataLoader(
         dataset=train_dataset,
-        batch_size=config.training.batch_size,
+        batch_size=config.batch_size,
         shuffle=False if config.debug else True,
-        num_workers=config.training.num_workers,
+        num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=lambda x: collate_fn(x, max_len=max_len),
     )
@@ -180,19 +178,19 @@ def main(config):
         criterion,
         optimizer,
         l2_reg=None,
-        mixup_alpha=config.data.mixup_alpha,
+        mixup=config.mixup,
         print_interval=config["print_interval"],
         console=config["console"],
-        multilabel=config.data.multilabel,
+        multilabel=config.multilabel,
         scheduler=scheduler,
     )
 
     val_dataset = dataset_class(val_dataset)
     val_loader = DataLoader(
         dataset=val_dataset,
-        batch_size=config.training.batch_size,
+        batch_size=config.batch_size,
         shuffle=False,
-        num_workers=config.training.num_workers,
+        num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=lambda x: collate_fn(x, max_len=max_len),
     )
@@ -201,34 +199,28 @@ def main(config):
         val_loader,
         device,
         criterion,
-        mixup_alpha=config.data.mixup_alpha,
+        mixup=config.mixup,
         print_interval=config["print_interval"],
         console=config["console"],
-        multilabel=config.data.multilabel,
+        multilabel=config.multilabel,
     )
 
     tb_writer = SummaryWriter(config.output_dir)
 
-    # initialize with +inf or -inf depending on key metric
-    best_value = 1e16
     patience_count = 0
-
-    # (for validation) list of lists: for each epoch, stores metrics like loss, ...
-    metrics = []
+    best_loss = 1e16
     best_metrics = {}
 
     logger.info("Starting training...")
 
     for epoch in tqdm(
-        range(start_epoch + 1, config.training.epochs + 1),
+        range(start_epoch + 1, config.epochs + 1),
         desc="Training Epoch",
         leave=False,
     ):
-        mark = epoch if config["save_all"] else "last"
-
         # option to unfreeze entire model after initial linear probing
-        if "freeze" in config.model.keys():
-            if config.model.freeze and epoch >= config.model.freeze_epochs:
+        if "freeze" in config.keys():
+            if config.freeze and epoch >= config.freeze_epochs:
                 for name, param in model.named_parameters():
                     param.requires_grad = True
 
@@ -251,32 +243,37 @@ def main(config):
 
         # evaluate model
         if epoch % config["val_interval"] == 0:
-            prev_best_value = best_value
-            aggr_metrics_val, best_metrics, best_value = validate(
+            prev_best_loss = best_loss
+            aggr_metrics_val, best_metrics, best_loss = validate(
                 val_evaluator,
                 tb_writer,
                 config,
                 best_metrics,
-                best_value,
+                best_loss,
                 epoch,
             )
 
-            metrics_val_names, metrics_val_values = zip(*aggr_metrics_val.items())
-            metrics.append(list(metrics_val_values))
-
-            if best_value < prev_best_value:
+            if best_loss < prev_best_loss:
                 patience_count = 0
             else:
                 patience_count += config["val_interval"]
 
+        if epoch % 50 == 0:
+            save_model(
+                path=os.path.join(config.checkpoint_dir, f"model_{epoch}.pth"),
+                epoch=epoch,
+                model=model,
+                optimizer=optimizer,
+            )
+
         save_model(
-            os.path.join(config.checkpoint_dir, "model_{}.pth".format(mark)),
-            epoch,
-            model,
-            optimizer,
+            path=os.path.join(config.checkpoint_dir, "model_last.pth"),
+            epoch=epoch,
+            model=model,
+            optimizer=optimizer,
         )
 
-        if patience_count > config.training.patience:
+        if patience_count > config.patience:
             break
 
     if config.task == "classification":
@@ -284,7 +281,7 @@ def main(config):
         # load best model, compute physionet challenge metric
         step = 0.02
         scores = []
-        weights = load_weights(config.evaluation.weights_file, classes)
+        weights = load_weights(config.weights_file, classes)
         model = load_model(
             model, model_path=os.path.join(config["checkpoint_dir"], "model_best.pth")
         )
@@ -324,7 +321,7 @@ def main(config):
             "Best challenge score: {}. Threshold: {}".format(scores[idxs], thrs[0])
         )
 
-    logger.info("Best loss: {}. Other metrics: {}".format(best_value, best_metrics))
+    logger.info(f"Best loss: {best_loss}. Other metrics: {best_metrics}")
     logger.info("All Done!")
 
     total_runtime = time.time() - total_start_time
