@@ -107,7 +107,7 @@ def main(config):
     start_epoch = 0
     if config.resume or config.load_model:
         if config.resume:
-            path = os.path.join(config["load_model"], "checkpoints", "model_last.pth")
+            path = os.path.join(config["output_dir"], "checkpoints", "model_last.pth")
         else:
             path = os.path.join(config["load_model"], "checkpoints", "model_best.pth")
 
@@ -117,6 +117,7 @@ def main(config):
             optimizer,
             resume=config["resume"],  # load starting epoch and optimizer
             change_output=config["finetune"],  # finetuning on different task
+            device=device,
         )
     model.to(device)
 
@@ -177,7 +178,6 @@ def main(config):
         device,
         criterion,
         optimizer,
-        l2_reg=None,
         mixup=config.mixup,
         print_interval=config["print_interval"],
         console=config["console"],

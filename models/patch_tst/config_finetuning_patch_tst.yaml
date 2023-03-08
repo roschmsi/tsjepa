@@ -12,8 +12,6 @@ patch_len: 16
 stride: 16
 use_patch: True
 freeze: False
-l2_reg: 0
-global_reg: False
 # training:
 optimizer: AdamW
 epochs: 500

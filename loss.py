@@ -7,6 +7,7 @@ from torch.nn import functional as F
 def get_criterion(config):
     if (
         config.model_name == "pretraining_patch_tst"
+        or config.model_name == "pretraining_patch_tst_2d"
         or config.model_name == "pretraining_masked_autoencoder"
     ):
         return MaskedPatchLoss()

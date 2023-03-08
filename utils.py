@@ -74,6 +74,21 @@ def check_config(config):
     return dir
 
 
+def optimizer_to(optim, device):
+    for param in optim.state.values():
+        # Not sure there are any global tensors in the state dict
+        if isinstance(param, torch.Tensor):
+            param.data = param.data.to(device)
+            if param._grad is not None:
+                param._grad.data = param._grad.data.to(device)
+        elif isinstance(param, dict):
+            for subparam in param.values():
+                if isinstance(subparam, torch.Tensor):
+                    subparam.data = subparam.data.to(device)
+                    if subparam._grad is not None:
+                        subparam._grad.data = subparam._grad.data.to(device)
+
+
 def create_output_directory(config):
     # Create output directory
     initial_timestamp = datetime.now()
@@ -89,7 +104,7 @@ def create_output_directory(config):
     if not config.description == "":
         config_description += f"_{config.description}"
     if config.debug:
-        config_description = f"debug_{formatted_timestamp}{config_description}"
+        config_description = f"debug_{config_description}"
 
     output_dir = os.path.join(output_dir, config_description)
 
@@ -196,22 +211,18 @@ def setup(args):
 
 
 def save_model(path, epoch, model, optimizer=None):
-    data = {"epoch": epoch, "state_dict": model.state_dict()}
+    data = {"epoch": epoch, "model_state_dict": model.state_dict()}
     if optimizer is not None:
-        data["optimizer"] = optimizer.state_dict()
+        data["optimizer_state_dict"] = optimizer.state_dict()
     torch.save(data, path)
 
 
 def load_model(
-    model,
-    path,
-    optimizer=None,
-    resume=False,
-    change_output=False,
+    model, path, optimizer=None, resume=False, change_output=False, device=None
 ):
     start_epoch = 0
     checkpoint = torch.load(path)
-    state_dict = deepcopy(checkpoint["model_state_dict"])
+    model_state_dict = deepcopy(checkpoint["model_state_dict"])
 
     if change_output:
         for key, _ in checkpoint["model_state_dict"].items():
@@ -220,9 +231,11 @@ def load_model(
                 or key.startswith("decoder")
                 or key.startswith("encoder_pos_embed")
             ):
-                state_dict.pop(key)
+                model_state_dict.pop(key)
 
-    missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+    missing_keys, unexpected_keys = model.load_state_dict(
+        model_state_dict, strict=False
+    )
 
     print(f"Missing keys: {missing_keys}")
     print(f"Unexpected keys: {unexpected_keys}")
@@ -230,8 +243,9 @@ def load_model(
 
     if resume:
         start_epoch = checkpoint["epoch"]
-        if optimizer is not None and "optimizer" in checkpoint:
+        if optimizer is not None and "optimizer_state_dict" in checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            optimizer_to(optimizer, device=device)
         else:
             print("No optimizer parameters in checkpoint.")
         return model, optimizer, start_epoch

@@ -155,7 +155,6 @@ def train(config):
         device,
         loss_module,
         optimizer,
-        l2_reg=None,
         mixup=config.mixup,
         print_interval=config["print_interval"],
         console=config["console"],

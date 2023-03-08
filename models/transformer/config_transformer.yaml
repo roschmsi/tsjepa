@@ -9,8 +9,6 @@ pos_encoding: fixed
 activation: relu
 normalization_layer: LayerNorm
 freeze: False
-l2_reg: 0
-global_reg: False
 # training:
 optimizer: Adam
 epochs: 500
