@@ -131,7 +131,7 @@ def train(config):
             multilabel=config.multilabel,
         )
 
-        aggr_metrics_test, _ = test_evaluator.evaluate(keep_all=True)
+        aggr_metrics_test, _ = test_evaluator.evaluate()
         # print_str = "Test Summary: "
         # for k, v in aggr_metrics_test.items():
         #     print_str += "{}: {:8f} | ".format(k, v)

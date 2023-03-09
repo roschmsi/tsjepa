@@ -26,6 +26,8 @@ def check_config(config):
         dir += f"data={config.dataset}"
     if "augment" in config.keys():
         dir += f"_augment={config.augment}"
+    if "rand_ecg" in config.keys():
+        dir += f"_randecg={config.rand_ecg}"
     if "mixup" in config.keys():
         dir += f"_mixup={config.mixup}"
 
@@ -50,6 +52,8 @@ def check_config(config):
         dir += f"_sched={config.scheduler}"
     if "lr" in config.keys():
         dir += f"_lr={config.lr}"
+    if "weight_decay" in config.keys():
+        dir += f"_wd={config.weight_decay}"
 
     # check transformer parameters
     if "d_model" in config.keys():
@@ -129,7 +133,7 @@ def setup_tuning(args):
     config = args.__dict__  # configuration dictionary
     model_config = load_config_yaml(config["config_model"])
     config.update(model_config)
-    data_config = load_config_yaml(config["config_data"])  # "data/dataset.yaml"
+    data_config = load_config_yaml(config["config_data"])
     config.update(data_config)
     config = EasyDict(config)
 
@@ -183,7 +187,10 @@ def setup(args):
 
         keys = ["dropout", "patch_len", "stride", "use_patch"]
 
-        if config.model_name == "finetuning_patch_tst":
+        if (
+            config.model_name == "finetuning_patch_tst"
+            or config.model_name == "finetuning_patch_tst_2d"
+        ):
             keys.extend(
                 [
                     "d_model",
@@ -203,7 +210,7 @@ def setup(args):
             )
 
         for key in keys:
-            assert config.model[key] == pretraining_config.model[key]
+            assert config[key] == pretraining_config[key]
 
         assert config.masking_ratio_pretraining == pretraining_config.masking_ratio
 

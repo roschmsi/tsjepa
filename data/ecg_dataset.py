@@ -8,6 +8,8 @@ import pandas as pd
 from data.augmentation import augment
 import random
 
+from rand_ecg.augmentation import randaug
+
 
 classes = sorted(
     [
@@ -82,7 +84,7 @@ def load_ecg_dataset(config):
         val_df = train_df[:1]
         test_df = train_df[:1]
 
-    config["filter_bandwidth"] = [3, 45]
+    config["filter_bandwidth"] = None  # [3, 45]
 
     train_dataset = ECGDataset(
         train_df,
@@ -91,6 +93,7 @@ def load_ecg_dataset(config):
         filter_bandwidth=config.filter_bandwidth,
         fs=config.fs,
         aug=config.augment,
+        rand_ecg=config.rand_ecg,
     )
     val_dataset = ECGDataset(
         val_df,
@@ -99,6 +102,7 @@ def load_ecg_dataset(config):
         filter_bandwidth=config.filter_bandwidth,
         fs=config.fs,
         aug=False,
+        rand_ecg="",
     )
     test_dataset = ECGDataset(
         test_df,
@@ -107,13 +111,14 @@ def load_ecg_dataset(config):
         filter_bandwidth=config.filter_bandwidth,
         fs=config.fs,
         aug=False,
+        rand_ecg="",
     )
 
     return train_dataset, val_dataset, test_dataset
 
 
 class ECGDataset(Dataset):
-    def __init__(self, df, window, src_path, filter_bandwidth, fs, aug):
+    def __init__(self, df, window, src_path, filter_bandwidth, fs, aug, rand_ecg):
         """Return randome window length segments from ecg signal, pad if window is too large
         df: trn_df, val_df or tst_df
         window: ecg window length e.g 2500 (5 seconds)
@@ -126,6 +131,7 @@ class ECGDataset(Dataset):
         self.fs = fs
         self.augment = aug
         self.augmentation_prob = 0.5
+        self.rand_ecg = rand_ecg
 
     def __len__(self):
         return len(self.df)
@@ -164,6 +170,10 @@ class ECGDataset(Dataset):
                 length=data.shape[1],
                 sample_rate=self.fs,
             )
+            data = data.squeeze().transpose()
+        elif self.rand_ecg != "" and random.random() < self.augmentation_prob:
+            data = np.expand_dims(data.transpose(), 0)
+            data = randaug(data, self.rand_ecg)
             data = data.squeeze().transpose()
 
         return data.transpose(), lbl

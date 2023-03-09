@@ -108,17 +108,24 @@ def main(config):
     if config.resume or config.load_model:
         if config.resume:
             path = os.path.join(config["output_dir"], "checkpoints", "model_last.pth")
+            model, optimizer, start_epoch = load_model(
+                model,
+                path,
+                optimizer,
+                resume=config["resume"],  # load starting epoch and optimizer
+                change_output=config["finetune"],  # finetuning on different task
+                device=device,
+            )
         else:
             path = os.path.join(config["load_model"], "checkpoints", "model_best.pth")
-
-        model, optimizer, start_epoch = load_model(
-            model,
-            path,
-            optimizer,
-            resume=config["resume"],  # load starting epoch and optimizer
-            change_output=config["finetune"],  # finetuning on different task
-            device=device,
-        )
+            model = load_model(
+                model,
+                path,
+                optimizer,
+                resume=config["resume"],  # load starting epoch and optimizer
+                change_output=config["finetune"],  # finetuning on different task
+                device=device,
+            )
     model.to(device)
 
     # initialize loss
@@ -153,7 +160,7 @@ def main(config):
             multilabel=config.multilabel,
         )
 
-        aggr_metrics_test, _ = test_evaluator.evaluate(keep_all=True)
+        aggr_metrics_test, _ = test_evaluator.evaluate()
 
         print_str = "Test Summary: "
         for k, v in aggr_metrics_test.items():
@@ -244,7 +251,7 @@ def main(config):
         # evaluate model
         if epoch % config["val_interval"] == 0:
             prev_best_loss = best_loss
-            aggr_metrics_val, best_metrics, best_loss = validate(
+            best_metrics, best_loss = validate(
                 val_evaluator,
                 tb_writer,
                 config,

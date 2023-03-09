@@ -4,10 +4,9 @@ import torch
 
 from data.dataset import (
     ClassificationDataset,
-    MAEClassificationPatchDataset,
     ClassificationPatchDataset,
     PretrainingDataset,
-    MAEPretrainingPatchDataset,
+    PretrainingMAEPatchDataset,
     PretrainingPatchDataset,
     collate_patch_superv,
     collate_patch_unsuperv,
@@ -45,7 +44,6 @@ from models.transformer.model import (
 from models.transformer.optimizer import RAdam
 from runner import (
     SupervisedRunner,
-    UnsupervisedMAERunner,
     UnsupervisedPatchRunner,
     UnsupervisedRunner,
 )
@@ -73,7 +71,7 @@ def pipeline_factory(config):
     elif config.model_name == "pretraining_masked_autoencoder":
         return (
             partial(
-                MAEPretrainingPatchDataset,
+                PretrainingMAEPatchDataset,
                 masking_ratio=config.masking_ratio,
                 patch_len=config.patch_len,
                 stride=config.stride,
@@ -85,12 +83,15 @@ def pipeline_factory(config):
                 stride=config.stride,
                 masking_ratio=config.masking_ratio,
             ),
-            UnsupervisedMAERunner,
+            partial(
+                UnsupervisedPatchRunner,
+                mae=config.mae,
+            ),
         )
     elif config.model_name == "finetuning_masked_autoencoder":
         return (
             partial(
-                MAEClassificationPatchDataset,
+                ClassificationPatchDataset,
                 masking_ratio=config.masking_ratio,
                 patch_len=config.patch_len,
                 stride=config.stride,
@@ -120,7 +121,11 @@ def pipeline_factory(config):
             ),
             UnsupervisedPatchRunner,
         )
-    elif config.model_name == "finetuning_patch_tst":
+    elif config.model_name in [
+        "finetuning_patch_tst",
+        "finetuning_patch_tst_2d",
+        "patch_tst_2d",
+    ]:
         return (
             partial(
                 ClassificationPatchDataset,
@@ -320,6 +325,27 @@ def model_factory(config):
         )
     elif config.model_name == "patch_tst":
         return PatchTST(
+            c_in=config.feat_dim,
+            target_dim=config.num_classes,
+            patch_len=config.patch_len,
+            stride=config.stride,
+            num_patch=num_patch,
+            num_layers=config.num_layers,
+            num_heads=config.num_heads,
+            d_model=config.d_model,
+            shared_embedding=True,
+            d_ff=config.d_ff,
+            dropout=config.dropout,
+            head_dropout=config.head_dropout,
+            act="relu",
+            head_type="classification",
+            res_attention=False,
+        )
+    elif (
+        config.model_name == "patch_tst_2d"
+        or config.model_name == "finetuning_patch_tst_2d"
+    ):
+        return PatchTST2d(
             c_in=config.feat_dim,
             target_dim=config.num_classes,
             patch_len=config.patch_len,

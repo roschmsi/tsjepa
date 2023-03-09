@@ -490,13 +490,13 @@ class PretrainingPatchDataset(Dataset):
         return len(self.ecg_dataset)
 
 
-class MAEPretrainingPatchDataset(Dataset):
+class PretrainingMAEPatchDataset(Dataset):
     """Dynamically computes missingness (noise) mask for each sample"""
 
     def __init__(
         self, ecg_dataset, masking_ratio=0.15, patch_len=16, stride=8, debug=False
     ):
-        super(MAEPretrainingPatchDataset, self).__init__()
+        super(PretrainingMAEPatchDataset, self).__init__()
         self.ecg_dataset = ecg_dataset
         self.masking_ratio = masking_ratio
         self.patch_len = patch_len
@@ -529,42 +529,6 @@ class MAEPretrainingPatchDataset(Dataset):
             mask.squeeze(),
             ids_restore.squeeze(),
         )
-
-    def __len__(self):
-        return len(self.ecg_dataset)
-
-
-class MAEClassificationPatchDataset(Dataset):
-    """Dynamically computes missingness (noise) mask for each sample"""
-
-    def __init__(
-        self, ecg_dataset, masking_ratio=0.15, patch_len=16, stride=8, debug=False
-    ):
-        super(MAEClassificationPatchDataset, self).__init__()
-        self.ecg_dataset = ecg_dataset
-        self.masking_ratio = masking_ratio
-        self.patch_len = patch_len
-        self.stride = stride
-        self.debug = debug
-
-    def __getitem__(self, ind):
-        """
-        For a given integer index, returns the corresponding (seq_length, feat_dim) array and a noise mask of same shape
-        Args:
-            ind: integer index of sample in dataset
-        Returns:
-            X: (seq_length, feat_dim) tensor of the multivariate time series corresponding to a sample
-            mask: (seq_length, feat_dim) boolean tensor: 0s mask and predict, 1s: unaffected input
-            ID: ID of sample
-        """
-        X, y = self.ecg_dataset.__getitem__(ind)
-
-        X = torch.from_numpy(X).unsqueeze(0)
-
-        X = create_patch(X, self.patch_len, self.stride)
-        _, X_kept, _, _ = random_mae_patch_masking(X, self.masking_ratio, debug=True)
-
-        return (X_kept.squeeze(), torch.from_numpy(y))
 
     def __len__(self):
         return len(self.ecg_dataset)

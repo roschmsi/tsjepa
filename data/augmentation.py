@@ -12,7 +12,9 @@ import numpy as np
 
 def augment(X, length, sample_rate):
     policy = [
+        # Gaussian Noise
         AddNoise(loc=0, scale=(0.1, 0.2)),
+        # Cutout
         Crop(
             size=(
                 int(0.8 * length),
@@ -21,6 +23,7 @@ def augment(X, length, sample_rate):
             resize=int(length),
         ),
         Drift(max_drift=0.25, kind="multiplicative"),
+        # Drop
         Dropout(
             p=0.05,
             fill=0,
@@ -33,6 +36,7 @@ def augment(X, length, sample_rate):
         ),
         Pool(size=[2, 3, 5]),
         Quantize(n_levels=[5, 10, 15]),
+        # Flip
         Reverse(),
     ]
 

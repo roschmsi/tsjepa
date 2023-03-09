@@ -106,7 +106,16 @@ class Options(object):
             default=0,
         )
         self.parser.add_argument(
+            "--masking_ratio_pretraining",
+            type=float,
+            default=0,
+        )
+        self.parser.add_argument(
             "--use_patch",
+            action="store_true",
+        )
+        self.parser.add_argument(
+            "--mae",
             action="store_true",
         )
         self.parser.add_argument(
@@ -163,6 +172,11 @@ class Options(object):
         self.parser.add_argument(
             "--multilabel",
             action="store_true",
+        )
+        self.parser.add_argument(
+            "--rand_ecg",
+            type=str,
+            default="",
         )
 
         # training parameters
