@@ -166,6 +166,8 @@ def setup(args):
         config: configuration dictionary
     """
     config = args.__dict__  # configuration dictionary
+    data_config = load_config_yaml(config["data_config"])
+    config.update(data_config)
     config = EasyDict(config)
 
     config, output_dir = create_output_directory(config)
