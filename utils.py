@@ -23,23 +23,24 @@ def check_config(config):
 
     # check dataset
     if "dataset" in config.keys():
-        dir += f"data={config.dataset}"
+        dir += f"dataset={config.dataset}"
     if "augment" in config.keys():
         dir += f"_augment={config.augment}"
-    if "rand_ecg" in config.keys():
-        dir += f"_randecg={config.rand_ecg}"
     if "mixup" in config.keys():
         dir += f"_mixup={config.mixup}"
+    if "rand_ecg" != "":
+        dir += f"_randecg={config.rand_ecg}"
 
     # check patch parameters
-    if "patch_len" in config.keys():
-        dir += f"_patch={config.patch_len}"
-    if "stride" in config.keys():
-        dir += f"_stride={config.stride}"
-    if "masking_ratio" in config.keys() and config.masking_ratio > 0:
-        dir += f"_mratio={config.masking_ratio}"
-    if "masking_ratio_pretraining" in config.keys():
-        dir += f"_premratio={config.masking_ratio_pretraining}"
+    if config.use_patch:
+        if "patch_len" in config.keys():
+            dir += f"_patch={config.patch_len}"
+        if "stride" in config.keys():
+            dir += f"_stride={config.stride}"
+        if "masking_ratio" in config.keys() and config.masking_ratio > 0:
+            dir += f"_mratio={config.masking_ratio}"
+        if "masking_ratio_pretraining" in config.keys():
+            dir += f"_preratio={config.masking_ratio_pretraining}"
     if "mean_mask_length" in config.keys():
         dir += f"_mlen={config.mean_mask_length}"
 
@@ -48,7 +49,7 @@ def check_config(config):
         dir += f"_bs={config.batch_size}"
     if "optimizer" in config.keys():
         dir += f"_opt={config.optimizer}"
-    if "scheduler" in config.keys() and config.scheduler != "":
+    if "scheduler" in config.keys():
         dir += f"_sched={config.scheduler}"
     if "lr" in config.keys():
         dir += f"_lr={config.lr}"
@@ -64,8 +65,6 @@ def check_config(config):
         dir += f"_nlayers={config.num_layers}"
     if "num_heads" in config.keys():
         dir += f"_nheads={config.num_heads}"
-    if "pos_encoding" in config.keys():
-        dir += f"_pe={config.pos_encoding}"
     if "num_cnn" in config.keys():
         dir += f"_num_cnn={config.num_cnn}"
 
@@ -101,15 +100,19 @@ def create_output_directory(config):
 
     output_dir = config["output_dir"]
     if not os.path.isdir(output_dir):
-        raise ValueError(f"Root directory {output_dir} for outputs must exist.")
-    output_dir = os.path.join(output_dir, config.model_name)
+        raise ValueError(f"Root directory {output_dir} for outputs does not exist.")
+    if not config.finetuning:
+        output_dir = os.path.join(output_dir, f"{config.model_name}_{config.task}")
+    else:
+        output_dir = os.path.join(
+            output_dir, f"{config.model_name}_{config.task}_finetuning"
+        )
 
     config_description = check_config(config)
     if not config.description == "":
         config_description += f"_{config.description}"
     if config.debug:
         config_description = f"debug_{config_description}"
-
     output_dir = os.path.join(output_dir, config_description)
 
     config["output_dir"] = output_dir
@@ -172,42 +175,27 @@ def setup(args):
 
     create_dirs([config["checkpoint_dir"]])
 
-    # Save configuration as json file
+    # save configuration as json file
     with open(os.path.join(output_dir, "configuration.json"), "w") as fp:
         json.dump(config, fp, indent=4, sort_keys=True)
 
     logger.info("Stored configuration file in '{}'".format(output_dir))
 
     # assure that config of pretrained model matches config of finetuned model
-    if args.finetune:
+    if config.finetuning:
         pretraining_config = load_config_yaml(
             os.path.join(args.load_model, "configuration.json")
         )
         pretraining_config = EasyDict(pretraining_config)
 
-        keys = ["dropout", "patch_len", "stride", "use_patch"]
+        keys = ["dropout"]
 
-        if (
-            config.model_name == "finetuning_patch_tst"
-            or config.model_name == "finetuning_patch_tst_2d"
-        ):
-            keys.extend(
-                [
-                    "d_model",
-                    "d_ff",
-                    "num_heads",
-                    "num_layers",
-                ]
-            )
-        if config.model_name == "finetuning_masked_autoencoder":
-            keys.extend(
-                [
-                    "enc_d_model",
-                    "enc_d_ff",
-                    "enc_num_heads",
-                    "enc_num_layers",
-                ]
-            )
+        if config.use_patch:
+            keys.extend(["use_patch", "patch_len", "stride"])
+        if config.mae:
+            keys.extend(["enc_d_model", "enc_d_ff", "enc_num_heads", "enc_num_layers"])
+        else:
+            keys.extend(["d_model", "d_ff", "num_heads", "num_layers"])
 
         for key in keys:
             assert config[key] == pretraining_config[key]

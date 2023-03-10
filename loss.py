@@ -5,13 +5,10 @@ from torch.nn import functional as F
 
 
 def get_criterion(config):
-    if (
-        config.model_name == "pretraining_patch_tst"
-        or config.model_name == "pretraining_patch_tst_2d"
-        or config.model_name == "pretraining_masked_autoencoder"
-    ):
+    if config.task == "pretraining" and config.use_patch:
         return MaskedPatchLoss()
-    elif config.model_name == "pretraining_transformer":
+    elif config.task == "pretraining" and not config.use_patch:
+        # time series transformer operating on full signal
         return MaskedMSELoss(reduction="none")
     elif config["task"] == "classification":
         if config.multilabel:

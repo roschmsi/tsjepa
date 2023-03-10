@@ -5,32 +5,18 @@ class Options(object):
     def __init__(self):
         self.parser = argparse.ArgumentParser(description="Run pipeline for all models")
 
-        # self.parser.add_argument(
-        #     "--config_model",
-        #     dest="config_model",
-        #     help="model configuration",
-        # )
-        # self.parser.add_argument(
-        #     "--config_data",
-        #     dest="config_data",
-        #     help="dataset configuration",
-        # )
-
         self.parser.add_argument(
             "--description",
             default="",
             help="Add description of your experiment.",
         )
+
+        # model modes
         self.parser.add_argument("--load_model", help="Path to pre-trained model.")
         self.parser.add_argument(
             "--resume",
             action="store_true",
             help="If set, will load `starting_epoch` and state of optimizer, besides model weights.",
-        )
-        self.parser.add_argument(
-            "--finetune",
-            action="store_true",
-            help="finetune a pretrained model",
         )
         self.parser.add_argument(
             "--test",
@@ -101,16 +87,6 @@ class Options(object):
 
         # patch and mask parameters
         self.parser.add_argument(
-            "--masking_ratio",
-            type=float,
-            default=0,
-        )
-        self.parser.add_argument(
-            "--masking_ratio_pretraining",
-            type=float,
-            default=0,
-        )
-        self.parser.add_argument(
             "--use_patch",
             action="store_true",
         )
@@ -121,34 +97,28 @@ class Options(object):
         self.parser.add_argument(
             "--patch_len",
             type=int,
-            default=16,
         )
         self.parser.add_argument(
             "--stride",
             type=int,
-            default=16,
+        )
+        self.parser.add_argument(
+            "--masking_ratio",
+            type=float,
+        )
+        self.parser.add_argument(
+            "--masking_ratio_pretraining",
+            type=float,
         )
 
         # data parameters
         self.parser.add_argument(
-            "--dataset",
-            type=str,
-            default="ecg",
+            "--data_config",
+            help="provide path to dataset configuration",
         )
         self.parser.add_argument(
-            "--data_dir",
-            type=str,
-            default="/storage/user/roschman/datasets/physionet_2020",
-        )
-        self.parser.add_argument(
-            "--window",
-            type=int,
-            default=10,
-        )
-        self.parser.add_argument(
-            "--fs",
-            type=int,
-            default=100,
+            "--filter_bandwidth",
+            action="store_true",
         )
         self.parser.add_argument(
             "--augment",
@@ -158,20 +128,6 @@ class Options(object):
             "--mixup",
             type=float,
             default=0,
-        )
-        self.parser.add_argument(
-            "--num_classes",
-            type=int,
-            default=27,
-        )
-        self.parser.add_argument(
-            "--feat_dim",
-            type=int,
-            default=12,
-        )
-        self.parser.add_argument(
-            "--multilabel",
-            action="store_true",
         )
         self.parser.add_argument(
             "--rand_ecg",
@@ -185,7 +141,7 @@ class Options(object):
             type=str,
             default="AdamW",
         )
-        self.parser.add_argument("--scheduler", type=str, default="")
+        self.parser.add_argument("--scheduler", type=str, default=None)
         self.parser.add_argument(
             "--lr",
             type=float,
@@ -217,6 +173,15 @@ class Options(object):
             default=100,
         )
 
+        # task
+        self.parser.add_argument(
+            "--task", type=str, help="choose from: pretraining, classification"
+        )
+        self.parser.add_argument(
+            "--finetuning",
+            action="store_true",
+        )
+
         # evaluation
         self.parser.add_argument(
             "--beta",
@@ -232,11 +197,6 @@ class Options(object):
             "--output_dir",
             type=str,
             default="/usr/stud/roschman/ECGAnalysis/output",
-        )
-        self.parser.add_argument(
-            "--task",
-            type=str,
-            default="pretraining_patch_tst",
         )
 
     def parse(self):

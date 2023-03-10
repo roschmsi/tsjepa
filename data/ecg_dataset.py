@@ -84,8 +84,6 @@ def load_ecg_dataset(config):
         val_df = train_df[:1]
         test_df = train_df[:1]
 
-    config["filter_bandwidth"] = None  # [3, 45]
-
     train_dataset = ECGDataset(
         train_df,
         window=config.window,
@@ -144,8 +142,8 @@ class ECGDataset(Dataset):
         seq_len = data.shape[-1]  # get the length of the ecg sequence
 
         # Apply band pass filter
-        if self.filter_bandwidth is not None:
-            data = apply_filter(data, self.filter_bandwidth, fs=self.fs)
+        if self.filter_bandwidth:
+            data = apply_filter(data, filter_bandwidth=[3, 45], fs=self.fs)
 
         data = normalize(data)
         lbl = row[classes].values.astype(np.int)

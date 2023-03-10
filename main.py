@@ -74,6 +74,7 @@ def main(config):
         train_dataset, val_dataset, test_dataset, config_data = load_uea_dataset(
             config.data, debug=config.debug
         )
+        # TODO outdated
         config.data = config_data
     elif config.dataset in ["ettm1"]:
         train_dataset, val_dataset, test_dataset = load_fc_dataset(
@@ -113,7 +114,7 @@ def main(config):
                 path,
                 optimizer,
                 resume=config["resume"],  # load starting epoch and optimizer
-                change_output=config["finetune"],  # finetuning on different task
+                change_output=config.finetuning,  # finetuning on different task
                 device=device,
             )
         else:
@@ -123,7 +124,7 @@ def main(config):
                 path,
                 optimizer,
                 resume=config["resume"],  # load starting epoch and optimizer
-                change_output=config["finetune"],  # finetuning on different task
+                change_output=config.finetuning,  # finetuning on different task
                 device=device,
             )
     model.to(device)
