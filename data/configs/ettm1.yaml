@@ -1,0 +1,9 @@
+dataset: "ettm1"
+dataset_class: "ETTm1"
+root_path: "/storage/user/roschman/datasets/forecasting_datasets/ETT-small"
+data_path: "ETTm1.csv"
+seq_len: 336
+label_len: 0
+pred_len: 96
+feat_dim: 7
+features: "M"

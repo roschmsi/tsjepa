@@ -1,0 +1,7 @@
+dataset: "ecg"
+data_dir: "/storage/user/roschman/datasets/physionet_2020"
+window: 10  # sec
+fs: 100  # Hz
+num_classes: 27
+feat_dim: 12
+multilabel: True

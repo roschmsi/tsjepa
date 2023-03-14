@@ -1,0 +1,9 @@
+dataset: "weather"
+dataset_class: "custom"
+root_path: "/storage/user/roschman/datasets/forecasting_datasets/weather"
+data_path: "weather.csv"
+seq_len: 336
+label_len: 0
+pred_len: 96
+feat_dim: 21
+features: "M"
