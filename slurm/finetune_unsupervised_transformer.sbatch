@@ -14,5 +14,4 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --config_model /usr/stud/roschman/ECGAnalysis/models/transformer/config_finetuning_transformer.yaml \
 --config_data /usr/stud/roschman/ECGAnalysis/data/uea_dataset.yaml \
 --load_model /usr/stud/roschman/ECGAnalysis/output/pretraining_transformer/pretraining_transformer_2022-12-01_08-42-28/checkpoints/model_best.pth \
---finetune \
 --description no_freeze
