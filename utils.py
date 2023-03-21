@@ -66,7 +66,9 @@ def check_config(config):
     if "num_heads" in config.keys():
         dir += f"_nheads={config.num_heads}"
     if "num_cnn" in config.keys():
-        dir += f"_num_cnn={config.num_cnn}"
+        dir += f"_numcnn={config.num_cnn}"
+    if "ch_token" in config.keys():
+        dir += f"_chtoken={config.ch_token}"
 
     # check fedformer parameters
     if "version" in config.keys():
@@ -173,7 +175,8 @@ def setup(args):
     config, output_dir = create_output_directory(config)
 
     if os.path.exists(output_dir):
-        config["resume"] = True
+        if not config.debug:
+            config["resume"] = True
 
     create_dirs([config["checkpoint_dir"]])
 

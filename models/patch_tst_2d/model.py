@@ -351,11 +351,12 @@ class PatchTSTEncoder(nn.Module):
             x = torch.stack(x_out, dim=2)
         else:
             x = self.W_P(x)  # x: [bs x num_patch x nvars x d_model]
-        x = x.transpose(1, 2)  # x: [bs x nvars x num_patch x d_model]
 
+        x = x.transpose(1, 2)  # x: [bs x nvars x num_patch x d_model]
         u = torch.reshape(
             x, (bs, n_vars * num_patch, self.d_model)
         )  # u: [bs x nvars * num_patch x d_model]
+
         u = self.dropout(u + self.W_pos)  # u: [bs x nvars * num_patch x d_model]
 
         # Encoder
