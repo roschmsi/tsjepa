@@ -14,7 +14,6 @@ import torch.nn as nn
 from models.patch_tst.layers.pos_encoding import positional_encoding
 from models.patch_tst.model import (
     ClassificationHead,
-    ClassificationPoolHead,
     TSTEncoder,
 )
 
@@ -45,6 +44,8 @@ class MaskedAutoencoderTST(nn.Module):
         store_attn: bool = False,
         pe: str = "zeros",
         learn_pe: bool = True,
+        cls_token=False,
+        ch_token=False,
     ):
         super().__init__()
 
@@ -55,6 +56,7 @@ class MaskedAutoencoderTST(nn.Module):
         self.patch_len = patch_len
         self.shared_embedding = shared_embedding
         self.enc_d_model = enc_d_model
+        self.dec_d_model = dec_d_model
 
         # Input encoding: projection of feature vectors onto a d-dim vector space
         if not shared_embedding:
@@ -67,6 +69,14 @@ class MaskedAutoencoderTST(nn.Module):
         # Positional encoding
         self.encoder_pos_embed = positional_encoding(
             pe, learn_pe, self.enc_num_patch, enc_d_model
+        )
+
+        self.cls_token = (
+            nn.Parameter(torch.zeros(1, 1, enc_d_model)) if cls_token else None
+        )
+
+        self.ch_token = (
+            nn.Parameter(torch.zeros(1, c_in, enc_d_model)) if ch_token else None
         )
 
         self.encoder = TSTEncoder(
@@ -93,7 +103,7 @@ class MaskedAutoencoderTST(nn.Module):
 
         self.decoder_pos_embed = positional_encoding(
             pe, learn_pe, num_patch, dec_d_model
-        ).unsqueeze(0)
+        )
 
         self.decoder = TSTEncoder(
             dec_d_model,
@@ -118,6 +128,7 @@ class MaskedAutoencoderTST(nn.Module):
     def forward_encoder(self, x, padding_mask=None):
         # embed patches
         bs, num_patch, n_vars, patch_len = x.shape
+
         # Input encoding
         if not self.shared_embedding:
             x_out = []
@@ -127,14 +138,36 @@ class MaskedAutoencoderTST(nn.Module):
             x = torch.stack(x_out, dim=2)
         else:
             x = self.W_P(x)  # x: [bs x num_patch x nvars x d_model]
+
+        if self.ch_token is not None:
+            ch_token = self.ch_token.expand(x.shape[0], -1, -1, -1)
+            x = torch.cat((x, ch_token), dim=1)
+            num_patch += 1
+
         x = x.transpose(1, 2)  # x: [bs x nvars x num_patch x d_model]
 
         u = torch.reshape(
             x, (bs * n_vars, num_patch, self.enc_d_model)
         )  # u: [bs * nvars x num_patch x d_model]
-        u = self.dropout(
-            u + self.encoder_pos_embed
-        )  # u: [bs * nvars x num_patch x d_model]
+
+        if self.cls_token is not None:
+            cls_token = self.cls_token.expand(u.shape[0], -1, -1)
+            u = torch.cat((cls_token, u), dim=1)
+            num_patch += 1
+
+        encoder_pos_embed = self.encoder_pos_embed
+        if self.ch_token is not None:
+            encoder_pos_embed = torch.cat(
+                [encoder_pos_embed, torch.zeros([1, self.enc_d_model]).cuda()],
+                axis=0,
+            )
+        if self.cls_token is not None:
+            encoder_pos_embed = torch.cat(
+                [torch.zeros([1, self.enc_d_model]).cuda(), encoder_pos_embed],
+                axis=0,
+            )
+
+        u = self.dropout(u + encoder_pos_embed)  # u: [bs * nvars x num_patch x d_model]
 
         # apply Transformer blocks
         z = self.encoder(u, padding_mask)
@@ -151,15 +184,31 @@ class MaskedAutoencoderTST(nn.Module):
 
         # append mask tokens to sequence
         mask_tokens = self.mask_token.repeat(
-            x.shape[0], ids_restore.shape[1] - x.shape[1], 1
+            x.shape[0], ids_restore.shape[1] + 2 - x.shape[1], 1
         )
-        x = torch.cat([x, mask_tokens], dim=1)
-        x = torch.gather(
-            x, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2])
+        x_ = torch.cat([x[:, 1:-1, :], mask_tokens], dim=1)
+        x_ = torch.gather(
+            x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2])
         )  # unshuffle
+        x = torch.cat([x[:, :1, :], x_, x[:, -1:, :]], dim=1)
 
         # add pos embed
-        x = x + self.decoder_pos_embed.to(x.device)
+        decoder_pos_embed = self.decoder_pos_embed
+        if self.ch_token is not None:
+            decoder_pos_embed = torch.cat(
+                [decoder_pos_embed, torch.zeros([1, self.dec_d_model]).cuda()],
+                axis=0,
+            )
+            length += 1
+        if self.cls_token is not None:
+            decoder_pos_embed = torch.cat(
+                [torch.zeros([1, self.dec_d_model]).cuda(), decoder_pos_embed],
+                axis=0,
+            )
+            length += 1
+
+        x = x + decoder_pos_embed
+
         # apply Transformer blocks
         x = x.squeeze()
         x = self.decoder(x, key_padding_mask=key_padding_mask)
@@ -169,6 +218,11 @@ class MaskedAutoencoderTST(nn.Module):
         x = self.decoder_pred(x)
 
         x = x.reshape(bs, ch, length, -1).transpose(1, 2)
+
+        if self.ch_token is not None:
+            x = x[:, :-1, :, :]
+        if self.cls_token is not None:
+            x = x[:, 1:, :, :]
 
         return x
 
