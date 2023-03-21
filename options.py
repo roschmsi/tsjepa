@@ -85,6 +85,47 @@ class Options(object):
             default=0.1,
         )
 
+        self.parser.add_argument(
+            "--enc_d_model",
+            type=int,
+            default=256,
+        )
+        self.parser.add_argument(
+            "--enc_d_ff",
+            type=int,
+            default=512,
+        )
+        self.parser.add_argument(
+            "--enc_num_heads",
+            type=int,
+            default=8,
+        )
+        self.parser.add_argument(
+            "--enc_num_layers",
+            type=int,
+            default=8,
+        )
+        self.parser.add_argument(
+            "--dec_d_model",
+            type=int,
+            default=256,
+        )
+        self.parser.add_argument(
+            "--dec_d_ff",
+            type=int,
+            default=512,
+        )
+        self.parser.add_argument(
+            "--dec_num_heads",
+            type=int,
+            default=8,
+        )
+        self.parser.add_argument(
+            "--dec_num_layers",
+            type=int,
+            default=8,
+        )
+
         # patch and mask parameters
         self.parser.add_argument(
             "--use_patch",
@@ -109,6 +150,14 @@ class Options(object):
         self.parser.add_argument(
             "--masking_ratio_pretraining",
             type=float,
+        )
+        self.parser.add_argument(
+            "--cls_token",
+            action="store_true",
+        )
+        self.parser.add_argument(
+            "--ch_token",
+            action="store_true",
         )
 
         # data parameters
