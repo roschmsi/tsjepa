@@ -45,6 +45,8 @@ class PatchTST(nn.Module):
         individual=False,
         y_range: Optional[tuple] = None,
         verbose: bool = False,
+        ch_token=False,
+        cls_token=False,
         **kwargs,
     ):
 
@@ -75,6 +77,9 @@ class PatchTST(nn.Module):
             pe=pe,
             learn_pe=learn_pe,
             verbose=verbose,
+            ch_token=ch_token,
+            cls_token=cls_token,
+            head_type=head_type,
             **kwargs,
         )
 
@@ -293,6 +298,8 @@ class PatchTSTEncoder(nn.Module):
         pre_norm=False,
         pe="zeros",
         learn_pe=True,
+        cls_token=False,
+        ch_token=False,
         verbose=False,
         **kwargs,
     ):
@@ -314,6 +321,12 @@ class PatchTSTEncoder(nn.Module):
 
         # Positional encoding
         self.W_pos = positional_encoding(pe, learn_pe, num_patch, d_model)
+
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, d_model)) if cls_token else None
+
+        self.ch_token = (
+            nn.Parameter(torch.zeros(1, c_in, d_model)) if ch_token else None
+        )
 
         # Residual dropout
         self.dropout = nn.Dropout(dropout)
@@ -338,6 +351,7 @@ class PatchTSTEncoder(nn.Module):
         x: tensor [bs x num_patch x nvars x patch_len]
         """
         bs, num_patch, n_vars, patch_len = x.shape
+
         # Input encoding
         if not self.shared_embedding:
             x_out = []
@@ -347,18 +361,48 @@ class PatchTSTEncoder(nn.Module):
             x = torch.stack(x_out, dim=2)
         else:
             x = self.W_P(x)  # x: [bs x num_patch x nvars x d_model]
+
+        if self.ch_token is not None:
+            ch_token = self.ch_token.expand(x.shape[0], -1, -1, -1)
+            x = torch.cat((x, ch_token), dim=1)
+            num_patch += 1
+
         x = x.transpose(1, 2)  # x: [bs x nvars x num_patch x d_model]
 
         u = torch.reshape(
             x, (bs * n_vars, num_patch, self.d_model)
         )  # u: [bs * nvars x num_patch x d_model]
-        u = self.dropout(u + self.W_pos)  # u: [bs * nvars x num_patch x d_model]
+
+        if self.cls_token is not None:
+            cls_token = self.cls_token.expand(u.shape[0], -1, -1)
+            u = torch.cat((cls_token, u), dim=1)
+            num_patch += 1
+
+        W_pos = self.W_pos
+        if self.ch_token is not None:
+            W_pos = torch.cat(
+                [W_pos, torch.zeros([1, self.d_model]).cuda()],
+                axis=0,
+            )
+        if self.cls_token is not None:
+            W_pos = torch.cat(
+                [torch.zeros([1, self.d_model]).cuda(), W_pos],
+                axis=0,
+            )
+
+        u = self.dropout(u + W_pos)  # u: [bs * nvars x num_patch x d_model]
 
         # Encoder
         z = self.encoder(u)  # z: [bs * nvars x num_patch x d_model]
         z = torch.reshape(
             z, (-1, n_vars, num_patch, self.d_model)
         )  # z: [bs x nvars x num_patch x d_model]
+
+        if self.ch_token is not None:
+            z = z[:, :, :-1, :]
+        if self.cls_token is not None:
+            z = z[:, :, 1:, :]
+
         z = z.permute(0, 1, 3, 2)  # z: [bs x nvars x d_model x num_patch]
 
         return z
