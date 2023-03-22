@@ -172,20 +172,6 @@ def setup(args):
     config.update(data_config)
     config = EasyDict(config)
 
-    config, output_dir = create_output_directory(config)
-
-    if os.path.exists(output_dir):
-        if not config.debug:
-            config["resume"] = True
-
-    create_dirs([config["checkpoint_dir"]])
-
-    # save configuration as json file
-    with open(os.path.join(output_dir, "configuration.json"), "w") as fp:
-        json.dump(config, fp, indent=4, sort_keys=True)
-
-    logger.info("Stored configuration file in '{}'".format(output_dir))
-
     # assure that config of pretrained model matches config of finetuned model
     if config.finetuning:
         pretraining_config = load_config_yaml(
@@ -205,7 +191,21 @@ def setup(args):
         for key in keys:
             assert config[key] == pretraining_config[key]
 
-        assert config.masking_ratio_pretraining == pretraining_config.masking_ratio
+        config.masking_ratio_pretraining = pretraining_config.masking_ratio
+
+    config, output_dir = create_output_directory(config)
+
+    if os.path.exists(output_dir):
+        if not config.debug:
+            config["resume"] = True
+
+    create_dirs([config["checkpoint_dir"]])
+
+    # save configuration as json file
+    with open(os.path.join(output_dir, "configuration.json"), "w") as fp:
+        json.dump(config, fp, indent=4, sort_keys=True)
+
+    logger.info("Stored configuration file in '{}'".format(output_dir))
 
     return config
 
