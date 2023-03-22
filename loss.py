@@ -5,16 +5,19 @@ from torch.nn import functional as F
 
 
 def get_criterion(config):
-    if config.task == "pretraining" and config.use_patch:
-        return MaskedPatchLoss()
-    elif config.task == "pretraining" and not config.use_patch:
-        # time series transformer operating on full signal
-        return MaskedMSELoss(reduction="none")
-    elif config["task"] == "classification":
+    if config.task == "pretraining":
+        if config.use_patch:
+            return MaskedPatchLoss()
+        else:
+            # time series transformer operating on full signal
+            return MaskedMSELoss(reduction="none")
+    elif config.task == "classification":
         if config.multilabel:
             return BCEWithLogitsLoss(reduction="none")
         else:  # one class per time series
             return NoFussCrossEntropyLoss(reduction="none")
+    elif config.task == "forecasting":
+        return torch.nn.MSELoss(reduction="mean")
     else:
         raise ValueError(
             "Loss module for task '{}' does not exist".format(config["task"])
