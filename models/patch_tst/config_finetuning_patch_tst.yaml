@@ -7,7 +7,6 @@ num_layers: 8
 dropout: 0.1
 head_dropout: 0.1
 masking_ratio: 0
-masking_ratio_pretraining: 0.5
 patch_len: 16
 stride: 16
 use_patch: True

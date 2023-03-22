@@ -10,7 +10,6 @@ patch_len: 16
 stride: 16
 use_patch: True
 masking_ratio: 0
-masking_ratio_pretraining: 0.3
 freeze: False
 # training:
 optimizer: AdamW
