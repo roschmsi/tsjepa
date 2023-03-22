@@ -148,10 +148,6 @@ class Options(object):
             type=float,
         )
         self.parser.add_argument(
-            "--masking_ratio_pretraining",
-            type=float,
-        )
-        self.parser.add_argument(
             "--cls_token",
             action="store_true",
         )

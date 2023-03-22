@@ -16,10 +16,9 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+from data.dataset import load_dataset
 
-from data.ecg_dataset import classes, load_ecg_dataset, normal_class
-from data.fc_dataset import load_fc_dataset
-from data.uea_dataset import load_uea_dataset
+from data.ecg_dataset import classes, normal_class
 from factory import (
     model_factory,
     optimizer_factory,
@@ -68,20 +67,7 @@ def main(config):
         config.augment = False
 
     # build ecg data
-    if config.dataset in ["ecg", "ptb-xl", "ptb-xl-1000", "ptb-xl-5000"]:
-        train_dataset, val_dataset, test_dataset = load_ecg_dataset(config)
-    elif config.dataset in ["insect_wingbeat", "phoneme_spectra"]:
-        train_dataset, val_dataset, test_dataset, config_data = load_uea_dataset(
-            config.data, debug=config.debug
-        )
-        # TODO outdated
-        config.data = config_data
-    elif config.dataset in ["ettm1"]:
-        train_dataset, val_dataset, test_dataset = load_fc_dataset(
-            config.data, debug=config.debug
-        )
-    else:
-        raise ValueError("Dataset type is not specified")
+    train_dataset, val_dataset, test_dataset = load_dataset(config)
 
     # create model
     model = model_factory(config)
@@ -135,8 +121,8 @@ def main(config):
     # initialize data generator and runner
     dataset_class, collate_fn, runner_class = pipeline_factory(config)
 
-    if "max_seq_len" in config.keys():
-        max_len = config.max_seq_len
+    if "seq_len" in config.keys():
+        max_len = config.seq_len
     else:
         max_len = config.window * config.fs
 
