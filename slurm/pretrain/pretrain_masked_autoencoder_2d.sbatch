@@ -2,7 +2,7 @@
 #SBATCH --job-name="pretrain masked autoencoder 2d"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:1,VRAM:16G
+#SBATCH --gres=gpu:1,VRAM:32G
 #SBATCH --mem=4G
 #SBATCH --time=96:00:00
 #SBATCH --mail-type=ALL
@@ -18,19 +18,20 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --dec_d_model 256 \
 --dec_d_ff 512 \
 --dec_num_heads 8 \
---dec_num_layers 8 \
+--dec_num_layers 2 \
 --dropout 0.1 \
 --head_dropout 0.1 \
 --masking_ratio 0.5 \
 --use_patch \
---patch_len 8 \
---stride 8 \
+--patch_len 16 \
+--stride 16 \
 --optimizer AdamW \
 --lr 0.0001 \
 --weight_decay 0.01 \
 --epochs 500 \
---batch_size 64 \
+--batch_size 32 \
 --num_workers 4 \
 --patience 100 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/etth1.yaml \
---task pretraining
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
+--task pretraining \
+--mae

@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:32G
-#SBATCH --mem=16G
+#SBATCH --mem=4G
 #SBATCH --time=96:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --output=/storage/slurm/logs/slurm-%j.out
@@ -28,10 +28,4 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --batch_size 32 \
 --num_workers 4 \
 --patience 100 \
---task classification \
---dataset ecg \
---window 10 \
---fs 100 \
---num_classes 27 \
---feat_dim 12 \
---multilabel
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/etth1.yaml
