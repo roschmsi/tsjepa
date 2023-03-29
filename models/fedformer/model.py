@@ -21,59 +21,57 @@ class FEDformerEncoder(nn.Module):
     FEDformer performs the attention mechanism on frequency domain and achieved O(N) complexity
     """
 
-    def __init__(self, config_model, config_data):
+    def __init__(self, config):
         super(FEDformerEncoder, self).__init__()
-        self.version = config_model.version
-        self.mode_select = config_model.mode_select
-        self.modes = config_model.modes
-        self.seq_len = config_data.window * config_data.fs
+        self.version = config.version
+        self.mode_select = config.mode_select
+        self.modes = config.modes
+        self.seq_len = config.window * config.fs
 
         # Embedding
         # The series-wise connection inherently contains the sequential information.
         # Thus, we can discard the position embedding of transformers.
         self.enc_embedding = DataEmbedding_onlypos(
-            c_in=config_data.feat_dim,
-            d_model=config_model.d_model,
-            dropout=config_model.dropout,
+            c_in=config.feat_dim,
+            d_model=config.d_model,
+            dropout=config.dropout,
         )
 
-        if config_model.version == "Wavelets":
+        if config.version == "Wavelets":
             encoder_self_att = MultiWaveletTransform(
-                ich=config_model.d_model, L=config_model.L, base=config_model.base
+                ich=config.d_model, L=config.L, base=config.base
             )
         else:
             encoder_self_att = FourierBlock(
-                in_channels=config_model.d_model,
-                out_channels=config_model.d_model,
+                in_channels=config.d_model,
+                out_channels=config.d_model,
                 seq_len=self.seq_len,
-                modes=config_model.modes,
-                mode_select_method=config_model.mode_select,
+                modes=config.modes,
+                mode_select_method=config.mode_select,
             )
 
         # Encoder
-        enc_modes = int(min(config_model.modes, self.seq_len // 2))
+        enc_modes = int(min(config.modes, self.seq_len // 2))
         print("enc_modes: {}".format(enc_modes))
 
         self.encoder = Encoder(
             [
                 EncoderLayer(
                     AutoCorrelationLayer(
-                        encoder_self_att, config_model.d_model, config_model.num_heads
+                        encoder_self_att, config.d_model, config.num_heads
                     ),
-                    config_model.d_model,
-                    config_model.d_ff,
-                    moving_avg=config_model.moving_avg,
-                    dropout=config_model.dropout,
-                    activation=config_model.activation,
+                    config.d_model,
+                    config.d_ff,
+                    moving_avg=config.moving_avg,
+                    dropout=config.dropout,
+                    activation=config.activation,
                 )
-                for _ in range(config_model.num_layers)
+                for _ in range(config.num_layers)
             ],
             # norm_layer=my_Layernorm(config_model.d_model),
         )
         # 27 classes to predict
-        self.classification_head = nn.Linear(
-            config_model.d_model, config_data.num_classes
-        )
+        self.classification_head = nn.Linear(config.d_model, config.num_classes)
 
     def forward(self, x_enc, enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
         enc_out = self.enc_embedding(x_enc)
@@ -87,63 +85,61 @@ class CNNFEDformerEncoder(FEDformerEncoder):
     FEDformer performs the attention mechanism on frequency domain and achieved O(N) complexity
     """
 
-    def __init__(self, config_model, config_data):
-        super(CNNFEDformerEncoder, self).__init__(config_model, config_data)
-        self.version = config_model.version
-        self.mode_select = config_model.mode_select
-        self.modes = config_model.modes
-        self.seq_len = config_data.window * config_data.fs
+    def __init__(self, config):
+        super(CNNFEDformerEncoder, self).__init__(config, config)
+        self.version = config.version
+        self.mode_select = config.mode_select
+        self.modes = config.modes
+        self.seq_len = config.window * config.fs
 
         # Embedding
         # The series-wise connection inherently contains the sequential information.
         # Thus, we can discard the position embedding of transformers.
         self.enc_embedding = DataEmbedding_onlypos(
-            c_in=config_model.d_model,
-            d_model=config_model.d_model,
-            dropout=config_model.dropout,
+            c_in=config.d_model,
+            d_model=config.d_model,
+            dropout=config.dropout,
         )
 
-        if config_model.version == "Wavelets":
+        if config.version == "Wavelets":
             encoder_self_att = MultiWaveletTransform(
-                ich=config_model.d_model, L=config_model.L, base=config_model.base
+                ich=config.d_model, L=config.L, base=config.base
             )
         else:
             encoder_self_att = FourierBlock(
-                in_channels=config_model.d_model,
-                out_channels=config_model.d_model,
+                in_channels=config.d_model,
+                out_channels=config.d_model,
                 seq_len=132,
-                modes=config_model.modes,
-                mode_select_method=config_model.mode_select,
+                modes=config.modes,
+                mode_select_method=config.mode_select,
             )
 
         # Encoder
-        enc_modes = int(min(config_model.modes, self.seq_len // 2))
+        enc_modes = int(min(config.modes, self.seq_len // 2))
         print("enc_modes: {}".format(enc_modes))
 
         self.cnn_encoder = CNNEncoderLayer(
-            feat_dim=config_data.feat_dim, d_model=config_model.d_model
+            feat_dim=config.feat_dim, d_model=config.d_model
         )
 
         self.encoder = Encoder(
             [
                 EncoderLayer(
                     AutoCorrelationLayer(
-                        encoder_self_att, config_model.d_model, config_model.num_heads
+                        encoder_self_att, config.d_model, config.num_heads
                     ),
-                    config_model.d_model,
-                    config_model.d_ff,
-                    moving_avg=config_model.moving_avg,
-                    dropout=config_model.dropout,
-                    activation=config_model.activation,
+                    config.d_model,
+                    config.d_ff,
+                    moving_avg=config.moving_avg,
+                    dropout=config.dropout,
+                    activation=config.activation,
                 )
-                for _ in range(config_model.num_layers)
+                for _ in range(config.num_layers)
             ],
             # norm_layer=my_Layernorm(config_model.d_model),
         )
         # 27 classes to predict
-        self.classification_head = nn.Linear(
-            config_model.d_model, config_data.num_classes
-        )
+        self.classification_head = nn.Linear(config.d_model, config.num_classes)
 
     def forward(self, x_enc, enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
         enc_out = self.cnn_encoder(x_enc)
@@ -158,72 +154,70 @@ class CNNTimeFreqEncoder(nn.Module):
     FEDformer performs the attention mechanism on frequency domain and achieved O(N) complexity
     """
 
-    def __init__(self, config_model, config_data):
+    def __init__(self, config):
         super(CNNTimeFreqEncoder, self).__init__()
-        self.version = config_model.version
-        self.mode_select = config_model.mode_select
-        self.modes = config_model.modes
-        self.seq_len = config_data.window * config_data.fs
+        self.version = config.version
+        self.mode_select = config.mode_select
+        self.modes = config.modes
+        self.seq_len = config.window * config.fs
 
         # Embedding
         # The series-wise connection inherently contains the sequential information.
         # Thus, we can discard the position embedding of transformers.
         self.enc_embedding = DataEmbedding_onlypos(
-            c_in=config_model.d_model,
-            d_model=config_model.d_model,
-            dropout=config_model.dropout,
+            c_in=config.d_model,
+            d_model=config.d_model,
+            dropout=config.dropout,
         )
 
-        if config_model.version == "Wavelets":
+        if config.version == "Wavelets":
             encoder_self_att = MultiWaveletTransform(
-                ich=config_model.d_model, L=config_model.L, base=config_model.base
+                ich=config.d_model, L=config.L, base=config.base
             )
         else:
             encoder_self_att = FourierBlock(
-                in_channels=config_model.d_model,
-                out_channels=config_model.d_model,
+                in_channels=config.d_model,
+                out_channels=config.d_model,
                 seq_len=132,
-                modes=config_model.modes,
-                mode_select_method=config_model.mode_select,
+                modes=config.modes,
+                mode_select_method=config.mode_select,
             )
 
         # Encoder
-        enc_modes = int(min(config_model.modes, self.seq_len // 2))
+        enc_modes = int(min(config.modes, self.seq_len // 2))
         print("enc_modes: {}".format(enc_modes))
 
         self.cnn_encoder = CNNEncoderLayer(
-            feat_dim=config_data.feat_dim, d_model=config_model.d_model
+            feat_dim=config.feat_dim, d_model=config.d_model
         )
 
         self.freq_transformer = Encoder(
             [
                 EncoderLayer(
                     AutoCorrelationLayer(
-                        encoder_self_att, config_model.d_model, config_model.num_heads
+                        encoder_self_att, config.d_model, config.num_heads
                     ),
-                    config_model.d_model,
-                    config_model.d_ff,
-                    moving_avg=config_model.moving_avg,
-                    dropout=config_model.dropout,
-                    activation=config_model.activation,
+                    config.d_model,
+                    config.d_ff,
+                    moving_avg=config.moving_avg,
+                    dropout=config.dropout,
+                    activation=config.activation,
                 )
-                for _ in range(config_model.num_layers)
+                for _ in range(config.num_layers)
             ],
             # norm_layer=my_Layernorm(config_model.d_model),
         )
         time_transformer_layer = nn.TransformerEncoderLayer(
-            d_model=config_model.d_model,
-            nhead=config_model.num_heads,
-            dim_feedforward=config_model.d_ff,
-            dropout=config_model.dropout,
+            d_model=config.d_model,
+            nhead=config.num_heads,
+            dim_feedforward=config.d_ff,
+            dropout=config.dropout,
         )
         self.time_transformer = nn.TransformerEncoder(
-            time_transformer_layer, config_model.num_layers
+            time_transformer_layer, config.num_layers
         )
         # 27 classes to predict
-        self.classification_head = nn.Linear(
-            2 * config_model.d_model, config_data.num_classes
-        )
+        self.classification_head = nn.Linear(2 * config.d_model, config.num_classes)
 
     def forward(self, x_enc, enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
         enc_out = self.cnn_encoder(x_enc)
@@ -241,15 +235,15 @@ class DecompFEDformerEncoder(nn.Module):
     FEDformer performs the attention mechanism on frequency domain and achieved O(N) complexity
     """
 
-    def __init__(self, config_model, config_data):
+    def __init__(self, config):
         super(DecompFEDformerEncoder, self).__init__()
-        self.version = config_model.version
-        self.mode_select = config_model.mode_select
-        self.modes = config_model.modes
-        self.seq_len = config_data.window * config_data.fs
+        self.version = config.version
+        self.mode_select = config.mode_select
+        self.modes = config.modes
+        self.seq_len = config.window * config.fs
 
         # Decomp
-        kernel_size = config_model.moving_avg
+        kernel_size = config.moving_avg
         if isinstance(kernel_size, list):
             self.decomp = series_decomp_multi(kernel_size)
         else:
@@ -259,51 +253,49 @@ class DecompFEDformerEncoder(nn.Module):
         # The series-wise connection inherently contains the sequential information.
         # Thus, we can discard the position embedding of transformers.
         self.enc_embedding = DataEmbedding_onlypos(
-            c_in=config_model.d_model,
-            d_model=config_model.d_model,
-            dropout=config_model.dropout,
+            c_in=config.d_model,
+            d_model=config.d_model,
+            dropout=config.dropout,
         )
 
-        if config_model.version == "Wavelets":
+        if config.version == "Wavelets":
             encoder_self_att = MultiWaveletTransform(
-                ich=config_model.d_model, L=config_model.L, base=config_model.base
+                ich=config.d_model, L=config.L, base=config.base
             )
         else:
             encoder_self_att = FourierBlock(
-                in_channels=config_model.d_model,
-                out_channels=config_model.d_model,
+                in_channels=config.d_model,
+                out_channels=config.d_model,
                 seq_len=self.seq_len,
-                modes=config_model.modes,
-                mode_select_method=config_model.mode_select,
+                modes=config.modes,
+                mode_select_method=config.mode_select,
             )
         # Encoder
-        enc_modes = int(min(config_model.modes, self.seq_len // 2))
+        enc_modes = int(min(config.modes, self.seq_len // 2))
         print("enc_modes: {}".format(enc_modes))
 
         self.encoder = EncoderDecomp(
             [
                 EncoderLayerDecomp(
                     AutoCorrelationLayer(
-                        encoder_self_att, config_model.d_model, config_model.num_heads
+                        encoder_self_att, config.d_model, config.num_heads
                     ),
-                    config_model.d_model,
-                    config_model.d_ff,
-                    moving_avg=config_model.moving_avg,
-                    dropout=config_model.dropout,
-                    activation=config_model.activation,
+                    config.d_model,
+                    config.d_ff,
+                    moving_avg=config.moving_avg,
+                    dropout=config.dropout,
+                    activation=config.activation,
                 )
-                for _ in range(config_model.num_layers)
+                for _ in range(config.num_layers)
             ],
             # norm_layer=my_Layernorm(config_model.d_model),
         )
 
         # 27 classes to predict
-        self.classification_head = nn.Linear(
-            config_model.d_model, config_data.num_classes
-        )
+        self.classification_head = nn.Linear(config.d_model, config.num_classes)
 
-        self.trend_head = nn.Linear(config_data.feat_dim, config_model.d_model)
-        self.seasonal_head = nn.Linear(config_data.feat_dim, config_model.d_model)
+        self.trend_head = nn.Linear(config.feat_dim, config.d_model)
+        self.seasonal_head = nn.Linear(config.feat_dim, config.d_model)
 
     def forward(self, x_enc, enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
         # decomp init
@@ -335,14 +327,14 @@ class CNNDecompTimeFreqEncoder(nn.Module):
     FEDformer performs the attention mechanism on frequency domain and achieved O(N) complexity
     """
 
-    def __init__(self, config_model, config_data):
+    def __init__(self, config):
         super(CNNDecompTimeFreqEncoder, self).__init__()
-        self.version = config_model.version
-        self.mode_select = config_model.mode_select
-        self.modes = config_model.modes
-        self.seq_len = config_data.window * config_data.fs
+        self.version = config.version
+        self.mode_select = config.mode_select
+        self.modes = config.modes
+        self.seq_len = config.window * config.fs
 
-        kernel_size = config_model.moving_avg
+        kernel_size = config.moving_avg
         if isinstance(kernel_size, list):
             self.decomp = series_decomp_multi(kernel_size)
         else:
@@ -352,61 +344,59 @@ class CNNDecompTimeFreqEncoder(nn.Module):
         # The series-wise connection inherently contains the sequential information.
         # Thus, we can discard the position embedding of transformers.
         self.enc_embedding = DataEmbedding_onlypos(
-            c_in=config_model.d_model,
-            d_model=config_model.d_model,
-            dropout=config_model.dropout,
+            c_in=config.d_model,
+            d_model=config.d_model,
+            dropout=config.dropout,
         )
 
-        if config_model.version == "Wavelets":
+        if config.version == "Wavelets":
             encoder_self_att = MultiWaveletTransform(
-                ich=config_model.d_model, L=config_model.L, base=config_model.base
+                ich=config.d_model, L=config.L, base=config.base
             )
         else:
             encoder_self_att = FourierBlock(
-                in_channels=config_model.d_model,
-                out_channels=config_model.d_model,
+                in_channels=config.d_model,
+                out_channels=config.d_model,
                 seq_len=132,
-                modes=config_model.modes,
-                mode_select_method=config_model.mode_select,
+                modes=config.modes,
+                mode_select_method=config.mode_select,
             )
 
         # Encoder
-        enc_modes = int(min(config_model.modes, self.seq_len // 2))
+        enc_modes = int(min(config.modes, self.seq_len // 2))
         print("enc_modes: {}".format(enc_modes))
 
         self.cnn_encoder = CNNEncoderLayer(
-            feat_dim=config_data.feat_dim, d_model=config_model.d_model
+            feat_dim=config.feat_dim, d_model=config.d_model
         )
 
         self.freq_transformer = EncoderDecomp(
             [
                 EncoderLayerDecomp(
                     AutoCorrelationLayer(
-                        encoder_self_att, config_model.d_model, config_model.num_heads
+                        encoder_self_att, config.d_model, config.num_heads
                     ),
-                    config_model.d_model,
-                    config_model.d_ff,
-                    moving_avg=config_model.moving_avg,
-                    dropout=config_model.dropout,
-                    activation=config_model.activation,
+                    config.d_model,
+                    config.d_ff,
+                    moving_avg=config.moving_avg,
+                    dropout=config.dropout,
+                    activation=config.activation,
                 )
-                for _ in range(config_model.num_layers)
+                for _ in range(config.num_layers)
             ],
             # norm_layer=my_Layernorm(config_model.d_model),
         )
         time_transformer_layer = nn.TransformerEncoderLayer(
-            d_model=config_model.d_model,
-            nhead=config_model.num_heads,
-            dim_feedforward=config_model.d_ff,
-            dropout=config_model.dropout,
+            d_model=config.d_model,
+            nhead=config.num_heads,
+            dim_feedforward=config.d_ff,
+            dropout=config.dropout,
         )
         self.time_transformer = nn.TransformerEncoder(
-            time_transformer_layer, config_model.num_layers
+            time_transformer_layer, config.num_layers
         )
         # 27 classes to predict
-        self.classification_head = nn.Linear(
-            2 * config_model.d_model, config_data.num_classes
-        )
+        self.classification_head = nn.Linear(2 * config.d_model, config.num_classes)
 
     def forward(self, x_enc, enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
         enc_out = self.cnn_encoder(x_enc)
