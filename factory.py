@@ -5,8 +5,8 @@ import torch
 from data.dataset import (
     ClassificationDataset,
     ClassificationPatchDataset,
+    ForecastingPatchDataset,
     PretrainingDataset,
-    PretrainingMAEPatchDataset,
     PretrainingPatchDataset,
     collate_patch_superv,
     collate_patch_unsuperv,
@@ -32,6 +32,10 @@ from models.masked_autoencoder.model import (
 from models.masked_autoencoder.pretraining_masked_autoencoder_search_space import (
     get_pretraining_masked_autoencoder_search_space,
 )
+from models.masked_autoencoder_2d.model import (
+    MaskedAutoencoderTST2d,
+    MaskedAutoencoderTST2dClassifier,
+)
 from models.patch_tst.patch_tst_search_space import (
     get_patch_tst_search_space,
 )
@@ -43,6 +47,7 @@ from models.transformer.model import (
 )
 from models.transformer.optimizer import RAdam
 from runner import (
+    ForecastingRunner,
     SupervisedRunner,
     UnsupervisedPatchRunner,
     UnsupervisedRunner,
@@ -57,26 +62,19 @@ def pipeline_factory(config):
 
     if config.task == "pretraining":
         if config.use_patch:
-            if config.mae:
-                dataset = partial(
-                    PretrainingMAEPatchDataset,
-                    masking_ratio=config.masking_ratio,
-                    patch_len=config.patch_len,
-                    stride=config.stride,
-                    debug=config.debug,
-                )
-            else:
-                dataset = partial(
-                    PretrainingPatchDataset,
-                    masking_ratio=config.masking_ratio,
-                    patch_len=config.patch_len,
-                    stride=config.stride,
-                    debug=config.debug,
-                )
+            dataset = partial(
+                PretrainingPatchDataset,
+                masking_ratio=config.masking_ratio,
+                patch_len=config.patch_len,
+                stride=config.stride,
+                mae=config.mae,
+                debug=config.debug,
+            )
             return (
                 dataset,
                 partial(
                     collate_patch_unsuperv,
+                    feat_dim=config.feat_dim,
                     patch_len=config.patch_len,
                     stride=config.stride,
                     masking_ratio=config.masking_ratio,
@@ -90,17 +88,14 @@ def pipeline_factory(config):
             return (
                 partial(
                     PretrainingDataset,
-                    mean_mask_length=config.mean_mask_length,
                     masking_ratio=config.masking_ratio,
-                    mode=config.mask_mode,
-                    distribution=config.mask_distribution,
-                    exclude_feats=config.exclude_feats,
+                    mean_mask_length=config.mean_mask_length,
                 ),
                 collate_unsuperv,
                 UnsupervisedRunner,
             )
 
-    elif config.task in ["classification"]:
+    elif config.task == "classification":
         if config.use_patch:
             return (
                 partial(
@@ -119,13 +114,32 @@ def pipeline_factory(config):
         else:
             return ClassificationDataset, collate_superv, SupervisedRunner
 
+    elif config.task == "forecasting":
+        if config.use_patch:
+            return (
+                partial(
+                    ForecastingPatchDataset,
+                    patch_len=config.patch_len,
+                    stride=config.stride,
+                ),
+                partial(
+                    collate_patch_superv,
+                    patch_len=config.patch_len,
+                    stride=config.stride,
+                    masking_ratio=config.masking_ratio,
+                ),
+                ForecastingRunner,
+            )
+        else:
+            return ClassificationDataset, collate_superv, SupervisedRunner
+
     else:
         raise NotImplementedError("Task '{}' not implemented".format(config["task"]))
 
 
 def model_factory(config):
-    if "max_seq_len" in config.keys():
-        max_seq_len = config.max_seq_len
+    if "seq_len" in config.keys():
+        max_seq_len = config.seq_len
     else:
         max_seq_len = config.window * config.fs
 
@@ -153,34 +167,16 @@ def model_factory(config):
             num_cnn=config.num_cnn,
         )
     elif config.model_name == "fedformer_encoder":
-        return FEDformerEncoder(config.model, config.data)
+        config.activation = "relu"
+        return FEDformerEncoder(config)
     elif config.model_name == "cnn_fedformer_encoder":
-        return CNNFEDformerEncoder(config.model, config.data)
+        return CNNFEDformerEncoder(config)
     elif config.model_name == "decomp_fedformer_encoder":
-        return DecompFEDformerEncoder(config.model, config.data)
+        return DecompFEDformerEncoder(config)
     elif config.model_name == "cnn_time_freq_encoder":
-        return CNNTimeFreqEncoder(config.model, config.data)
+        return CNNTimeFreqEncoder(config)
     elif config.model_name == "cnn_decomp_time_freq_encoder":
-        return CNNDecompTimeFreqEncoder(config.model, config.data)
-    elif config.model_name == "residual_cnn_att":
-        return ResidualCNNAtt(nOUT=config.num_classes)
-    elif config.model_name == "gtn":
-        DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        return GatedTransformer(
-            d_model=config.d_model,
-            d_input=max_seq_len,
-            d_channel=config.feat_dim,
-            d_output=config.num_classes,
-            d_hidden=config.d_ff,
-            q=config.q,
-            v=config.v,
-            h=config.h,
-            num_layers=config.num_layers,
-            dropout=config.dropout,
-            pe=True,
-            mask=config.mask,
-            device=DEVICE,
-        )
+        return CNNDecompTimeFreqEncoder(config)
     # transformer
     elif config.model_name == "transformer":
         if config.task == "pretraining":
@@ -192,12 +188,12 @@ def model_factory(config):
                 num_layers=config.num_layers,
                 d_ff=config.d_ff,
                 dropout=config.dropout,
-                pos_encoding=config.pos_encoding,
-                activation=config.activation,
-                norm=config.normalization_layer,
+                pos_encoding="fixed",
+                activation="relu",
+                norm="BatchNorm",
                 freeze=config.freeze,
             )
-        elif config.task in ["classification"]:
+        elif config.task == "classification":
             return TSTransformerEncoderClassifier(
                 feat_dim=config.feat_dim,
                 max_len=max_seq_len,
@@ -206,9 +202,9 @@ def model_factory(config):
                 num_layers=config.num_layers,
                 d_ff=config.d_ff,
                 dropout=config.dropout,
-                pos_encoding=config.pos_encoding,
-                activation=config.activation,
-                norm=config.normalization_layer,
+                pos_encoding="fixed",
+                activation="relu",
+                norm="BatchNorm",
                 num_classes=config.num_classes,
                 freeze=config.freeze,
             )
@@ -231,8 +227,12 @@ def model_factory(config):
                 act="relu",
                 head_type="pretrain",
                 res_attention=False,
+                pe="sincos",
+                ch_token=config.ch_token,
+                cls_token=config.cls_token,
+                task=config.task,
             )
-        elif config.task in ["classification"]:
+        elif config.task == "classification":
             return PatchTST(
                 c_in=config.feat_dim,
                 target_dim=config.num_classes,
@@ -249,6 +249,32 @@ def model_factory(config):
                 act="relu",
                 head_type="classification",
                 res_attention=False,
+                pe="sincos",
+                ch_token=config.ch_token,
+                cls_token=config.cls_token,
+                task=config.task,
+            )
+        elif config.task == "forecasting":
+            return PatchTST(
+                c_in=config.feat_dim,
+                target_dim=config.pred_len,
+                patch_len=config.patch_len,
+                stride=config.stride,
+                num_patch=num_patch,
+                num_layers=config.num_layers,
+                num_heads=config.num_heads,
+                d_model=config.d_model,
+                shared_embedding=True,
+                d_ff=config.d_ff,
+                dropout=config.dropout,
+                head_dropout=config.head_dropout,
+                act="relu",
+                head_type="prediction",
+                res_attention=False,
+                pe="sincos",
+                ch_token=config.ch_token,
+                cls_token=config.cls_token,
+                task=config.task,
             )
     # patch tst 2d with channel dependences
     elif config.model_name == "patch_tst_2d":
@@ -269,8 +295,11 @@ def model_factory(config):
                 act="relu",
                 head_type="pretrain",
                 res_attention=False,
+                pe="sincos",
+                cls_token=config.cls_token,
+                task=config.task,
             )
-        elif config.task in ["classification"]:
+        elif config.task == "classification":
             return PatchTST2d(
                 c_in=config.feat_dim,
                 target_dim=config.num_classes,
@@ -287,6 +316,30 @@ def model_factory(config):
                 act="relu",
                 head_type="classification",
                 res_attention=False,
+                pe="sincos",
+                cls_token=config.cls_token,
+                task=config.task,
+            )
+        elif config.task == "forecasting":
+            return PatchTST2d(
+                c_in=config.feat_dim,
+                target_dim=config.pred_len,
+                patch_len=config.patch_len,
+                stride=config.stride,
+                num_patch=num_patch,
+                num_layers=config.num_layers,
+                num_heads=config.num_heads,
+                d_model=config.d_model,
+                shared_embedding=True,
+                d_ff=config.d_ff,
+                dropout=config.dropout,
+                head_dropout=config.head_dropout,
+                act="relu",
+                head_type="prediction",
+                res_attention=False,
+                pe="sincos",
+                cls_token=config.cls_token,
+                task=config.task,
             )
     # masked autoencoder
     elif config.model_name == "masked_autoencoder":
@@ -309,6 +362,9 @@ def model_factory(config):
                 act="relu",
                 res_attention=False,
                 pe="sincos",
+                cls_token=config.cls_token,
+                ch_token=config.ch_token,
+                task=config.task,
             )
         elif config.task in ["classification"]:
             return MaskedAutoencoderTSTClassifier(
@@ -327,6 +383,51 @@ def model_factory(config):
                 act="relu",
                 res_attention=False,
                 pe="sincos",
+                cls_token=config.cls_token,
+                ch_token=config.ch_token,
+                task=config.task,
+            )
+    # masked autoencoder 2d
+    elif config.model_name == "masked_autoencoder_2d":
+        if config.task == "pretraining":
+            return MaskedAutoencoderTST2d(
+                num_patch=num_patch,
+                patch_len=config.patch_len,
+                masking_ratio=config.masking_ratio,
+                c_in=config.feat_dim,
+                enc_num_layers=config.enc_num_layers,
+                enc_num_heads=config.enc_num_heads,
+                enc_d_model=config.enc_d_model,
+                enc_d_ff=config.enc_d_ff,
+                dec_num_layers=config.dec_num_layers,
+                dec_num_heads=config.dec_num_heads,
+                dec_d_model=config.dec_d_model,
+                dec_d_ff=config.dec_d_ff,
+                shared_embedding=True,
+                dropout=config.dropout,
+                act="relu",
+                res_attention=False,
+                pe="sincos",
+                cls_token=config.cls_token,
+            )
+        elif config.task == "classification":
+            return MaskedAutoencoderTST2dClassifier(
+                num_patch=num_patch,
+                patch_len=config.patch_len,
+                masking_ratio=config.masking_ratio,
+                c_in=config.feat_dim,
+                target_dim=config.num_classes,
+                enc_d_model=config.enc_d_model,
+                enc_d_ff=config.enc_d_ff,
+                enc_num_layers=config.enc_num_layers,
+                enc_num_heads=config.enc_num_heads,
+                shared_embedding=True,
+                dropout=config.dropout,
+                head_dropout=config.head_dropout,
+                act="relu",
+                res_attention=False,
+                pe="sincos",
+                cls_token=config.cls_token,
             )
     else:
         raise ValueError(
