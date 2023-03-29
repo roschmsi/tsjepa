@@ -26,11 +26,11 @@ class PatchTST(nn.Module):
         patch_len: int,
         stride: int,
         num_patch: int,
-        num_layers: int = 3,
-        d_model=128,
-        num_heads=16,
+        num_layers: int,
+        num_heads: int,
+        d_model: int,
+        d_ff: int,
         shared_embedding=True,
-        d_ff: int = 256,
         norm: str = "BatchNorm",
         attn_dropout: float = 0.0,
         dropout: float = 0.0,
@@ -44,9 +44,9 @@ class PatchTST(nn.Module):
         head_type="prediction",
         individual=False,
         y_range: Optional[tuple] = None,
-        verbose: bool = False,
         ch_token=False,
         cls_token=False,
+        task=None,
         **kwargs,
     ):
 
@@ -64,10 +64,10 @@ class PatchTST(nn.Module):
             num_patch=num_patch,
             patch_len=patch_len,
             num_layers=num_layers,
-            d_model=d_model,
             num_heads=num_heads,
-            shared_embedding=shared_embedding,
+            d_model=d_model,
             d_ff=d_ff,
+            shared_embedding=shared_embedding,
             attn_dropout=attn_dropout,
             dropout=dropout,
             act=act,
@@ -76,10 +76,10 @@ class PatchTST(nn.Module):
             store_attn=store_attn,
             pe=pe,
             learn_pe=learn_pe,
-            verbose=verbose,
             ch_token=ch_token,
             cls_token=cls_token,
             head_type=head_type,
+            task=task,
             **kwargs,
         )
 
@@ -90,9 +90,7 @@ class PatchTST(nn.Module):
         self.patch_len = patch_len
 
         if head_type == "pretrain":
-            self.head = PretrainHead(
-                d_model, patch_len, head_dropout
-            )  # custom head passed as a partial func with all its kwargs
+            self.head = PretrainHead(d_model, patch_len, head_dropout)
         elif head_type == "prediction":
             self.head = PredictionHead(
                 individual, self.n_vars, d_model, num_patch, target_dim, head_dropout
@@ -162,8 +160,8 @@ class ClassificationHead(nn.Module):
         output: [bs x n_classes]
         """
         x = x[
-            :, :, :, -1
-        ]  # only consider the last item in the sequence, x: bs x nvars x d_model
+            :, :, :, 0
+        ]  # only consider the first item (cls_token) in the sequence, x: bs x nvars x d_model
         x = self.flatten(x)  # x: bs x nvars * d_model
         x = self.dropout(x)
         y = self.linear(x)  # y: bs x n_classes
@@ -300,7 +298,7 @@ class PatchTSTEncoder(nn.Module):
         learn_pe=True,
         cls_token=False,
         ch_token=False,
-        verbose=False,
+        task=None,
         **kwargs,
     ):
 
@@ -310,6 +308,7 @@ class PatchTSTEncoder(nn.Module):
         self.patch_len = patch_len
         self.d_model = d_model
         self.shared_embedding = shared_embedding
+        self.task = task
 
         # Input encoding: projection of feature vectors onto a d-dim vector space
         if not shared_embedding:
@@ -400,8 +399,10 @@ class PatchTSTEncoder(nn.Module):
 
         if self.ch_token is not None:
             z = z[:, :, :-1, :]
-        if self.cls_token is not None:
-            z = z[:, :, 1:, :]
+        if self.task == "pretraining" or self.task == "forecasting":
+            # remove class and channel token
+            if self.cls_token is not None:
+                z = z[:, :, 1:, :]
 
         z = z.permute(0, 1, 3, 2)  # z: [bs x nvars x d_model x num_patch]
 
@@ -412,15 +413,15 @@ class PatchTSTEncoder(nn.Module):
 class TSTEncoder(nn.Module):
     def __init__(
         self,
-        d_model,
+        num_layers,
         num_heads,
-        d_ff=None,
+        d_model,
+        d_ff,
         norm="BatchNorm",
         attn_dropout=0.0,
         dropout=0.0,
         activation="gelu",
         res_attention=False,
-        num_layers=1,
         pre_norm=False,
         store_attn=False,
     ):
@@ -468,7 +469,7 @@ class TSTEncoderLayer(nn.Module):
         self,
         d_model,
         num_heads,
-        d_ff=256,
+        d_ff,
         store_attn=False,
         norm="BatchNorm",
         attn_dropout=0,

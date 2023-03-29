@@ -46,6 +46,7 @@ class MaskedAutoencoderTST(nn.Module):
         learn_pe: bool = True,
         cls_token=False,
         ch_token=False,
+        task=None,
     ):
         super().__init__()
 
@@ -57,6 +58,7 @@ class MaskedAutoencoderTST(nn.Module):
         self.shared_embedding = shared_embedding
         self.enc_d_model = enc_d_model
         self.dec_d_model = dec_d_model
+        self.task = task
 
         # Input encoding: projection of feature vectors onto a d-dim vector space
         if not shared_embedding:
@@ -190,6 +192,8 @@ class MaskedAutoencoderTST(nn.Module):
         x_ = torch.gather(
             x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2])
         )  # unshuffle
+
+        # TODO make distinction for cls and ch token
         x = torch.cat([x[:, :1, :], x_, x[:, -1:, :]], dim=1)
 
         # add pos embed
@@ -221,8 +225,10 @@ class MaskedAutoencoderTST(nn.Module):
 
         if self.ch_token is not None:
             x = x[:, :-1, :, :]
-        if self.cls_token is not None:
-            x = x[:, 1:, :, :]
+        if self.task == "pretraining" or self.task == "forecasting":
+            # remove class and channel token
+            if self.cls_token is not None:
+                x = x[:, 1:, :, :]
 
         return x
 

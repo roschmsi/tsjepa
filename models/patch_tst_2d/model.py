@@ -9,7 +9,24 @@ from models.patch_tst.layers.attention import MultiheadAttention
 from models.patch_tst_2d.positional_embedding import get_2d_sincos_pos_embed
 
 
-# Cell
+class ClassificationHead(nn.Module):
+    def __init__(self, d_model, n_classes, head_dropout):
+        super().__init__()
+        self.flatten = nn.Flatten(start_dim=1)
+        self.dropout = nn.Dropout(head_dropout)
+        self.linear = nn.Linear(d_model, n_classes)
+
+    def forward(self, x):
+        """
+        x: [bs x d_model]
+        output: [bs x n_classes]
+        """
+        x = self.flatten(x)  # x: bs x nvars * d_model
+        x = self.dropout(x)
+        y = self.linear(x)  # y: bs x n_classes
+        return y
+
+
 class PatchTST2d(nn.Module):
     """
     Output dimension:
@@ -96,9 +113,7 @@ class PatchTST2d(nn.Module):
             )
         elif head_type == "classification":
             self.head = ClassificationHead(
-                n_vars=self.n_vars,
                 d_model=d_model,
-                n_patch=num_patch,
                 n_classes=target_dim,
                 head_dropout=head_dropout,
             )
@@ -139,45 +154,6 @@ class RegressionHead(nn.Module):
         y = self.linear(x)  # y: bs x output_dim
         if self.y_range:
             y = SigmoidRange(*self.y_range)(y)
-        return y
-
-
-class ClassificationHead(nn.Module):
-    def __init__(self, n_vars, d_model, n_classes, head_dropout, n_patch=None):
-        super().__init__()
-        self.flatten = nn.Flatten(start_dim=1)
-        self.dropout = nn.Dropout(head_dropout)
-        self.linear = nn.Linear(n_vars * d_model, n_classes)
-
-    def forward(self, x):
-        """
-        x: [bs x nvars x d_model x num_patch]
-        output: [bs x n_classes]
-        """
-        x = x[
-            :, :, :, -1
-        ]  # only consider the last item in the sequence, x: bs x nvars x d_model
-        x = self.flatten(x)  # x: bs x nvars * d_model
-        x = self.dropout(x)
-        y = self.linear(x)  # y: bs x n_classes
-        return y
-
-
-class ClassificationFlattenHead(nn.Module):
-    def __init__(self, n_vars, d_model, n_patch, n_classes, head_dropout):
-        super().__init__()
-        self.flatten = nn.Flatten(start_dim=1)
-        self.dropout = nn.Dropout(head_dropout)
-        self.linear = nn.Linear(n_vars * d_model * n_patch, n_classes)
-
-    def forward(self, x):
-        """
-        x: [bs x nvars x d_model x num_patch]
-        output: [bs x n_classes]
-        """
-        x = self.flatten(x)  # x: bs x nvars * d_model * num_patch
-        x = self.dropout(x)
-        y = self.linear(x)  # y: bs x n_classes
         return y
 
 
@@ -291,6 +267,8 @@ class PatchTSTEncoder(nn.Module):
         pre_norm=False,
         pe="zeros",
         learn_pe=True,
+        cls_token=False,
+        task=None,
         verbose=False,
         **kwargs,
     ):
@@ -301,6 +279,7 @@ class PatchTSTEncoder(nn.Module):
         self.patch_len = patch_len
         self.d_model = d_model
         self.shared_embedding = shared_embedding
+        self.task = task
 
         # Input encoding: projection of feature vectors onto a d-dim vector space
         if not shared_embedding:
@@ -318,6 +297,8 @@ class PatchTSTEncoder(nn.Module):
             .float()
             .cuda()
         )
+
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, d_model)) if cls_token else None
 
         # Residual dropout
         self.dropout = nn.Dropout(dropout)
@@ -357,13 +338,32 @@ class PatchTSTEncoder(nn.Module):
             x, (bs, n_vars * num_patch, self.d_model)
         )  # u: [bs x nvars * num_patch x d_model]
 
-        u = self.dropout(u + self.W_pos)  # u: [bs x nvars * num_patch x d_model]
+        if self.cls_token is not None:
+            cls_token = self.cls_token.expand(u.shape[0], -1, -1)
+            u = torch.cat((cls_token, u), dim=1)
+            # num_patch += 1
+
+        W_pos = self.W_pos
+        if self.cls_token is not None:
+            W_pos = torch.cat(
+                [torch.zeros([1, self.d_model]).cuda(), W_pos],
+                axis=0,
+            )
+        u = self.dropout(u + W_pos)  # u: [bs x nvars * num_patch x d_model]
 
         # Encoder
         z = self.encoder(u)  # z: [bs x nvars * num_patch x d_model]
+
+        if self.cls_token is not None:
+            token = z[:, :1, :]
+            z = z[:, 1:, :]
         z = torch.reshape(
             z, (-1, n_vars, num_patch, self.d_model)
         )  # z: [bs x nvars x num_patch x d_model]
+
+        if self.task == "classification":
+            return token
+
         z = z.permute(0, 1, 3, 2)  # z: [bs x nvars x d_model x num_patch]
 
         return z

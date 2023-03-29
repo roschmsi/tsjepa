@@ -11,7 +11,6 @@
 
 import torch
 import torch.nn as nn
-from models.patch_tst.layers.pos_encoding import positional_encoding
 from models.patch_tst.model import (
     ClassificationHead,
     TSTEncoder,
@@ -47,6 +46,7 @@ class MaskedAutoencoderTST2d(nn.Module):
         learn_pe: bool = True,
         cls_token=False,
         ch_token=False,
+        task=None,
     ):
         super().__init__()
 
@@ -58,6 +58,7 @@ class MaskedAutoencoderTST2d(nn.Module):
         self.shared_embedding = shared_embedding
         self.enc_d_model = enc_d_model
         self.dec_d_model = dec_d_model
+        self.task = task
 
         # Input encoding: projection of feature vectors onto a d-dim vector space
         if not shared_embedding:
@@ -218,7 +219,7 @@ class MaskedAutoencoderTST2d(nn.Module):
 
         x = x.reshape(bs, ch, length, -1).transpose(1, 2)
 
-        if self.cls_token is not None:
+        if self.task != "classification" and self.cls_token is not None:
             x = x[:, 1:, :, :]
 
         return x
@@ -231,7 +232,7 @@ class MaskedAutoencoderTST2d(nn.Module):
         return pred
 
 
-class MaskedAutoencoderTSTClassifier(nn.Module):
+class MaskedAutoencoderTST2dClassifier(nn.Module):
     def __init__(
         self,
         num_patch: int,
@@ -275,8 +276,14 @@ class MaskedAutoencoderTSTClassifier(nn.Module):
             self.W_P = nn.Linear(patch_len, enc_d_model)
 
         # Positional encoding
-        self.encoder_pos_embed = positional_encoding(
-            pe, learn_pe, self.enc_num_patch, enc_d_model
+        self.encoder_pos_embed = (
+            torch.from_numpy(
+                get_2d_sincos_pos_embed(
+                    embed_dim=enc_d_model, len=self.enc_num_patch, ch=c_in
+                )
+            )
+            .float()
+            .cuda()
         )
 
         self.encoder = TSTEncoder(
@@ -315,17 +322,27 @@ class MaskedAutoencoderTSTClassifier(nn.Module):
             x = torch.stack(x_out, dim=2)
         else:
             x = self.W_P(x)  # x: [bs x num_patch x nvars x d_model]
-        x = x.transpose(1, 2)  # x: [bs x nvars x num_patch x d_model]
 
-        u = torch.reshape(
-            x, (bs * n_vars, num_patch, self.enc_d_model)
-        )  # u: [bs * nvars x num_patch x d_model]
-        u = self.dropout(
-            u + self.encoder_pos_embed
-        )  # u: [bs * nvars x num_patch x d_model]
+        x = x.transpose(1, 2)  # x: [bs x nvars x num_patch x d_model]
+        x = torch.reshape(
+            x, (bs, n_vars * num_patch, self.enc_d_model)
+        )  # u: [bs x nvars * num_patch x d_model]
+
+        encoder_pos_embed = self.encoder_pos_embed
+        if self.cls_token is not None:
+            cls_token = self.cls_token.expand(x.shape[0], -1, -1)
+            x = torch.cat((cls_token, x), dim=1)
+            num_patch += 1
+
+            encoder_pos_embed = torch.cat(
+                [torch.zeros([1, self.enc_d_model]).cuda(), encoder_pos_embed],
+                axis=0,
+            )
+
+        x = self.dropout(x + encoder_pos_embed)  # u: [bs x nvars * num_patch x d_model]
 
         # apply Transformer blocks
-        z = self.encoder(u)
+        z = self.encoder(x)
 
         return z
 
