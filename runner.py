@@ -182,7 +182,7 @@ class SupervisedRunner(BaseRunner):
             targets = targets.to(self.device)
             padding_masks = padding_masks.to(self.device)  # 0s: ignore
 
-            if self.mixup > 0:
+            if self.mixup is not None:
                 X, targets_a, targets_b, lam = mixup_data(
                     X, targets, self.mixup, use_cuda=True
                 )
@@ -190,7 +190,7 @@ class SupervisedRunner(BaseRunner):
             predictions = self.model(X, padding_masks)
 
             # (batch_size,) loss for each sample in the batch
-            if self.mixup > 0:
+            if self.mixup is not None:
                 loss = mixup_criterion(
                     self.criterion, predictions, targets_a, targets_b, lam
                 )
@@ -282,6 +282,74 @@ class SupervisedRunner(BaseRunner):
         return self.epoch_metrics
 
 
+class ForecastingRunner(BaseRunner):
+    def train_epoch(self, epoch_num=None):
+
+        self.model = self.model.train()
+
+        epoch_loss = 0
+
+        for batch in self.dataloader:
+
+            X, targets, padding_masks = batch
+            X = X.to(self.device)
+            targets = targets.to(self.device)
+            padding_masks = padding_masks.to(self.device)
+
+            if self.mixup is not None:
+                X, targets_a, targets_b, lam = mixup_data(
+                    X, targets, self.mixup, use_cuda=True
+                )
+
+            predictions = self.model(X, padding_masks)
+
+            if self.mixup is not None:
+                loss = mixup_criterion(
+                    self.criterion, predictions, targets_a, targets_b, lam
+                )
+            else:
+                loss = self.criterion(predictions, targets)
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+            epoch_loss += loss.item()
+
+        # average loss per sample for whole epoch
+        self.epoch_metrics["epoch"] = epoch_num
+        self.epoch_metrics["loss"] = epoch_loss / len(self.dataloader)
+
+        if self.scheduler:
+            self.scheduler.step()
+
+        return self.epoch_metrics
+
+    def evaluate(self, epoch_num=None):
+
+        self.model = self.model.eval()
+
+        epoch_loss = 0
+
+        for batch in self.dataloader:
+
+            X, targets, padding_masks = batch
+            X = X.to(self.device)
+            targets = targets.to(self.device)
+            padding_masks = padding_masks.to(self.device)
+
+            predictions = self.model(X, padding_masks)
+            loss = self.criterion(predictions, targets)
+
+            epoch_loss += loss.item()
+
+        # average loss per element for whole epoch
+        self.epoch_metrics["epoch"] = epoch_num
+        self.epoch_metrics["loss"] = epoch_loss / len(self.dataloader)
+
+        return self.epoch_metrics
+
+
 class UnsupervisedPatchRunner(BaseRunner):
     def train_epoch(self, epoch_num=None):
 
@@ -331,6 +399,8 @@ class UnsupervisedPatchRunner(BaseRunner):
 
             # (num_active,) individual loss (square error per element) for each active value in batch
             batch_loss = self.criterion(predictions, targets, target_masks)
+
+            print(batch_loss)
 
             self.optimizer.zero_grad()
             batch_loss.backward()
