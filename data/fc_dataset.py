@@ -7,7 +7,8 @@ import pandas as pd
 from pandas.tseries import offsets
 from pandas.tseries.frequencies import to_offset
 from sklearn.preprocessing import StandardScaler
-from torch.utils.data import DataLoader, Dataset
+import torch
+from torch.utils.data import Dataset
 
 warnings.filterwarnings("ignore")
 
@@ -144,7 +145,7 @@ class Dataset_ETT_hour(Dataset):
     def __init__(
         self,
         root_path,
-        flag="train",
+        split="train",
         size=None,
         features="S",
         data_path="ETTh1.csv",
@@ -152,6 +153,8 @@ class Dataset_ETT_hour(Dataset):
         scale=True,
         timeenc=0,
         freq="h",
+        use_time_features=False,
+        debug=False,
     ):
         # size [seq_len, label_len, pred_len]
         # info
@@ -164,15 +167,17 @@ class Dataset_ETT_hour(Dataset):
             self.label_len = size[1]
             self.pred_len = size[2]
         # init
-        assert flag in ["train", "test", "val"]
+        assert split in ["train", "test", "val"]
         type_map = {"train": 0, "val": 1, "test": 2}
-        self.set_type = type_map[flag]
+        self.set_type = type_map[split]
 
         self.features = features
         self.target = target
         self.scale = scale
         self.timeenc = timeenc
         self.freq = freq
+        self.use_time_features = use_time_features
+        self.debug = debug
 
         self.root_path = root_path
         self.data_path = data_path
@@ -237,9 +242,14 @@ class Dataset_ETT_hour(Dataset):
         seq_x_mark = self.data_stamp[s_begin:s_end]
         seq_y_mark = self.data_stamp[r_begin:r_end]
 
-        return seq_x, seq_y, seq_x_mark, seq_y_mark
+        if self.use_time_features:
+            return _torch(seq_x, seq_y, seq_x_mark, seq_y_mark)
+        else:
+            return _torch(seq_x, seq_y)
 
     def __len__(self):
+        if self.debug:
+            return 1
         return len(self.data_x) - self.seq_len - self.pred_len + 1
 
     def inverse_transform(self, data):
@@ -250,7 +260,7 @@ class Dataset_ETT_minute(Dataset):
     def __init__(
         self,
         root_path,
-        flag="train",
+        split="train",
         size=None,
         features="S",
         data_path="ETTm1.csv",
@@ -258,7 +268,7 @@ class Dataset_ETT_minute(Dataset):
         scale=True,
         timeenc=0,
         freq="t",
-        offset=24,
+        use_time_features=False,
         debug=False,
     ):
         # size [seq_len, label_len, pred_len]
@@ -272,17 +282,16 @@ class Dataset_ETT_minute(Dataset):
             self.label_len = size[1]
             self.pred_len = size[2]
         # init
-        assert flag in ["train", "test", "val"]
+        assert split in ["train", "test", "val"]
         type_map = {"train": 0, "val": 1, "test": 2}
-        self.set_type = type_map[flag]
+        self.set_type = type_map[split]
 
         self.features = features
         self.target = target
         self.scale = scale
         self.timeenc = timeenc
         self.freq = freq
-
-        self.offset = offset
+        self.use_time_features = use_time_features
         self.debug = debug
 
         self.root_path = root_path
@@ -347,14 +356,17 @@ class Dataset_ETT_minute(Dataset):
 
         seq_x = self.data_x[s_begin:s_end]
         seq_y = self.data_y[r_begin:r_end]
+        seq_x_mark = self.data_stamp[s_begin:s_end]
+        seq_y_mark = self.data_stamp[r_begin:r_end]
 
-        trend = (seq_y.mean(axis=0) - seq_x.mean(axis=0)) >= 0
-
-        return seq_x, trend
+        if self.use_time_features:
+            return _torch(seq_x, seq_y, seq_x_mark, seq_y_mark)
+        else:
+            return _torch(seq_x, seq_y)
 
     def __len__(self):
         if self.debug:
-            return 16
+            return 1
         return len(self.data_x) - self.seq_len - self.pred_len + 1
 
     def inverse_transform(self, data):
@@ -365,7 +377,7 @@ class Dataset_Custom(Dataset):
     def __init__(
         self,
         root_path,
-        flag="train",
+        split="train",
         size=None,
         features="S",
         data_path="ETTh1.csv",
@@ -373,6 +385,10 @@ class Dataset_Custom(Dataset):
         scale=True,
         timeenc=0,
         freq="h",
+        time_col_name="date",
+        use_time_features=False,
+        train_split=0.7,
+        test_split=0.2,
     ):
         # size [seq_len, label_len, pred_len]
         # info
@@ -385,15 +401,20 @@ class Dataset_Custom(Dataset):
             self.label_len = size[1]
             self.pred_len = size[2]
         # init
-        assert flag in ["train", "test", "val"]
+        assert split in ["train", "test", "val"]
         type_map = {"train": 0, "val": 1, "test": 2}
-        self.set_type = type_map[flag]
+        self.set_type = type_map[split]
 
         self.features = features
         self.target = target
         self.scale = scale
         self.timeenc = timeenc
         self.freq = freq
+        self.time_col_name = time_col_name
+        self.use_time_features = use_time_features
+
+        # train test ratio
+        self.train_split, self.test_split = train_split, test_split
 
         self.root_path = root_path
         self.data_path = data_path
@@ -404,15 +425,15 @@ class Dataset_Custom(Dataset):
         df_raw = pd.read_csv(os.path.join(self.root_path, self.data_path))
 
         """
-        df_raw.columns: ['date', ...(other features), target feature]
+        df_raw.columns: [time_col_name, ...(other features), target feature]
         """
         cols = list(df_raw.columns)
-        cols.remove(self.target)
-        cols.remove("date")
-        df_raw = df_raw[["date"] + cols + [self.target]]
-        # print(cols)
-        num_train = int(len(df_raw) * 0.7)
-        num_test = int(len(df_raw) * 0.2)
+        # cols.remove(self.target) if self.target
+        # cols.remove(self.time_col_name)
+        # df_raw = df_raw[[self.time_col_name] + cols + [self.target]]
+
+        num_train = int(len(df_raw) * self.train_split)
+        num_test = int(len(df_raw) * self.test_split)
         num_vali = len(df_raw) - num_train - num_test
         border1s = [0, num_train - self.seq_len, len(df_raw) - num_test - self.seq_len]
         border2s = [num_train, num_train + num_vali, len(df_raw)]
@@ -432,17 +453,23 @@ class Dataset_Custom(Dataset):
         else:
             data = df_data.values
 
-        df_stamp = df_raw[["date"]][border1:border2]
-        df_stamp["date"] = pd.to_datetime(df_stamp.date)
+        df_stamp = df_raw[[self.time_col_name]][border1:border2]
+        df_stamp[self.time_col_name] = pd.to_datetime(df_stamp[self.time_col_name])
         if self.timeenc == 0:
-            df_stamp["month"] = df_stamp.date.apply(lambda row: row.month, 1)
-            df_stamp["day"] = df_stamp.date.apply(lambda row: row.day, 1)
-            df_stamp["weekday"] = df_stamp.date.apply(lambda row: row.weekday(), 1)
-            df_stamp["hour"] = df_stamp.date.apply(lambda row: row.hour, 1)
-            data_stamp = df_stamp.drop(["date"], 1).values
+            df_stamp["month"] = df_stamp[self.time_col_name].apply(
+                lambda row: row.month, 1
+            )
+            df_stamp["day"] = df_stamp[self.time_col_name].apply(lambda row: row.day, 1)
+            df_stamp["weekday"] = df_stamp[self.time_col_name].apply(
+                lambda row: row.weekday(), 1
+            )
+            df_stamp["hour"] = df_stamp[self.time_col_name].apply(
+                lambda row: row.hour, 1
+            )
+            data_stamp = df_stamp.drop([self.time_col_name], 1).values
         elif self.timeenc == 1:
             data_stamp = time_features(
-                pd.to_datetime(df_stamp["date"].values), freq=self.freq
+                pd.to_datetime(df_stamp[self.time_col_name].values), freq=self.freq
             )
             data_stamp = data_stamp.transpose(1, 0)
 
@@ -461,7 +488,10 @@ class Dataset_Custom(Dataset):
         seq_x_mark = self.data_stamp[s_begin:s_end]
         seq_y_mark = self.data_stamp[r_begin:r_end]
 
-        return seq_x, seq_y, seq_x_mark, seq_y_mark
+        if self.use_time_features:
+            return _torch(seq_x, seq_y, seq_x_mark, seq_y_mark)
+        else:
+            return _torch(seq_x, seq_y)
 
     def __len__(self):
         return len(self.data_x) - self.seq_len - self.pred_len + 1
@@ -474,7 +504,7 @@ class Dataset_Pred(Dataset):
     def __init__(
         self,
         root_path,
-        flag="pred",
+        split="pred",
         size=None,
         features="S",
         data_path="ETTh1.csv",
@@ -496,7 +526,7 @@ class Dataset_Pred(Dataset):
             self.label_len = size[1]
             self.pred_len = size[2]
         # init
-        assert flag in ["pred"]
+        assert split in ["pred"]
 
         self.features = features
         self.target = target
@@ -590,6 +620,10 @@ class Dataset_Pred(Dataset):
         return self.scaler.inverse_transform(data)
 
 
+def _torch(*dfs):
+    return tuple(torch.from_numpy(x).float() for x in dfs)
+
+
 data_dict = {
     "ETTh1": Dataset_ETT_hour,
     "ETTh2": Dataset_ETT_hour,
@@ -599,35 +633,22 @@ data_dict = {
 }
 
 
-def data_provider(args, flag, debug):
-    Data = data_dict[args.data]
-    timeenc = 0 if args.embed != "timeF" else 1
+def data_provider(config, split):
+    dataset = data_dict[config.dataset_class]
 
-    data_set = Data(
-        root_path=args.root_path,
-        data_path=args.data_path,
-        flag=flag,
-        size=[args.seq_len, args.label_len, args.pred_len],
-        features=args.features,
-        target=args.target,
-        timeenc=timeenc,
-        freq=args.freq,
-        debug=debug,
+    return dataset(
+        root_path=config.root_path,
+        data_path=config.data_path,
+        split=split,
+        size=[config.seq_len, config.label_len, config.pred_len],
+        features=config.features,
+        debug=config.debug,
     )
-    # print(flag, len(data_set))
-    # data_loader = DataLoader(
-    #     data_set,
-    #     batch_size=batch_size,
-    #     shuffle=shuffle_flag,
-    #     num_workers=args.num_workers,
-    #     drop_last=drop_last,
-    # )
-    return data_set
 
 
-def load_fc_dataset(config, debug):
-    train_dataset = data_provider(config, flag="train", debug=debug)
-    val_dataset = data_provider(config, flag="val", debug=debug)
-    test_dataset = data_provider(config, flag="test", debug=debug)
+def load_fc_dataset(config):
+    train_dataset = data_provider(config, split="train")
+    val_dataset = data_provider(config, split="val")
+    test_dataset = data_provider(config, split="test")
 
     return train_dataset, val_dataset, test_dataset
