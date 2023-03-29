@@ -19,16 +19,13 @@ logger = logging.getLogger(__name__)
 
 
 def check_config(config):
-    dir = ""
-
     # check dataset
-    if "dataset" in config.keys():
-        dir += f"dataset={config.dataset}"
-    if "augment" in config.keys():
-        dir += f"_augment={config.augment}"
-    if "mixup" in config.keys():
+    dir = f"dataset={config.dataset}"
+    if config.augment:
+        dir += "_augment"
+    if config.mixup is not None:
         dir += f"_mixup={config.mixup}"
-    if "rand_ecg" != "":
+    if config.rand_ecg != "":
         dir += f"_randecg={config.rand_ecg}"
 
     # check patch parameters
@@ -40,7 +37,11 @@ def check_config(config):
         if "masking_ratio" in config.keys() and config.masking_ratio > 0:
             dir += f"_mratio={config.masking_ratio}"
         if "masking_ratio_pretraining" in config.keys():
-            dir += f"_preratio={config.masking_ratio_pretraining}"
+            dir += f"_mratiopre={config.masking_ratio_pretraining}"
+
+    if config.task in ["classification", "finetuning"]:
+        assert config.masking_ratio == 0
+
     if "mean_mask_length" in config.keys():
         dir += f"_mlen={config.mean_mask_length}"
 
@@ -57,14 +58,33 @@ def check_config(config):
         dir += f"_wd={config.weight_decay}"
 
     # check transformer parameters
-    if "d_model" in config.keys():
-        dir += f"_dmodel={config.d_model}"
-    if "d_ff" in config.keys():
-        dir += f"_dff={config.d_ff}"
-    if "num_layers" in config.keys():
-        dir += f"_nlayers={config.num_layers}"
-    if "num_heads" in config.keys():
-        dir += f"_nheads={config.num_heads}"
+    if config.mae:
+        if "enc_d_model" in config.keys():
+            dir += f"_encdmodel={config.enc_d_model}"
+        if "enc_d_ff" in config.keys():
+            dir += f"_encdff={config.enc_d_ff}"
+        if "enc_num_layers" in config.keys():
+            dir += f"_encnlayers={config.enc_num_layers}"
+        if "enc_num_heads" in config.keys():
+            dir += f"_encnheads={config.enc_num_heads}"
+        if "dec_d_model" in config.keys():
+            dir += f"_decdmodel={config.dec_d_model}"
+        if "dec_d_ff" in config.keys():
+            dir += f"_decdff={config.dec_d_ff}"
+        if "dec_num_layers" in config.keys():
+            dir += f"_decnlayers={config.dec_num_layers}"
+        if "dec_num_heads" in config.keys():
+            dir += f"_decnheads={config.dec_num_heads}"
+    else:
+        if "d_model" in config.keys():
+            dir += f"_dmodel={config.d_model}"
+        if "d_ff" in config.keys():
+            dir += f"_dff={config.d_ff}"
+        if "num_layers" in config.keys():
+            dir += f"_nlayers={config.num_layers}"
+        if "num_heads" in config.keys():
+            dir += f"_nheads={config.num_heads}"
+
     if "num_cnn" in config.keys():
         dir += f"_numcnn={config.num_cnn}"
     if "ch_token" in config.keys():
