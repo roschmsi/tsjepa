@@ -277,7 +277,7 @@ def main(config):
         scores = []
         weights = load_weights(config.weights_file, classes)
         model = load_model(
-            model, model_path=os.path.join(config["checkpoint_dir"], "model_best.pth")
+            model, path=os.path.join(config["checkpoint_dir"], "model_best.pth")
         )
 
         for thr in np.arange(0.0, 1.0, step):
