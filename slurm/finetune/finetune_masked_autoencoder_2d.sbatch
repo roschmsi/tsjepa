@@ -35,4 +35,6 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --num_workers 4 \
 --patience 100 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
---task pretraining
+--task classification \
+--finetuning \
+--load_model /home/stud/roschman/ECGAnalysis/output/pretraining_patch_tst_2d/data=ecg_augment=False_randecg=_mixup=0_patch=16_stride=8_mratio=0.5_premratio=0_bs=32_opt=AdamW_lr=0.0001_wd=0.01_dmodel=256_dff=512_nlayers=8_nheads=8

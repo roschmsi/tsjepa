@@ -1,17 +1,32 @@
 #!/bin/bash
-#SBATCH --job-name="finetune unsupervised transformer"
+#SBATCH --job-name="pretrain unsupervised transformer"
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=2
-#SBATCH --gres=gpu:1,VRAM:48G
-#SBATCH --mem=48G
-#SBATCH --time=24:00:00
+#SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:1,VRAM:16G
+#SBATCH --mem=4G
+#SBATCH --time=120:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --output=/storage/slurm/logs/slurm-%j.out
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 #SBATCH --no-requeue
 source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
---config_model /usr/stud/roschman/ECGAnalysis/models/transformer/config_finetuning_transformer.yaml \
---config_data /usr/stud/roschman/ECGAnalysis/data/uea_dataset.yaml \
---load_model /usr/stud/roschman/ECGAnalysis/output/pretraining_transformer/pretraining_transformer_2022-12-01_08-42-28/checkpoints/model_best.pth \
---description no_freeze
+--model_name transformer \
+--num_layers 8 \
+--num_heads 8 \
+--d_model 256 \
+--d_ff 512 \
+--dropout 0.1 \
+--cls_token \
+--optimizer AdamW \
+--masking_ratio 0 \
+--lr 0.0001 \
+--weight_decay 0.01 \
+--epochs 500 \
+--batch_size 64 \
+--num_workers 4 \
+--patience 100 \
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
+--task classification \
+--finetuning \
+--load_model 
