@@ -59,6 +59,11 @@ class Options(object):
         self.parser.add_argument("--mixup", type=float)
         self.parser.add_argument("--rand_ecg", type=str, default="")
 
+        # forecasting
+        self.parser.add_argument("--seq_len", type=int)
+        self.parser.add_argument("--label_len", type=int)
+        self.parser.add_argument("--pred_len", type=int)
+
         # training
         self.parser.add_argument("--optimizer", type=str)
         self.parser.add_argument("--scheduler", type=str)
