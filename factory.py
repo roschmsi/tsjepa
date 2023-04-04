@@ -13,10 +13,7 @@ from data.dataset import (
     collate_superv,
     collate_unsuperv,
 )
-from models.cnn_transformer.model import (
-    CNNEncoder,
-    CNNTransformer,
-)
+from models.cnn_transformer.model import CNNClassifier, CNNTransformer
 from models.fedformer.model import (
     CNNDecompTimeFreqEncoder,
     CNNFEDformerEncoder,
@@ -24,23 +21,25 @@ from models.fedformer.model import (
     DecompFEDformerEncoder,
     FEDformerEncoder,
 )
-from models.gtn.model import GatedTransformer
 from models.masked_autoencoder.model import (
-    MaskedAutoencoderTST,
-    MaskedAutoencoderTSTClassifier,
+    MaskedAutoencoder,
+    MaskedAutoencoderPredictor,
 )
 from models.masked_autoencoder.pretraining_masked_autoencoder_search_space import (
     get_pretraining_masked_autoencoder_search_space,
 )
-from models.masked_autoencoder_2d.model import (
-    MaskedAutoencoderTST2d,
-    MaskedAutoencoderTST2dClassifier,
+from models.masked_autoencoder_tc.model import (
+    MaskedAutoencoderTC,
+    MaskedAutoencoderTCPredictor,
 )
-from models.patch_tst.patch_tst_search_space import (
-    get_patch_tst_search_space,
+from models.masked_autoencoder_t.model import (
+    MaskedAutoencoderT,
+    MaskedAutoencoderTPredictor,
 )
-from models.patch_tst_2d.model import PatchTST2d
-from models.residual_cnn_att.model import ResidualCNNAtt
+from models.patch_tst.model import PatchTST
+from models.patch_tst.patch_tst_search_space import get_patch_tst_search_space
+from models.patch_tst_t.model import PatchTransformerT
+from models.patch_tst_tc.model import PatchTransformerTC
 from models.transformer.model import (
     TSTransformerEncoder,
     TSTransformerEncoderClassifier,
@@ -52,8 +51,6 @@ from runner import (
     UnsupervisedPatchRunner,
     UnsupervisedRunner,
 )
-
-from models.patch_tst.model import PatchTST
 
 
 def pipeline_factory(config):
@@ -67,8 +64,13 @@ def pipeline_factory(config):
                 masking_ratio=config.masking_ratio,
                 patch_len=config.patch_len,
                 stride=config.stride,
-                mae=config.mae,
                 debug=config.debug,
+                only_time_masking=True
+                if (
+                    config.model_name == "masked_autoencoder_t"
+                    or config.model_name == "patch_tst_t"
+                )
+                else False,
             )
             return (
                 dataset,
@@ -146,9 +148,18 @@ def model_factory(config):
     if config.use_patch:
         num_patch = (max_seq_len - config.patch_len) // config.stride + 1
 
+    if config.task == "pretraining":
+        c_out = config.feat_dim
+    elif config.task == "classification":
+        c_out = config.num_classes
+    elif config.task == "forecasting":
+        c_out = config.pred_len
+    else:
+        raise ValueError("task not specified")
+
     # end-to-end supervised models
     if config.model_name == "cnn_encoder":
-        return CNNEncoder(
+        return CNNClassifier(
             feat_dim=config.feat_dim,
             d_model=config.d_model,
             num_classes=config.num_classes,
@@ -157,14 +168,15 @@ def model_factory(config):
     elif config.model_name == "cnn_transformer":
         return CNNTransformer(
             feat_dim=config.feat_dim,
-            d_model=config.d_model,
-            num_heads=config.num_heads,
-            d_ff=config.d_ff,
             num_layers=config.num_layers,
+            num_heads=config.num_heads,
+            d_model=config.d_model,
+            d_ff=config.d_ff,
             num_classes=config.num_classes,
             max_seq_len=max_seq_len,
             dropout=config.dropout,
             num_cnn=config.num_cnn,
+            cls_token=config.cls_token,
         )
     elif config.model_name == "fedformer_encoder":
         config.activation = "relu"
@@ -183,14 +195,14 @@ def model_factory(config):
             return TSTransformerEncoder(
                 feat_dim=config.feat_dim,
                 max_len=max_seq_len,
-                d_model=config.d_model,
-                num_heads=config.num_heads,
                 num_layers=config.num_layers,
+                num_heads=config.num_heads,
+                d_model=config.d_model,
                 d_ff=config.d_ff,
                 dropout=config.dropout,
-                pos_encoding="fixed",
+                norm=config.norm,
                 activation="relu",
-                norm="BatchNorm",
+                pos_encoding="fixed",
                 freeze=config.freeze,
             )
         elif config.task == "classification":
@@ -202,153 +214,85 @@ def model_factory(config):
                 num_layers=config.num_layers,
                 d_ff=config.d_ff,
                 dropout=config.dropout,
-                pos_encoding="fixed",
+                norm=config.norm,
                 activation="relu",
-                norm="BatchNorm",
+                pos_encoding="fixed",
                 num_classes=config.num_classes,
                 freeze=config.freeze,
             )
-    # patch tst
+    # patch tst with channel independence
     elif config.model_name == "patch_tst":
+        return PatchTST(
+            c_in=config.feat_dim,
+            c_out=c_out,
+            num_patch=num_patch,
+            patch_len=config.patch_len,
+            num_layers=config.num_layers,
+            num_heads=config.num_heads,
+            d_model=config.d_model,
+            d_ff=config.d_ff,
+            dropout=config.dropout,
+            shared_embedding=config.shared_embedding,
+            norm=config.norm,
+            activation=config.activation,
+            pe="sincos",
+            learn_pe=config.learn_pe,
+            ch_token=config.ch_token,
+            cls_token=config.cls_token,
+            task=config.task,
+            head_dropout=config.head_dropout,
+        )
+    # patch tst with temporal encoding
+    elif config.model_name == "patch_tst_t":
         if config.task == "pretraining":
-            return PatchTST(
+            return PatchTransformerT(
                 c_in=config.feat_dim,
-                target_dim=config.feat_dim,
-                patch_len=config.patch_len,
-                stride=config.stride,
+                c_out=c_out,
                 num_patch=num_patch,
+                patch_len=config.patch_len,
                 num_layers=config.num_layers,
                 num_heads=config.num_heads,
                 d_model=config.d_model,
-                shared_embedding=True,
                 d_ff=config.d_ff,
                 dropout=config.dropout,
-                head_dropout=config.head_dropout,
-                act="relu",
-                head_type="pretrain",
-                res_attention=False,
+                shared_embedding=config.shared_embedding,
+                norm=config.norm,
+                activation=config.activation,
                 pe="sincos",
-                ch_token=config.ch_token,
+                learn_pe=config.learn_pe,
                 cls_token=config.cls_token,
                 task=config.task,
-            )
-        elif config.task == "classification":
-            return PatchTST(
-                c_in=config.feat_dim,
-                target_dim=config.num_classes,
-                patch_len=config.patch_len,
-                stride=config.stride,
-                num_patch=num_patch,
-                num_layers=config.num_layers,
-                num_heads=config.num_heads,
-                d_model=config.d_model,
-                shared_embedding=True,
-                d_ff=config.d_ff,
-                dropout=config.dropout,
                 head_dropout=config.head_dropout,
-                act="relu",
-                head_type="classification",
-                res_attention=False,
-                pe="sincos",
-                ch_token=config.ch_token,
-                cls_token=config.cls_token,
-                task=config.task,
             )
-        elif config.task == "forecasting":
-            return PatchTST(
-                c_in=config.feat_dim,
-                target_dim=config.pred_len,
-                patch_len=config.patch_len,
-                stride=config.stride,
-                num_patch=num_patch,
-                num_layers=config.num_layers,
-                num_heads=config.num_heads,
-                d_model=config.d_model,
-                shared_embedding=True,
-                d_ff=config.d_ff,
-                dropout=config.dropout,
-                head_dropout=config.head_dropout,
-                act="relu",
-                head_type="prediction",
-                res_attention=False,
-                pe="sincos",
-                ch_token=config.ch_token,
-                cls_token=config.cls_token,
-                task=config.task,
-            )
-    # patch tst 2d with channel dependences
-    elif config.model_name == "patch_tst_2d":
+    # patch tst with temporal and channel encoding
+    elif config.model_name == "patch_tst_tc":
         if config.task == "pretraining":
-            return PatchTST2d(
+            return PatchTransformerTC(
                 c_in=config.feat_dim,
-                target_dim=config.feat_dim,
-                patch_len=config.patch_len,
-                stride=config.stride,
+                c_out=c_out,
                 num_patch=num_patch,
+                patch_len=config.patch_len,
                 num_layers=config.num_layers,
                 num_heads=config.num_heads,
                 d_model=config.d_model,
-                shared_embedding=True,
                 d_ff=config.d_ff,
                 dropout=config.dropout,
-                head_dropout=config.head_dropout,
-                act="relu",
-                head_type="pretrain",
-                res_attention=False,
+                shared_embedding=config.shared_embedding,
+                norm=config.norm,
+                activation=config.activation,
                 pe="sincos",
+                learn_pe=config.learn_pe,
                 cls_token=config.cls_token,
                 task=config.task,
-            )
-        elif config.task == "classification":
-            return PatchTST2d(
-                c_in=config.feat_dim,
-                target_dim=config.num_classes,
-                patch_len=config.patch_len,
-                stride=config.stride,
-                num_patch=num_patch,
-                num_layers=config.num_layers,
-                num_heads=config.num_heads,
-                d_model=config.d_model,
-                shared_embedding=True,
-                d_ff=config.d_ff,
-                dropout=config.dropout,
                 head_dropout=config.head_dropout,
-                act="relu",
-                head_type="classification",
-                res_attention=False,
-                pe="sincos",
-                cls_token=config.cls_token,
-                task=config.task,
             )
-        elif config.task == "forecasting":
-            return PatchTST2d(
-                c_in=config.feat_dim,
-                target_dim=config.pred_len,
-                patch_len=config.patch_len,
-                stride=config.stride,
-                num_patch=num_patch,
-                num_layers=config.num_layers,
-                num_heads=config.num_heads,
-                d_model=config.d_model,
-                shared_embedding=True,
-                d_ff=config.d_ff,
-                dropout=config.dropout,
-                head_dropout=config.head_dropout,
-                act="relu",
-                head_type="prediction",
-                res_attention=False,
-                pe="sincos",
-                cls_token=config.cls_token,
-                task=config.task,
-            )
-    # masked autoencoder
+    # masked autoencoder with channel independence
     elif config.model_name == "masked_autoencoder":
         if config.task == "pretraining":
-            return MaskedAutoencoderTST(
+            return MaskedAutoencoder(
+                c_in=config.feat_dim,
                 num_patch=num_patch,
                 patch_len=config.patch_len,
-                masking_ratio=config.masking_ratio,
-                c_in=config.feat_dim,
                 enc_num_layers=config.enc_num_layers,
                 enc_num_heads=config.enc_num_heads,
                 enc_d_model=config.enc_d_model,
@@ -357,44 +301,43 @@ def model_factory(config):
                 dec_num_heads=config.dec_num_heads,
                 dec_d_model=config.dec_d_model,
                 dec_d_ff=config.dec_d_ff,
-                shared_embedding=True,
                 dropout=config.dropout,
-                act="relu",
-                res_attention=False,
+                shared_embedding=config.shared_embedding,
+                norm=config.norm,
+                activation=config.activation,
                 pe="sincos",
+                learn_pe=config.learn_pe,
                 cls_token=config.cls_token,
                 ch_token=config.ch_token,
-                task=config.task,
             )
-        elif config.task in ["classification"]:
-            return MaskedAutoencoderTSTClassifier(
+        elif config.task in ["classification", "forecasting"]:
+            return MaskedAutoencoderPredictor(
+                c_in=config.feat_dim,
+                c_out=config.num_classes,
                 num_patch=num_patch,
                 patch_len=config.patch_len,
-                masking_ratio=config.masking_ratio,
-                c_in=config.feat_dim,
-                target_dim=config.num_classes,
-                enc_d_model=config.enc_d_model,
-                enc_d_ff=config.enc_d_ff,
                 enc_num_layers=config.enc_num_layers,
                 enc_num_heads=config.enc_num_heads,
-                shared_embedding=True,
+                enc_d_model=config.enc_d_model,
+                enc_d_ff=config.enc_d_ff,
                 dropout=config.dropout,
-                head_dropout=config.head_dropout,
-                act="relu",
-                res_attention=False,
+                shared_embedding=config.shared_embedding,
+                norm=config.norm,
+                activation=config.activation,
                 pe="sincos",
+                learn_pe=config.learn_pe,
                 cls_token=config.cls_token,
                 ch_token=config.ch_token,
                 task=config.task,
+                head_dropout=config.head_dropout,
             )
-    # masked autoencoder 2d
-    elif config.model_name == "masked_autoencoder_2d":
+    # masked autoencoder with temporal encoding
+    elif config.model_name == "masked_autoencoder_t":
         if config.task == "pretraining":
-            return MaskedAutoencoderTST2d(
+            return MaskedAutoencoderT(
+                c_in=config.feat_dim,
                 num_patch=num_patch,
                 patch_len=config.patch_len,
-                masking_ratio=config.masking_ratio,
-                c_in=config.feat_dim,
                 enc_num_layers=config.enc_num_layers,
                 enc_num_heads=config.enc_num_heads,
                 enc_d_model=config.enc_d_model,
@@ -403,31 +346,76 @@ def model_factory(config):
                 dec_num_heads=config.dec_num_heads,
                 dec_d_model=config.dec_d_model,
                 dec_d_ff=config.dec_d_ff,
-                shared_embedding=True,
                 dropout=config.dropout,
-                act="relu",
-                res_attention=False,
+                shared_embedding=config.shared_embedding,
+                norm=config.norm,
+                activation=config.activation,
                 pe="sincos",
+                learn_pe=config.learn_pe,
                 cls_token=config.cls_token,
             )
-        elif config.task == "classification":
-            return MaskedAutoencoderTST2dClassifier(
+        elif config.task in ["classification", "forecasting"]:
+            return MaskedAutoencoderTPredictor(
+                c_in=config.feat_dim,
+                c_out=c_out,
                 num_patch=num_patch,
                 patch_len=config.patch_len,
-                masking_ratio=config.masking_ratio,
-                c_in=config.feat_dim,
-                target_dim=config.num_classes,
-                enc_d_model=config.enc_d_model,
-                enc_d_ff=config.enc_d_ff,
                 enc_num_layers=config.enc_num_layers,
                 enc_num_heads=config.enc_num_heads,
-                shared_embedding=True,
+                enc_d_model=config.enc_d_model,
+                enc_d_ff=config.enc_d_ff,
                 dropout=config.dropout,
-                head_dropout=config.head_dropout,
-                act="relu",
-                res_attention=False,
+                shared_embedding=config.shared_embedding,
+                norm=config.norm,
+                activation=config.activation,
                 pe="sincos",
+                learn_pe=config.learn_pe,
                 cls_token=config.cls_token,
+                task=config.task,
+                head_dropout=config.head_dropout,
+            )
+    # masked autoencoder with temporal and channel encoding
+    elif config.model_name == "masked_autoencoder_tc":
+        if config.task == "pretraining":
+            return MaskedAutoencoderTC(
+                c_in=config.feat_dim,
+                num_patch=num_patch,
+                patch_len=config.patch_len,
+                enc_num_layers=config.enc_num_layers,
+                enc_num_heads=config.enc_num_heads,
+                enc_d_model=config.enc_d_model,
+                enc_d_ff=config.enc_d_ff,
+                dec_num_layers=config.dec_num_layers,
+                dec_num_heads=config.dec_num_heads,
+                dec_d_model=config.dec_d_model,
+                dec_d_ff=config.dec_d_ff,
+                dropout=config.dropout,
+                shared_embedding=config.shared_embedding,
+                norm=config.norm,
+                activation=config.activation,
+                pe="sincos",
+                learn_pe=config.learn_pe,
+                cls_token=config.cls_token,
+            )
+        elif config.task in ["classification", "forecasting"]:
+            return MaskedAutoencoderTCPredictor(
+                c_in=config.feat_dim,
+                c_out=c_out,
+                num_patch=num_patch,
+                patch_len=config.patch_len,
+                enc_num_layers=config.enc_num_layers,
+                enc_num_heads=config.enc_num_heads,
+                enc_d_model=config.enc_d_model,
+                enc_d_ff=config.enc_d_ff,
+                dropout=config.dropout,
+                shared_embedding=config.shared_embedding,
+                norm=config.norm,
+                activation=config.activation,
+                pe="sincos",
+                learn_pe=config.learn_pe,
+                cls_token=config.cls_token,
+                task=config.task,
+                head_dropout=config.head_dropout,
             )
     else:
         raise ValueError(
@@ -436,7 +424,6 @@ def model_factory(config):
 
 
 def optimizer_factory(config, model):
-    # for initial experiments only use Adam optimizer
     if config.optimizer == "Adam":
         optimizer = torch.optim.Adam(
             model.parameters(),
@@ -449,12 +436,13 @@ def optimizer_factory(config, model):
             lr=config.lr,
             weight_decay=config.weight_decay,
         )
-    elif config.optimizer == "RAdam":
-        optimizer = RAdam(model.parameters(), lr=config.lr)
+    else:
+        raise ValueError("Optimizer not specified")
+
     return optimizer
 
 
-def scheduler_factory(config, optimizer):
+def scheduler_factory(config, optimizer, iters_per_epoch):
     if config.scheduler == "StepLR":
         scheduler = torch.optim.lr_scheduler.StepLR(
             optimizer=optimizer, step_size=10, gamma=0.1
@@ -462,6 +450,10 @@ def scheduler_factory(config, optimizer):
     elif config.scheduler == "CosineAnnealingWarmRestarts":
         scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer=optimizer, T_0=10
+        )
+    elif config.scheduler == "CosineAnnealingLR":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer=optimizer, T_max=config.epochs * iters_per_epoch
         )
     else:
         scheduler = None
