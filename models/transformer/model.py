@@ -49,9 +49,9 @@ class FixedPositionalEncoding(nn.Module):
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = scale_factor * pe.unsqueeze(0).transpose(0, 1)
-        self.register_buffer(
-            "pe", pe
-        )  # this stores the variable in the state_dict (used for non-trainable variables)
+
+        # store the variable in the state_dict (used for non-trainable variables)
+        self.register_buffer("pe", pe)
 
     def forward(self, x):
         r"""Inputs of forward function
@@ -78,7 +78,7 @@ class LearnablePositionalEncoding(nn.Module):
         nn.init.uniform_(self.pe, -0.02, 0.02)
 
     def forward(self, x):
-        r"""Inputs of forward function
+        """Inputs of forward function
         Args:
             x: the sequence fed to the positional encoder model (required).
         Shape:
@@ -119,14 +119,13 @@ class TransformerBatchNormEncoderLayer(nn.modules.Module):
     ):
         super(TransformerBatchNormEncoderLayer, self).__init__()
         self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
-        # Implementation of Feedforward model
+        # feedforward model
         self.linear1 = Linear(d_model, dim_feedforward)
         self.dropout = Dropout(dropout)
         self.linear2 = Linear(dim_feedforward, d_model)
 
-        self.norm1 = BatchNorm1d(
-            d_model, eps=1e-5
-        )  # normalizes each feature across batch samples and time steps
+        # normalize each feature across batch samples and time steps
+        self.norm1 = BatchNorm1d(d_model, eps=1e-5)
         self.norm2 = BatchNorm1d(d_model, eps=1e-5)
         self.dropout1 = Dropout(dropout)
         self.dropout2 = Dropout(dropout)
@@ -175,14 +174,14 @@ class TSTransformerEncoder(nn.Module):
         self,
         feat_dim,
         max_len,
-        d_model,
-        num_heads,
         num_layers,
+        num_heads,
+        d_model,
         d_ff,
-        dropout=0.1,
-        pos_encoding="fixed",
-        activation="gelu",
+        dropout,
         norm="BatchNorm",
+        activation="gelu",
+        pos_encoding="fixed",
         freeze=False,
     ):
         super(TSTransformerEncoder, self).__init__()

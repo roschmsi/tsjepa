@@ -3,7 +3,6 @@ from torch import nn
 import math
 
 
-# Cell
 def PositionalEncoding(q_len, d_model, normalize=True):
     pe = torch.zeros(q_len, d_model)
     position = torch.arange(0, q_len).unsqueeze(1)
@@ -14,9 +13,6 @@ def PositionalEncoding(q_len, d_model, normalize=True):
         pe = pe - pe.mean()
         pe = pe / (pe.std() * 10)
     return pe
-
-
-SinCosPosEncoding = PositionalEncoding
 
 
 def positional_encoding(pe, learn_pe, q_len, d_model):

@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 
-from models.cnn_transformer.model import CNNEncoderLayer
 from models.fedformer.layers.AutoCorrelation import AutoCorrelationLayer
 from models.fedformer.layers.Autoformer_EncDec import (
     Encoder,

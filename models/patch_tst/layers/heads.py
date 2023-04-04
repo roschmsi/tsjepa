@@ -1,33 +1,46 @@
 import torch
 from torch import nn
-from models.patch_tst.layers.basics import SigmoidRange
 
 
-class LinearRegressionHead(nn.Module):
-    def __init__(self, n_vars, d_model, output_dim, head_dropout, y_range=None):
+class ClassificationHead(nn.Module):
+    def __init__(self, n_vars, d_model, n_classes, head_dropout, n_patch=None):
         super().__init__()
-        self.y_range = y_range
         self.flatten = nn.Flatten(start_dim=1)
         self.dropout = nn.Dropout(head_dropout)
-        self.linear = nn.Linear(n_vars * d_model, output_dim)
+        self.linear = nn.Linear(n_vars * d_model, n_classes)
 
     def forward(self, x):
         """
         x: [bs x nvars x d_model x num_patch]
-        output: [bs x output_dim]
+        output: [bs x n_classes]
         """
-        x = x[
-            :, :, :, -1
-        ]  # only consider the last item in the sequence, x: bs x nvars x d_model
+        # extract class token
+        x = x[:, :, :, 0]
         x = self.flatten(x)  # x: bs x nvars * d_model
         x = self.dropout(x)
-        y = self.linear(x)  # y: bs x output_dim
-        if self.y_range:
-            y = SigmoidRange(*self.y_range)(y)
+        y = self.linear(x)  # y: bs x n_classes
         return y
 
 
-class LinearClassificationHead(nn.Module):
+class ClassificationFlattenHead(nn.Module):
+    def __init__(self, n_vars, d_model, n_patch, n_classes, head_dropout):
+        super().__init__()
+        self.flatten = nn.Flatten(start_dim=1)
+        self.dropout = nn.Dropout(head_dropout)
+        self.linear = nn.Linear(n_vars * d_model * n_patch, n_classes)
+
+    def forward(self, x):
+        """
+        x: [bs x nvars x d_model x num_patch]
+        output: [bs x n_classes]
+        """
+        x = self.flatten(x)  # x: bs x nvars * d_model * num_patch
+        x = self.dropout(x)
+        y = self.linear(x)  # y: bs x n_classes
+        return y
+
+
+class ClassificationPoolHead(nn.Module):
     def __init__(self, n_vars, d_model, n_classes, head_dropout):
         super().__init__()
         self.flatten = nn.Flatten(start_dim=1)
@@ -39,23 +52,28 @@ class LinearClassificationHead(nn.Module):
         x: [bs x nvars x d_model x num_patch]
         output: [bs x n_classes]
         """
-        x = x[
-            :, :, :, -1
-        ]  # only consider the last item in the sequence, x: bs x nvars x d_model
+        x = x.mean(-1)
         x = self.flatten(x)  # x: bs x nvars * d_model
         x = self.dropout(x)
         y = self.linear(x)  # y: bs x n_classes
         return y
 
 
-class LinearPredictionHead(nn.Module):
+class PredictionHead(nn.Module):
     def __init__(
-        self, individual, n_vars, d_model, num_patch, forecast_len, head_dropout=0
+        self,
+        individual,
+        n_vars,
+        d_model,
+        num_patch,
+        forecast_len,
+        head_dropout=0,
+        flatten=False,
     ):
         super().__init__()
-
         self.individual = individual
         self.n_vars = n_vars
+        self.flatten = flatten
         head_dim = d_model * num_patch
 
         if self.individual:
@@ -85,16 +103,16 @@ class LinearPredictionHead(nn.Module):
                 x_out.append(z)
             x = torch.stack(x_out, dim=1)  # x: [bs x nvars x forecast_len]
         else:
-            x = self.flatten(x)
+            x = self.flatten(x)  # x: [bs x nvars x (d_model * num_patch)]
             x = self.dropout(x)
-            x = self.linear(x)
+            x = self.linear(x)  # x: [bs x nvars x forecast_len]
         return x.transpose(2, 1)  # [bs x forecast_len x nvars]
 
 
-class LinearPretrainHead(nn.Module):
-    def __init__(self, d_model, patch_len, dropout):
+class PretrainHead(nn.Module):
+    def __init__(self, d_model, patch_len, head_dropout):
         super().__init__()
-        self.dropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout(head_dropout)
         self.linear = nn.Linear(d_model, patch_len)
 
     def forward(self, x):
@@ -102,7 +120,6 @@ class LinearPretrainHead(nn.Module):
         x: tensor [bs x nvars x d_model x num_patch]
         output: tensor [bs x nvars x num_patch x patch_len]
         """
-
         x = x.transpose(2, 3)  # [bs x nvars x num_patch x d_model]
         x = self.linear(self.dropout(x))  # [bs x nvars x num_patch x patch_len]
         x = x.permute(0, 2, 1, 3)  # [bs x num_patch x nvars x patch_len]

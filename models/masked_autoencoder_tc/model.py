@@ -1,11 +1,8 @@
 import torch
 import torch.nn as nn
-from models.patch_tst.layers.heads import PredictionHead
-from models.patch_tst.layers.pos_encoding import positional_encoding
-from models.patch_tst.model import (
-    ClassificationHead,
-    TSTEncoder,
-)
+from models.patch_tst.layers.encoder import TSTEncoder
+from models.patch_tst_tc.model import ClassificationHead
+from models.patch_tst_tc.positional_embedding import get_2d_sincos_pos_embed
 
 
 class MAEEncoder(nn.Module):
@@ -26,7 +23,6 @@ class MAEEncoder(nn.Module):
         pe: str = "zeros",
         learn_pe: bool = False,
         cls_token=False,
-        ch_token=False,
         attn_dropout: float = 0.0,
         res_attention: bool = True,
         store_attn: bool = False,
@@ -47,13 +43,13 @@ class MAEEncoder(nn.Module):
         self.cls_token = (
             nn.Parameter(torch.zeros(1, 1, enc_d_model)) if cls_token else None
         )
-        self.ch_token = (
-            nn.Parameter(torch.zeros(c_in, 1, enc_d_model)) if ch_token else None
-        )
 
         # encoder positional encoding
-        self.encoder_pos_embed = positional_encoding(
-            pe, learn_pe, num_patch, enc_d_model
+        self.encoder_pos_embed = nn.Parameter(
+            torch.from_numpy(
+                get_2d_sincos_pos_embed(embed_dim=enc_d_model, len=num_patch, ch=c_in)
+            ).float(),
+            requires_grad=learn_pe,
         )
 
         # residual dropout
@@ -88,40 +84,39 @@ class MAEEncoder(nn.Module):
             x = self.W_P(x)
 
         # x: [bs x num_patch x nvars x d_model]
+
         x = x.transpose(1, 2)
         # x: [bs x nvars x num_patch x d_model]
-        x = torch.reshape(x, (bs * n_vars, num_patch, self.enc_d_model))
-        # x: [bs * nvars x num_patch x d_model]
+        x = torch.reshape(x, (bs, n_vars * num_patch, self.enc_d_model))
+        # x: [bs x nvars * num_patch x d_model]
 
         # add positional encoding
-        encoder_pos_embed = self.encoder_pos_embed.expand(bs * n_vars, -1, -1)
+        encoder_pos_embed = self.encoder_pos_embed.expand(bs, -1, -1)
         if target_masks is not None:
             target_masks = target_masks.transpose(1, 2)
-            target_masks = target_masks.reshape(bs * n_vars, -1)
+            target_masks = target_masks.reshape(bs, -1)
             target_masks = target_masks.unsqueeze(-1).expand(-1, -1, self.enc_d_model)
             encoder_pos_embed = encoder_pos_embed[target_masks.bool()].reshape(
-                bs * n_vars, -1, self.enc_d_model
+                bs, -1, self.enc_d_model
             )
 
         x = self.dropout(x + encoder_pos_embed)
 
-        x = x.reshape(bs, n_vars, num_patch, self.enc_d_model)
+        x = x.reshape(bs, n_vars * num_patch, self.enc_d_model)
 
-        # append channel and class token
-        if self.ch_token is not None:
-            ch_token = self.ch_token.expand(bs, -1, -1, -1)
-            x = torch.cat((x, ch_token), dim=2)
-            num_patch += 1
+        # append cls token
+        encoder_pos_embed = self.encoder_pos_embed
         if self.cls_token is not None:
-            cls_token = self.cls_token.expand(bs, n_vars, -1, -1)
-            x = torch.cat((cls_token, x), dim=2)
+            cls_token = self.cls_token.expand(x.shape[0], n_vars, -1)
+            x = torch.cat((cls_token, x), dim=1)
             num_patch += 1
 
-        x = x.reshape(bs * n_vars, num_patch, self.enc_d_model)
+        x = x.reshape(bs, -1, self.enc_d_model)
 
         # apply transformer encoder
         x = self.encoder(x)
-        # x: [bs * nvars x num_patch x d_model]
+
+        # x: [bs * nvars * num_patch x d_model]
 
         return x
 
@@ -129,6 +124,7 @@ class MAEEncoder(nn.Module):
 class MAEDecoder(nn.Module):
     def __init__(
         self,
+        c_in: int,
         num_patch: int,
         patch_len: int,
         enc_d_model: int,
@@ -144,25 +140,25 @@ class MAEDecoder(nn.Module):
         pe: str = "zeros",
         learn_pe: bool = False,
         cls_token=False,
-        ch_token=False,
         attn_dropout: float = 0.0,
         res_attention: bool = True,
         store_attn: bool = False,
     ):
         super().__init__()
-        self.shared_embedding = shared_embedding
         self.dec_d_model = dec_d_model
 
         self.cls_token = cls_token  # here a boolen, no tensor
-        self.ch_token = ch_token  # here a boolean, no tensor
 
         self.decoder_embed = nn.Linear(enc_d_model, dec_d_model, bias=True)
 
         self.mask_token = nn.Parameter(torch.zeros(1, 1, dec_d_model))
 
         # decoder positional encoding
-        self.decoder_pos_embed = positional_encoding(
-            pe, learn_pe, num_patch, dec_d_model
+        self.decoder_pos_embed = nn.Parameter(
+            torch.from_numpy(
+                get_2d_sincos_pos_embed(embed_dim=dec_d_model, len=num_patch, ch=c_in)
+            ).float(),
+            requires_grad=learn_pe,
         )
 
         # residual dropout
@@ -185,23 +181,20 @@ class MAEDecoder(nn.Module):
 
         self.decoder_pred = nn.Linear(dec_d_model, patch_len)
 
-    def forward(self, lat, ids_restore, padding_mask=None):
+    def forward(self, lat, ids_restore, padding_mask):
         # embed latent tokens
-        # lat: [bs * n_vars x num_patch x d_model]
+        # lat: [bs x n_vars * num_patch x d_model]
         x = self.decoder_embed(lat)
-        # x: [bs * n_vars x num_patch x d_model]
+        # x: [bs x n_vars * num_patch x d_model]
 
-        # remove channel and class tokens
-        if self.ch_token:
-            ch_token = x[:, -1:, :]
-            x = x[:, :-1, :]
+        # remove class tokens
         if self.cls_token:
             cls_token = x[:, :1, :]
             x = x[:, 1:, :]
 
         # append and unshuffle mask tokens
         bs, length, ch = ids_restore.shape
-        ids_restore = ids_restore.transpose(1, 2).reshape(bs * ch, length)
+        ids_restore = ids_restore.reshape(bs, length * ch)
         mask_tokens = self.mask_token.repeat(
             x.shape[0], ids_restore.shape[1] - x.shape[1], 1
         )
@@ -214,23 +207,19 @@ class MAEDecoder(nn.Module):
         # add positional encoding
         x = self.dropout(x + self.decoder_pos_embed)
 
-        # reappend channel and class tokens
-        if self.ch_token:
-            x = torch.cat([x, ch_token], dim=1)
+        # reappend class tokens
         if self.cls_token:
             x = torch.cat([cls_token, x], dim=1)
 
         # apply transformer decoder
         x = self.decoder(x)
-        # x: [bs * n_vars x num_patch x d_model]
+        # x: [bs x n_vars * num_patch x d_model]
 
         # predictor projection
         x = self.decoder_pred(x)
-        # x: [bs * n_vars x num_patch x patch_len]
+        # x: [bs x n_vars * num_patch x patch_len]
 
-        # prepare output, remove class and channel token
-        if self.ch_token:
-            x = x[:, :-1, :]
+        # prepare output, remove class tokens
         if self.cls_token:
             x = x[:, 1:, :]
 
@@ -240,7 +229,8 @@ class MAEDecoder(nn.Module):
         return x
 
 
-class MaskedAutoencoder(nn.Module):
+# encode time and channel (2d data)
+class MaskedAutoencoderTC(nn.Module):
     def __init__(
         self,
         c_in: int,
@@ -262,7 +252,6 @@ class MaskedAutoencoder(nn.Module):
         pe: str = "zeros",
         learn_pe: bool = False,
         cls_token=False,
-        ch_token=False,
         attn_dropout: float = 0.0,
         res_attention: bool = True,
         store_attn: bool = False,
@@ -285,13 +274,13 @@ class MaskedAutoencoder(nn.Module):
             pe=pe,
             learn_pe=learn_pe,
             cls_token=cls_token,
-            ch_token=ch_token,
             attn_dropout=attn_dropout,
             res_attention=res_attention,
             store_attn=store_attn,
         )
 
         self.decoder = MAEDecoder(
+            c_in=c_in,
             num_patch=num_patch,
             patch_len=patch_len,
             enc_d_model=enc_d_model,
@@ -307,7 +296,6 @@ class MaskedAutoencoder(nn.Module):
             pe=pe,
             learn_pe=learn_pe,
             cls_token=cls_token,
-            ch_token=ch_token,
             attn_dropout=attn_dropout,
             res_attention=res_attention,
             store_attn=store_attn,
@@ -321,7 +309,7 @@ class MaskedAutoencoder(nn.Module):
         return pred
 
 
-class MaskedAutoencoderPredictor(nn.Module):
+class MaskedAutoencoderTCPredictor(nn.Module):
     def __init__(
         self,
         c_in: int,
@@ -340,7 +328,6 @@ class MaskedAutoencoderPredictor(nn.Module):
         pe: str = "zeros",
         learn_pe: bool = False,
         cls_token: bool = False,
-        ch_token=False,
         attn_dropout: float = 0.0,
         res_attention: bool = True,
         store_attn: bool = False,
@@ -351,7 +338,6 @@ class MaskedAutoencoderPredictor(nn.Module):
         super().__init__()
         self.task = task
         self.cls_token = cls_token
-        self.ch_token = ch_token
 
         self.encoder = MAEEncoder(
             c_in=c_in,
@@ -369,7 +355,6 @@ class MaskedAutoencoderPredictor(nn.Module):
             pe=pe,
             learn_pe=learn_pe,
             cls_token=cls_token,
-            ch_token=ch_token,
             attn_dropout=attn_dropout,
             res_attention=res_attention,
             store_attn=store_attn,
@@ -394,22 +379,13 @@ class MaskedAutoencoderPredictor(nn.Module):
         else:
             raise ValueError(f"Task {task} not defined.")
 
-    def forward(self, imgs, padding_mask_kept):
+    def forward(self, imgs, padding_mask_kept, target_masks):
         latent = self.encoder(imgs, padding_mask_kept=padding_mask_kept)
-        # latent: [bs * nvars x num_patch x d_model]
-        latent = torch.reshape(
-            latent, (imgs.shape[0], -1, latent.shape[1], latent.shape[2])
-        )
-        # latent: [bs x nvars x num_patch x d_model]
+        # latent: [bs x nvars * num_patch x d_model]
 
-        # remove ch token and cls token
-        if self.ch_token:
-            latent = latent[:, :, :-1, :]
+        # remove cls token
         if self.task != "classification" and self.cls_token:
-            latent = latent[:, :, 1:, :]
-
-        latent = latent.transpose(2, 3)
-        # latent: [bs x nvars x d_model x num_patch]
+            latent = latent[:, 1:, :]
 
         pred = self.head(latent)
 

@@ -2,15 +2,49 @@ import torch
 from torch import Tensor, nn
 
 from models.patch_tst.layers.encoder import TSTEncoder
-from models.patch_tst.layers.heads import (
-    ClassificationHead,
-    PredictionHead,
-    PretrainHead,
-)
-from models.patch_tst.layers.pos_encoding import positional_encoding
+from models.patch_tst.layers.heads import PredictionHead
+from models.patch_tst_tc.positional_embedding import get_2d_sincos_pos_embed
 
 
-class PatchTST(nn.Module):
+class PretrainHead(nn.Module):
+    def __init__(self, d_model, patch_len, nvars, dropout):
+        super().__init__()
+        self.dropout = nn.Dropout(dropout)
+        self.linear = nn.Linear(d_model, patch_len * nvars)
+        self.nvars = nvars
+        self.patch_len = patch_len
+
+    def forward(self, x):
+        """
+        x: tensor [bs x nvars x d_model x num_patch]
+        output: tensor [bs x nvars x num_patch x patch_len]
+        """
+
+        bs, num_patch, d_model = x.shape
+        x = self.linear(self.dropout(x))  # [bs x nvars x num_patch x patch_len]
+        x = torch.reshape(x, (bs, num_patch, self.nvars, self.patch_len))
+        return x
+
+
+class ClassificationHead(nn.Module):
+    def __init__(self, n_vars, d_model, n_classes, head_dropout, n_patch=None):
+        super().__init__()
+        self.dropout = nn.Dropout(head_dropout)
+        self.linear = nn.Linear(d_model, n_classes)
+
+    def forward(self, x):
+        """
+        x: [bs x nvars * num_patch x d_model]
+        output: [bs x n_classes]
+        """
+        # extract class token
+        x = x[:, 0, :]
+        x = self.dropout(x)
+        y = self.linear(x)  # y: bs x n_classes
+        return y
+
+
+class PatchTransformerTC(nn.Module):
     """
     Output dimension:
          [bs x target_dim x nvars] for prediction
@@ -30,19 +64,18 @@ class PatchTST(nn.Module):
         d_model: int,
         d_ff: int,
         dropout: float,
-        shared_embedding=True,
+        shared_embedding: bool = True,
         norm: str = "BatchNorm",
         pre_norm: bool = False,
         activation: str = "gelu",
         pe: str = "zeros",
         learn_pe: bool = False,
-        cls_token=False,
-        ch_token=False,
+        cls_token: bool = False,
         attn_dropout: float = 0.0,
         res_attention: bool = True,
         store_attn: bool = False,
         task=None,
-        head_dropout=0,
+        head_dropout: float = 0,
         individual=False,
     ):
         super().__init__()
@@ -63,7 +96,6 @@ class PatchTST(nn.Module):
             pe=pe,
             learn_pe=learn_pe,
             cls_token=cls_token,
-            ch_token=ch_token,
             attn_dropout=attn_dropout,
             res_attention=res_attention,
             store_attn=store_attn,
@@ -93,8 +125,6 @@ class PatchTST(nn.Module):
                 n_classes=c_out,
                 head_dropout=head_dropout,
             )
-        else:
-            raise ValueError(f"Task {task} not defined.")
 
     def forward(self, z, padding_mask=None):
         """
@@ -127,7 +157,6 @@ class PatchTSTEncoder(nn.Module):
         pe="zeros",
         learn_pe=False,
         cls_token=False,
-        ch_token=False,
         attn_dropout=0.0,
         store_attn=False,
         res_attention=True,
@@ -146,14 +175,17 @@ class PatchTSTEncoder(nn.Module):
         else:
             self.W_P = nn.Linear(patch_len, d_model)
 
-        # class and channel tokens
+        # class tokens
         self.cls_token = nn.Parameter(torch.zeros(1, 1, d_model)) if cls_token else None
-        self.ch_token = (
-            nn.Parameter(torch.zeros(c_in, 1, d_model)) if ch_token else None
-        )
 
         # positional encoding
-        self.W_pos = positional_encoding(pe, learn_pe, num_patch, d_model)
+        self.W_pos = (
+            torch.from_numpy(
+                get_2d_sincos_pos_embed(embed_dim=d_model, len=num_patch, ch=c_in)
+            )
+            .float()
+            .cuda()
+        )
 
         # residual dropout
         self.dropout = nn.Dropout(dropout)
@@ -174,6 +206,9 @@ class PatchTSTEncoder(nn.Module):
         )
 
     def forward(self, x) -> Tensor:
+        """
+        x: tensor [bs x num_patch x nvars x patch_len]
+        """
         bs, num_patch, n_vars, patch_len = x.shape
 
         # input encoding
@@ -184,44 +219,28 @@ class PatchTSTEncoder(nn.Module):
                 x_out.append(z)
             x = torch.stack(x_out, dim=2)
         else:
-            x = self.W_P(x)
+            x = self.W_P(x)  # x: [bs x num_patch x nvars x d_model]
 
-        # x: [bs x num_patch x nvars x d_model]
-        x = x.transpose(1, 2)
-        # x: [bs x nvars x num_patch x d_model]
-        x = torch.reshape(x, (bs * n_vars, num_patch, self.d_model))
-        # x: [bs * nvars x num_patch x d_model]
+        x = torch.reshape(
+            x, (bs, num_patch * n_vars, self.d_model)
+        )  # u: [bs x nvars * num_patch x d_model]
 
         # add positional encoding
         x = self.dropout(x + self.W_pos)
 
-        x = x.reshape(bs, n_vars, num_patch, self.d_model)
-
-        # append channel and class token
-        if self.ch_token is not None:
-            ch_token = self.ch_token.expand(bs, -1, -1, -1)
-            x = torch.cat((x, ch_token), dim=2)
-            num_patch += 1
+        # append cls token at start
         if self.cls_token is not None:
-            cls_token = self.cls_token.expand(bs, n_vars, -1, -1)
-            x = torch.cat((cls_token, x), dim=2)
-            num_patch += 1
-
-        x = x.reshape(bs * n_vars, num_patch, self.d_model)
+            cls_token = self.cls_token.expand(x.shape[0], -1, -1)
+            x = torch.cat((cls_token, x), dim=1)
 
         # apply transformer encoder
         z = self.encoder(x)
+        # z: [bs x nvars * num_patch x d_model]
 
-        z = z.reshape(bs, n_vars, num_patch, self.d_model)
-        # z: [bs x nvars x num_patch x d_model]
-
-        # prepare output, remove class and channel token
-        if self.ch_token is not None:
-            z = z[:, :, :-1, :]
         if self.task != "classification" and self.cls_token is not None:
-            z = z[:, :, 1:, :]
-
-        z = z.transpose(2, 3)
-        # z: [bs x nvars x d_model x num_patch]
+            z = z[:, 1:, :]
+        if self.task == "forecasting":
+            z = z.reshape(bs, num_patch, n_vars, -1)
+            z = z.permute(0, 2, 3, 1)
 
         return z
