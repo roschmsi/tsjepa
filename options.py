@@ -21,6 +21,9 @@ class Options(object):
         self.parser.add_argument("--num_layers", type=int)
         self.parser.add_argument("--dropout", type=float)
         self.parser.add_argument("--head_dropout", type=float)
+        self.parser.add_argument("--norm", type=str)
+        self.parser.add_argument("--activation", type=str)
+        self.parser.add_argument("--learn_pe", action="store_true")
 
         # mae
         self.parser.add_argument("--mae", action="store_true")
@@ -57,7 +60,7 @@ class Options(object):
 
         # training
         self.parser.add_argument("--optimizer", type=str)
-        self.parser.add_argument("--scheduler", type=str, default=None)
+        self.parser.add_argument("--scheduler", type=str)
         self.parser.add_argument("--lr", type=float)
         self.parser.add_argument("--weight_decay", type=float)
         self.parser.add_argument("--epochs", type=int)
