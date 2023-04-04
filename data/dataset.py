@@ -21,8 +21,8 @@ class PretrainingDataset(Dataset):
     def __init__(
         self,
         ecg_dataset,
-        mean_mask_length=3,
-        masking_ratio=0.15,
+        mean_mask_length,
+        masking_ratio,
         mode="separate",
         distribution="geometric",
         exclude_feats=None,
@@ -48,12 +48,12 @@ class PretrainingDataset(Dataset):
         X, _ = self.ecg_dataset.__getitem__(ind)
 
         mask = noise_mask(
-            X,
-            self.masking_ratio,
-            self.mean_mask_length,
-            self.mode,
-            self.distribution,
-            self.exclude_feats,
+            X=X,
+            masking_ratio=self.masking_ratio,
+            mean_mask_length=self.mean_mask_length,
+            mode=self.mode,
+            distribution=self.distribution,
+            exclude_feats=self.exclude_feats,
         )  # (seq_length, feat_dim) boolean array
 
         return torch.from_numpy(X), torch.from_numpy(mask)
@@ -80,20 +80,20 @@ class ClassificationDataset(Dataset):
 
 
 class ClassificationPatchDataset(Dataset):
-    def __init__(self, ecg_dataset, patch_len=16, stride=8):
+    def __init__(self, dataset, patch_len=16, stride=8):
         super(ClassificationPatchDataset, self).__init__()
-        self.ecg_dataset = ecg_dataset
+        self.dataset = dataset
         self.patch_len = patch_len
         self.stride = stride
 
     def __getitem__(self, ind):
-        X, y = self.ecg_dataset.__getitem__(ind)
+        X, y = self.dataset.__getitem__(ind)
         X = torch.from_numpy(X).unsqueeze(0)
         X = create_patch(X, self.patch_len, self.stride)
         return X.squeeze(), torch.from_numpy(y)
 
     def __len__(self):
-        return len(self.ecg_dataset)
+        return len(self.dataset)
 
 
 class ForecastingPatchDataset(Dataset):
@@ -360,7 +360,7 @@ def collate_patch_unsuperv(data, feat_dim, max_len, patch_len, stride, masking_r
 def noise_mask(
     X,
     masking_ratio,
-    lm=3,
+    mean_mask_length,
     mode="separate",
     distribution="geometric",
     exclude_feats=None,
@@ -391,12 +391,13 @@ def noise_mask(
             for m in range(X.shape[1]):  # feature dimension
                 if exclude_feats is None or m not in exclude_feats:
                     mask[:, m] = geom_noise_mask_single(
-                        X.shape[0], lm, masking_ratio
+                        X.shape[0], mean_mask_length, masking_ratio
                     )  # time dimension
         else:  # replicate across feature dimension (mask all variables at the same positions concurrently)
             mask = np.tile(
                 np.expand_dims(
-                    geom_noise_mask_single(X.shape[0], lm, masking_ratio), 1
+                    geom_noise_mask_single(X.shape[0], mean_mask_length, masking_ratio),
+                    1,
                 ),
                 X.shape[1],
             )
@@ -435,18 +436,18 @@ def geom_noise_mask_single(L, lm, masking_ratio):
         (L,) boolean numpy array intended to mask ('drop') with 0s a sequence of length L
     """
     keep_mask = np.ones(L, dtype=bool)
-    p_m = (
-        1 / lm
-    )  # probability of each masking sequence stopping. parameter of geometric distribution.
-    p_u = (
-        p_m * masking_ratio / (1 - masking_ratio)
-    )  # probability of each unmasked sequence stopping. parameter of geometric distribution.
+
+    # probability of each masking sequence stopping. parameter of geometric distribution.
+    p_m = 1 / lm
+    # probability of each unmasked sequence stopping. parameter of geometric distribution.
+    p_u = p_m * masking_ratio / (1 - masking_ratio)
+
     p = [p_m, p_u]
 
     # Start in state 0 with masking_ratio probability
-    state = int(
-        np.random.rand() > masking_ratio
-    )  # state 0 means masking, 1 means not masking
+    # state 0 means masking, 1 means not masking
+    state = int(np.random.rand() > masking_ratio)
+
     for i in range(L):
         keep_mask[
             i
@@ -477,14 +478,22 @@ def padding_mask(lengths, max_len=None):
 class PretrainingPatchDataset(Dataset):
     """Dynamically computes missingness (noise) mask for each sample"""
 
-    def __init__(self, dataset, masking_ratio, patch_len, stride, mae, debug=False):
+    def __init__(
+        self,
+        dataset,
+        masking_ratio,
+        patch_len,
+        stride,
+        debug=False,
+        only_time_masking=False,
+    ):
         super(PretrainingPatchDataset, self).__init__()
         self.dataset = dataset
         self.masking_ratio = masking_ratio
         self.patch_len = patch_len
         self.stride = stride
-        self.mae = mae
         self.debug = debug
+        self.only_time_masking = only_time_masking
 
     def __getitem__(self, idx):
         """
@@ -503,9 +512,14 @@ class PretrainingPatchDataset(Dataset):
             X = torch.from_numpy(X).unsqueeze(0)
 
         X = create_patch(X, self.patch_len, self.stride)
-        X_masked, X_kept, mask, ids_restore = random_patch_masking(
-            X, self.masking_ratio, debug=self.debug
-        )
+        if self.only_time_masking:
+            X_masked, X_kept, mask, ids_restore = random_patch_masking_only_time(
+                X, self.masking_ratio, debug=self.debug
+            )
+        else:
+            X_masked, X_kept, mask, ids_restore = random_patch_masking(
+                X, self.masking_ratio, debug=self.debug
+            )
 
         return (
             X_masked.squeeze(),
@@ -538,6 +552,53 @@ def random_patch_masking(xb, mask_ratio, debug):
 
     # sort noise for each sample
     ids_shuffle = torch.argsort(noise, dim=1)  # ascend: small is keep, large is remove
+    ids_restore = torch.argsort(ids_shuffle, dim=1)  # ids_restore: [bs x L x nvars]
+
+    # keep the first subset
+    ids_keep = ids_shuffle[:, :len_keep, :]  # ids_keep: [bs x len_keep x nvars]
+    x_kept = torch.gather(
+        x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, 1, D)
+    )  # x_kept: [bs x len_keep x nvars  x patch_len]
+
+    # removed x
+    x_removed = torch.zeros(
+        bs, L - len_keep, nvars, D, device=xb.device
+    )  # x_removed: [bs x (L-len_keep) x nvars x patch_len]
+    x_ = torch.cat([x_kept, x_removed], dim=1)  # x_: [bs x L x nvars x patch_len]
+
+    # combine the kept part and the removed one
+    x_masked = torch.gather(
+        x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, 1, D)
+    )  # x_masked: [bs x num_patch x nvars x patch_len]
+
+    # generate the binary mask: 0 is keep, 1 is remove
+    mask = torch.ones([bs, L, nvars], device=x.device)  # mask: [bs x num_patch x nvars]
+    mask[:, :len_keep, :] = 0
+    # unshuffle to get the binary mask
+    mask = torch.gather(mask, dim=1, index=ids_restore)  # [bs x num_patch x nvars]
+    return x_masked, x_kept, mask, ids_restore
+
+
+def random_patch_masking_only_time(xb, mask_ratio, debug):
+    # xb: [bs x num_patch x n_vars x patch_len]
+    bs, L, nvars, D = xb.shape
+    x = xb.clone()
+
+    len_keep = int(L * (1 - mask_ratio))
+
+    if debug:
+        noise = torch.rand(
+            size=(bs, L, 1), device=xb.device, generator=torch.Generator()
+        )  # noise in [0, 1], bs x L x nvars
+    else:
+        noise = torch.rand(
+            size=(bs, L, 1),
+            device=xb.device,
+        )
+
+    # sort noise for each sample
+    ids_shuffle = torch.argsort(noise, dim=1)  # ascend: small is keep, large is remove
+    ids_shuffle = ids_shuffle.expand(-1, -1, nvars)
     ids_restore = torch.argsort(ids_shuffle, dim=1)  # ids_restore: [bs x L x nvars]
 
     # keep the first subset
