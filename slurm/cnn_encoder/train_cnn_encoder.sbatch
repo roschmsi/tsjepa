@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
 #SBATCH --mem=4G
-#SBATCH --time=24:00:00
+#SBATCH --time=120:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --output=/storage/slurm/logs/slurm-%j.out
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
@@ -21,6 +21,6 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --epochs 500 \
 --batch_size 64 \
 --num_workers 4 \
---patience 100 \
+--patience 20 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
 --task classification
