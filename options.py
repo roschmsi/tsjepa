@@ -21,6 +21,7 @@ class Options(object):
         self.parser.add_argument("--num_layers", type=int)
         self.parser.add_argument("--dropout", type=float)
         self.parser.add_argument("--head_dropout", type=float)
+        self.parser.add_argument("--shared_embedding", action="store_true")
         self.parser.add_argument("--norm", type=str)
         self.parser.add_argument("--activation", type=str)
         self.parser.add_argument("--learn_pe", action="store_true")
