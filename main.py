@@ -88,7 +88,6 @@ def main(config):
 
     # create optimizer and scheduler
     optimizer = optimizer_factory(config, model)
-    scheduler = scheduler_factory(config, optimizer)
 
     # load model and optimizer states
     start_epoch = 0
@@ -166,6 +165,8 @@ def main(config):
         pin_memory=True,
         collate_fn=lambda x: collate_fn(x, max_len=max_len),
     )
+
+    scheduler = scheduler_factory(config, optimizer, iters_per_epoch=len(train_loader))
     trainer = runner_class(
         model,
         train_loader,
