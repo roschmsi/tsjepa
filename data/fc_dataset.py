@@ -389,6 +389,7 @@ class Dataset_Custom(Dataset):
         use_time_features=False,
         train_split=0.7,
         test_split=0.2,
+        debug=False,
     ):
         # size [seq_len, label_len, pred_len]
         # info
@@ -412,6 +413,7 @@ class Dataset_Custom(Dataset):
         self.freq = freq
         self.time_col_name = time_col_name
         self.use_time_features = use_time_features
+        self.debug = debug
 
         # train test ratio
         self.train_split, self.test_split = train_split, test_split
@@ -494,6 +496,8 @@ class Dataset_Custom(Dataset):
             return _torch(seq_x, seq_y)
 
     def __len__(self):
+        if self.debug:
+            return 1
         return len(self.data_x) - self.seq_len - self.pred_len + 1
 
     def inverse_transform(self, data):
