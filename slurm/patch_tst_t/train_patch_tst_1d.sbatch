@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="train patch tst 1d"
+#SBATCH --job-name="train patch tst t"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -10,7 +10,7 @@
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
---model_name patch_tst_1d \
+--model_name patch_tst_t \
 --num_layers 8 \
 --num_heads 8 \
 --d_model 256 \

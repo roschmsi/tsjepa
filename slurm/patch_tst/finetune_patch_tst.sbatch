@@ -16,6 +16,9 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --d_model 256 \
 --d_ff 512 \
 --dropout 0.1 \
+--shared_embedding \
+--norm BatchNorm \
+--activation gelu \
 --head_dropout 0.1 \
 --masking_ratio 0 \
 --use_patch \

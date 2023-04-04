@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="train masked autoencoder 1d"
+#SBATCH --job-name="train masked autoencoder t"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:32G
@@ -10,7 +10,7 @@
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
---model_name masked_autoencoder_1d \
+--model_name masked_autoencoder_t \
 --mae \
 --enc_num_layers 8 \
 --enc_num_heads 8 \

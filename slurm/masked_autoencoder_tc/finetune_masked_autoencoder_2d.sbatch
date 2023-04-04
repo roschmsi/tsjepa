@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="pretrain masked autoencoder 2d"
+#SBATCH --job-name="pretrain masked autoencoder tc"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:32G
@@ -10,7 +10,7 @@
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
---model_name masked_autoencoder_2d \
+--model_name masked_autoencoder_tc \
 --mae \
 --enc_num_layers 8 \
 --enc_num_heads 8 \
@@ -37,4 +37,4 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
 --task classification \
 --finetuning \
---load_model /home/stud/roschman/ECGAnalysis/output/pretraining_patch_tst_2d/data=ecg_augment=False_randecg=_mixup=0_patch=16_stride=8_mratio=0.5_premratio=0_bs=32_opt=AdamW_lr=0.0001_wd=0.01_dmodel=256_dff=512_nlayers=8_nheads=8
+--load_model 

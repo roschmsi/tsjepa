@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="pretrain patch tst 1d"
+#SBATCH --job-name="pretrain patch tst t"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G

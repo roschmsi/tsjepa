@@ -10,7 +10,7 @@
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
---model_name masked_autoencoder_2d \
+--model_name masked_autoencoder_tc \
 --mae \
 --enc_num_layers 8 \
 --enc_num_heads 8 \

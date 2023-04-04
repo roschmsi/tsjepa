@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="finetune patch tst 2d"
+#SBATCH --job-name="finetune patch tst tc"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:32G
@@ -10,7 +10,7 @@
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
---model_name patch_tst_2d \
+--model_name patch_tst_tc \
 --d_model 256 \
 --d_ff 512 \
 --num_heads 8 \
@@ -31,4 +31,4 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --task classification \
 --finetuning \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
---load_model /home/stud/roschman/ECGAnalysis/output/pretraining_patch_tst_2d/data=ecg_augment=False_randecg=_mixup=0_patch=16_stride=8_mratio=0.5_premratio=0_bs=32_opt=AdamW_lr=0.0001_wd=0.01_dmodel=256_dff=512_nlayers=8_nheads=8 \
+--load_model
