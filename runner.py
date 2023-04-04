@@ -97,7 +97,7 @@ class UnsupervisedRunner(BaseRunner):
 
         epoch_loss = 0
 
-        for i, batch in enumerate(self.dataloader):
+        for batch in self.dataloader:
 
             X, targets, target_masks, padding_masks = batch
             targets = targets.to(self.device)
@@ -385,6 +385,7 @@ class UnsupervisedPatchRunner(BaseRunner):
                     padding_masks,
                     padding_masks_kept,
                     ids_restore,
+                    target_masks,
                 )
             else:
                 X = X.to(self.device)
