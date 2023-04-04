@@ -21,20 +21,33 @@ logger = logging.getLogger(__name__)
 def check_config(config):
     # check dataset
     dir = f"dataset={config.dataset}"
+    # if "fs" in config.keys():
+    #     dir += f"_fs={config.fs}"
+    if config.filter_bandwidth:
+        dir += "_fb"
     if config.augment:
-        dir += "_augment"
+        dir += "_aug"
     if config.mixup is not None:
         dir += f"_mixup={config.mixup}"
     if config.rand_ecg != "":
-        dir += f"_randecg={config.rand_ecg}"
+        dir += f"_rand={config.rand_ecg}"
+
+    # check prediction parameters
+    if config.seq_len is not None:
+        dir += f"_seq={config.seq_len}"
+    if config.label_len is not None:
+        dir += f"_lab={config.label_len}"
+    if config.pred_len is not None:
+        dir += f"_pred={config.pred_len}"
 
     # check patch parameters
     if config.use_patch:
-        if "patch_len" in config.keys():
-            dir += f"_patch={config.patch_len}"
-        if "stride" in config.keys():
-            dir += f"_stride={config.stride}"
-        if "masking_ratio" in config.keys() and config.masking_ratio > 0:
+        assert config.patch_len is not None
+        assert config.stride is not None
+        dir += f"_patch={config.patch_len}"
+        dir += f"_stride={config.stride}"
+
+        if config.masking_ratio > 0:
             dir += f"_mratio={config.masking_ratio}"
         if "masking_ratio_pretraining" in config.keys():
             dir += f"_mratiopre={config.masking_ratio_pretraining}"
@@ -42,58 +55,71 @@ def check_config(config):
     if config.task in ["classification", "finetuning"]:
         assert config.masking_ratio == 0
 
-    if "mean_mask_length" in config.keys():
-        dir += f"_mlen={config.mean_mask_length}"
+    if config.mean_mask_length is not None:
+        dir += f"_mmlen={config.mean_mask_length}"
 
     # check training parameters
-    if "batch_size" in config.keys():
+    if config.batch_size is not None:
         dir += f"_bs={config.batch_size}"
-    if "optimizer" in config.keys():
+    if config.optimizer is not None:
         dir += f"_opt={config.optimizer}"
-    if "scheduler" in config.keys():
-        dir += f"_sched={config.scheduler}"
-    if "lr" in config.keys():
+    if config.scheduler is not None:
+        dir += f"_sch={config.scheduler}"
+    if config.lr is not None:
         dir += f"_lr={config.lr}"
-    if "weight_decay" in config.keys():
+    if config.weight_decay is not None:
         dir += f"_wd={config.weight_decay}"
 
     # check transformer parameters
     if config.mae:
-        if "enc_d_model" in config.keys():
-            dir += f"_encdmodel={config.enc_d_model}"
-        if "enc_d_ff" in config.keys():
-            dir += f"_encdff={config.enc_d_ff}"
-        if "enc_num_layers" in config.keys():
-            dir += f"_encnlayers={config.enc_num_layers}"
-        if "enc_num_heads" in config.keys():
-            dir += f"_encnheads={config.enc_num_heads}"
-        if "dec_d_model" in config.keys():
-            dir += f"_decdmodel={config.dec_d_model}"
-        if "dec_d_ff" in config.keys():
-            dir += f"_decdff={config.dec_d_ff}"
-        if "dec_num_layers" in config.keys():
-            dir += f"_decnlayers={config.dec_num_layers}"
-        if "dec_num_heads" in config.keys():
-            dir += f"_decnheads={config.dec_num_heads}"
+        dir += "_enc"
+        if config.enc_num_layers is not None:
+            dir += f"_nlayers={config.enc_num_layers}"
+        if config.enc_num_heads is not None:
+            dir += f"_nheads={config.enc_num_heads}"
+        if config.enc_d_model is not None:
+            dir += f"_dmodel={config.enc_d_model}"
+        if config.enc_d_ff is not None:
+            dir += f"_dff={config.enc_d_ff}"
+        dir += "_dec"
+        if config.dec_num_layers is not None:
+            dir += f"_nlayers={config.dec_num_layers}"
+        if config.dec_num_heads is not None:
+            dir += f"_nheads={config.dec_num_heads}"
+        if config.dec_d_model is not None:
+            dir += f"_dmodel={config.dec_d_model}"
+        if config.dec_d_ff is not None:
+            dir += f"_dff={config.dec_d_ff}"
     else:
-        if "d_model" in config.keys():
+        if config.d_model is not None:
             dir += f"_dmodel={config.d_model}"
-        if "d_ff" in config.keys():
+        if config.d_ff is not None:
             dir += f"_dff={config.d_ff}"
-        if "num_layers" in config.keys():
+        if config.num_layers is not None:
             dir += f"_nlayers={config.num_layers}"
-        if "num_heads" in config.keys():
+        if config.num_heads is not None:
             dir += f"_nheads={config.num_heads}"
 
-    if "num_cnn" in config.keys():
+    if config.dropout is not None:
+        dir += f"_drop={config.dropout}"
+    if config.learn_pe:
+        dir += "_learnpe"
+    if config.norm is not None:
+        dir += f"_norm={config.norm}"
+    if config.activation is not None:
+        dir += f"_act={config.activation}"
+
+    if config.num_cnn is not None:
         dir += f"_numcnn={config.num_cnn}"
-    if "ch_token" in config.keys():
-        dir += f"_chtoken={config.ch_token}"
+    if config.ch_token:
+        dir += "_chtoken"
+    if config.cls_token:
+        dir += "_clstoken"
 
     # check fedformer parameters
-    if "version" in config.keys():
-        dir += f"_version={config.version}"
-    if "modes" in config.keys():
+    if config.version is not None:
+        dir += f"_vers={config.version}"
+    if config.modes is not None:
         dir += f"_modes={config.modes}"
 
     return dir
@@ -124,10 +150,10 @@ def create_output_directory(config):
     if not os.path.isdir(output_dir):
         raise ValueError(f"Root directory {output_dir} for outputs does not exist.")
     if not config.finetuning:
-        output_dir = os.path.join(output_dir, f"{config.model_name}_{config.task}")
+        output_dir = os.path.join(output_dir, config.model_name, config.task)
     else:
         output_dir = os.path.join(
-            output_dir, f"{config.model_name}_{config.task}_finetuning"
+            output_dir, config.model_name, f"{config.task}_finetuning"
         )
 
     config_description = check_config(config)
