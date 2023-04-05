@@ -8,9 +8,9 @@
 #SBATCH --mail-type=ALL
 #SBATCH --output=/storage/slurm/logs/slurm-%j.out
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
-source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
+source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
---model_name masked_autoencoder_tc \
+--model_name masked_autoencoder \
 --mae \
 --enc_num_layers 8 \
 --enc_num_heads 8 \
@@ -26,13 +26,17 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --use_patch \
 --patch_len 8 \
 --stride 8 \
+--ch_token \
 --cls_token \
 --optimizer AdamW \
 --lr 0.0001 \
 --weight_decay 0.01 \
 --epochs 500 \
---batch_size 32 \
+--batch_size 64 \
 --num_workers 4 \
 --patience 20 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
---task classification
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/etth1.yaml \
+--task forecasting \
+--seq_len 512 \
+--label_len 0 \
+--pred_len 96

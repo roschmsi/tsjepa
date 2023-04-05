@@ -4,3 +4,4 @@ root_path: "/storage/user/roschman/datasets/forecasting_datasets/weather"
 data_path: "weather.csv"
 feat_dim: 21
 features: "M"
+multilabel: false

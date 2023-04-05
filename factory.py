@@ -44,7 +44,6 @@ from models.transformer.model import (
     TSTransformerEncoder,
     TSTransformerEncoderClassifier,
 )
-from models.transformer.optimizer import RAdam
 from runner import (
     ForecastingRunner,
     SupervisedRunner,
@@ -244,48 +243,46 @@ def model_factory(config):
         )
     # patch tst with temporal encoding
     elif config.model_name == "patch_tst_t":
-        if config.task == "pretraining":
-            return PatchTransformerT(
-                c_in=config.feat_dim,
-                c_out=c_out,
-                num_patch=num_patch,
-                patch_len=config.patch_len,
-                num_layers=config.num_layers,
-                num_heads=config.num_heads,
-                d_model=config.d_model,
-                d_ff=config.d_ff,
-                dropout=config.dropout,
-                shared_embedding=config.shared_embedding,
-                norm=config.norm,
-                activation=config.activation,
-                pe="sincos",
-                learn_pe=config.learn_pe,
-                cls_token=config.cls_token,
-                task=config.task,
-                head_dropout=config.head_dropout,
-            )
+        return PatchTransformerT(
+            c_in=config.feat_dim,
+            c_out=c_out,
+            num_patch=num_patch,
+            patch_len=config.patch_len,
+            num_layers=config.num_layers,
+            num_heads=config.num_heads,
+            d_model=config.d_model,
+            d_ff=config.d_ff,
+            dropout=config.dropout,
+            shared_embedding=config.shared_embedding,
+            norm=config.norm,
+            activation=config.activation,
+            pe="sincos",
+            learn_pe=config.learn_pe,
+            cls_token=config.cls_token,
+            task=config.task,
+            head_dropout=config.head_dropout,
+        )
     # patch tst with temporal and channel encoding
     elif config.model_name == "patch_tst_tc":
-        if config.task == "pretraining":
-            return PatchTransformerTC(
-                c_in=config.feat_dim,
-                c_out=c_out,
-                num_patch=num_patch,
-                patch_len=config.patch_len,
-                num_layers=config.num_layers,
-                num_heads=config.num_heads,
-                d_model=config.d_model,
-                d_ff=config.d_ff,
-                dropout=config.dropout,
-                shared_embedding=config.shared_embedding,
-                norm=config.norm,
-                activation=config.activation,
-                pe="sincos",
-                learn_pe=config.learn_pe,
-                cls_token=config.cls_token,
-                task=config.task,
-                head_dropout=config.head_dropout,
-            )
+        return PatchTransformerTC(
+            c_in=config.feat_dim,
+            c_out=c_out,
+            num_patch=num_patch,
+            patch_len=config.patch_len,
+            num_layers=config.num_layers,
+            num_heads=config.num_heads,
+            d_model=config.d_model,
+            d_ff=config.d_ff,
+            dropout=config.dropout,
+            shared_embedding=config.shared_embedding,
+            norm=config.norm,
+            activation=config.activation,
+            pe="sincos",
+            learn_pe=config.learn_pe,
+            cls_token=config.cls_token,
+            task=config.task,
+            head_dropout=config.head_dropout,
+        )
     # masked autoencoder with channel independence
     elif config.model_name == "masked_autoencoder":
         if config.task == "pretraining":
