@@ -1,0 +1,7 @@
+dataset: "electricity"
+dataset_class: "custom"
+root_path: "/storage/user/roschman/datasets/forecasting_datasets/electricity"
+data_path: "electricity.csv"
+feat_dim: 321
+features: "M"
+multilabel: false

@@ -1,0 +1,7 @@
+dataset: "ettm2"
+dataset_class: "ETTm2"
+root_path: "/storage/user/roschman/datasets/forecasting_datasets/ETT-small"
+data_path: "ETTm2.csv"
+feat_dim: 7
+features: "M"
+multilabel: false
