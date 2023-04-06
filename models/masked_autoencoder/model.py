@@ -90,20 +90,22 @@ class MAEEncoder(nn.Module):
         # x: [bs x num_patch x nvars x d_model]
         x = x.transpose(1, 2)
         # x: [bs x nvars x num_patch x d_model]
-        x = torch.reshape(x, (bs * n_vars, num_patch, self.enc_d_model))
+        x = x.reshape(bs * n_vars, num_patch, self.enc_d_model)
         # x: [bs * nvars x num_patch x d_model]
 
         # add positional encoding
         encoder_pos_embed = self.encoder_pos_embed.expand(bs * n_vars, -1, -1)
         if target_masks is not None:
+            # inverse target mask: 0 is keep, 1 is remove --> thus inverse
+            target_masks = ~target_masks.bool()
             # target_masks: [bs x num_patch x n_vars]
             target_masks = target_masks.transpose(1, 2)
-            target_masks = target_masks.reshape(bs * n_vars, num_patch)
+            target_masks = target_masks.reshape(bs * n_vars, -1)
             # target_masks: [bs * n_vars x num_patch]
             target_masks = target_masks.unsqueeze(-1).expand(-1, -1, self.enc_d_model)
             # target_masks: [bs * n_vars x num_patch x d_model]
             encoder_pos_embed = encoder_pos_embed[target_masks.bool()].reshape(
-                bs * n_vars, num_patch, self.enc_d_model
+                bs * n_vars, -1, self.enc_d_model
             )
 
         x = self.dropout(x + encoder_pos_embed)

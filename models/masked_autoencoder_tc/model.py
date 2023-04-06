@@ -92,6 +92,8 @@ class MAEEncoder(nn.Module):
         # add positional encoding
         encoder_pos_embed = self.encoder_pos_embed.expand(bs, -1, -1)
         if target_masks is not None:
+            # inverse target mask
+            target_masks = ~target_masks.bool()
             # target_masks: [bs x num_patch x n_vars]
             target_masks = target_masks.reshape(bs, num_patch * n_vars)
             # target_masks: [bs x num_patch * n_vars]
