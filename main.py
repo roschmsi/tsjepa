@@ -190,12 +190,10 @@ def main(config):
     )
 
     if config.test:
+        logger.info("Test performance:")
         aggr_metrics_test, _ = test_evaluator.evaluate()
-
-        print_str = "Test Summary: "
         for k, v in aggr_metrics_test.items():
-            print_str += "{}: {:8f} | ".format(k, v)
-        logger.info(print_str)
+            logger.info(f"{k}: {v}")
 
         return
 

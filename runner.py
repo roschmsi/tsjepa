@@ -401,8 +401,6 @@ class UnsupervisedPatchRunner(BaseRunner):
             # (num_active,) individual loss (square error per element) for each active value in batch
             batch_loss = self.criterion(predictions, targets, target_masks)
 
-            print(batch_loss)
-
             self.optimizer.zero_grad()
             batch_loss.backward()
             # torch.nn.utils.clip_grad_value_(self.model.parameters(), clip_value=1.0)
@@ -447,10 +445,7 @@ class UnsupervisedPatchRunner(BaseRunner):
                 ids_restore = ids_restore.to(self.device)
 
                 predictions = self.model(
-                    X_kept,
-                    padding_masks,
-                    padding_masks_kept,
-                    ids_restore,
+                    X_kept, padding_masks, padding_masks_kept, ids_restore, target_masks
                 )
             else:
                 X = X.to(self.device)
