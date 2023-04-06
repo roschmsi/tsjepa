@@ -9,7 +9,15 @@ from data.fc_dataset import load_fc_dataset
 def load_dataset(config):
     if config.dataset in ["ecg", "ptb-xl"]:
         return load_ecg_dataset(config)
-    elif config.dataset in ["etth1", "ettm1", "traffic", "weather"]:
+    elif config.dataset in [
+        "etth1",
+        "etth2",
+        "ettm1",
+        "ettm2",
+        "illness",
+        "traffic",
+        "weather",
+    ]:
         return load_fc_dataset(config)
     else:
         raise ValueError("Dataset type is not specified")

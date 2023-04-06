@@ -139,7 +139,7 @@ def pipeline_factory(config):
 
 
 def model_factory(config):
-    if "seq_len" in config.keys():
+    if config.seq_len is not None:
         max_seq_len = config.seq_len
     else:
         max_seq_len = config.window * config.fs
@@ -253,7 +253,6 @@ def model_factory(config):
             d_model=config.d_model,
             d_ff=config.d_ff,
             dropout=config.dropout,
-            shared_embedding=config.shared_embedding,
             norm=config.norm,
             activation=config.activation,
             pe="sincos",
@@ -344,7 +343,6 @@ def model_factory(config):
                 dec_d_model=config.dec_d_model,
                 dec_d_ff=config.dec_d_ff,
                 dropout=config.dropout,
-                shared_embedding=config.shared_embedding,
                 norm=config.norm,
                 activation=config.activation,
                 pe="sincos",
@@ -444,13 +442,13 @@ def scheduler_factory(config, optimizer, iters_per_epoch):
         scheduler = torch.optim.lr_scheduler.StepLR(
             optimizer=optimizer, step_size=10, gamma=0.1
         )
-    elif config.scheduler == "CosineAnnealingWarmRestarts":
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer=optimizer, T_0=10
-        )
     elif config.scheduler == "CosineAnnealingLR":
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer=optimizer, T_max=config.epochs * iters_per_epoch
+        )
+    elif config.scheduler == "CosineAnnealingWarmRestarts":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer=optimizer, T_0=50
         )
     else:
         scheduler = None
