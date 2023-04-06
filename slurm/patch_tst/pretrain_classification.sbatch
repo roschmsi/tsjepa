@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="pretrain patch tst"
+#SBATCH --job-name="pretrain patch tst classification"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -20,14 +20,14 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --norm BatchNorm \
 --activation gelu \
 --head_dropout 0.1 \
---masking_ratio 0.5 \
+--masking_ratio 0.3 \
 --use_patch \
 --patch_len 8 \
 --stride 8 \
---ch_token \
 --cls_token \
 --optimizer AdamW \
 --lr 0.0001 \
+--scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
 --epochs 500 \
 --batch_size 64 \

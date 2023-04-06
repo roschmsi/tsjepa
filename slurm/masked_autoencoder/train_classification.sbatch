@@ -21,6 +21,9 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --dec_d_model 256 \
 --dec_d_ff 512 \
 --dropout 0.1 \
+--shared_embedding \
+--norm BatchNorm \
+--activation gelu \
 --head_dropout 0.1 \
 --masking_ratio 0 \
 --use_patch \
@@ -30,6 +33,7 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --cls_token \
 --optimizer AdamW \
 --lr 0.0001 \
+--scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
 --epochs 500 \
 --batch_size 64 \

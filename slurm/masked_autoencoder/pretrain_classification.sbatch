@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="train masked autoencoder"
+#SBATCH --job-name="pretrain masked autoencoder"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -12,31 +12,32 @@ source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --model_name masked_autoencoder \
 --mae \
---enc_num_layers 3 \
---enc_num_heads 16 \
---enc_d_model 128 \
---enc_d_ff 256 \
---dec_num_layers 1 \
---dec_num_heads 16 \
---dec_d_model 128 \
---dec_d_ff 256 \
+--enc_num_layers 8 \
+--enc_num_heads 8 \
+--enc_d_model 256 \
+--enc_d_ff 512 \
+--dec_num_layers 2 \
+--dec_num_heads 8 \
+--dec_d_model 256 \
+--dec_d_ff 512 \
 --dropout 0.1 \
+--shared_embedding \
+--norm BatchNorm \
+--activation gelu \
 --head_dropout 0.1 \
---masking_ratio 0 \
+--masking_ratio 0.7 \
 --use_patch \
 --patch_len 8 \
 --stride 8 \
 --ch_token \
 --cls_token \
 --optimizer AdamW \
---lr 0.00001 \
+--lr 0.0001 \
+--scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
 --epochs 500 \
 --batch_size 64 \
 --num_workers 4 \
---patience 20 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
---task forecasting \
---seq_len 512 \
---label_len 0 \
---pred_len 96
+--patience 100 \
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
+--task pretraining

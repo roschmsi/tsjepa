@@ -25,14 +25,14 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --patch_len 16 \
 --stride 8 \
 --optimizer AdamW \
---lr 0.0001 \
+--lr 0.00001 \
 --scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
 --epochs 100 \
---batch_size 64 \
+--batch_size 128 \
 --num_workers 4 \
 --patience 20 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/weather.yaml \
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm2.yaml \
 --task forecasting \
 --seq_len 512 \
 --label_len 0 \
