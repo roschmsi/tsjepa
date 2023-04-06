@@ -16,9 +16,11 @@ class ClassificationHead(nn.Module):
         """
         # extract class token
         x = x[:, :, :, 0]
-        x = self.flatten(x)  # x: bs x nvars * d_model
+        x = self.flatten(x)
+        # x: bs x nvars * d_model
         x = self.dropout(x)
-        y = self.linear(x)  # y: bs x n_classes
+        y = self.linear(x)
+        # y: bs x n_classes
         return y
 
 

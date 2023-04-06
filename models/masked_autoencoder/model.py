@@ -96,11 +96,14 @@ class MAEEncoder(nn.Module):
         # add positional encoding
         encoder_pos_embed = self.encoder_pos_embed.expand(bs * n_vars, -1, -1)
         if target_masks is not None:
+            # target_masks: [bs x num_patch x n_vars]
             target_masks = target_masks.transpose(1, 2)
-            target_masks = target_masks.reshape(bs * n_vars, -1)
+            target_masks = target_masks.reshape(bs * n_vars, num_patch)
+            # target_masks: [bs * n_vars x num_patch]
             target_masks = target_masks.unsqueeze(-1).expand(-1, -1, self.enc_d_model)
+            # target_masks: [bs * n_vars x num_patch x d_model]
             encoder_pos_embed = encoder_pos_embed[target_masks.bool()].reshape(
-                bs * n_vars, -1, self.enc_d_model
+                bs * n_vars, num_patch, self.enc_d_model
             )
 
         x = self.dropout(x + encoder_pos_embed)
@@ -200,8 +203,10 @@ class MAEDecoder(nn.Module):
             x = x[:, 1:, :]
 
         # append and unshuffle mask tokens
-        bs, length, ch = ids_restore.shape
-        ids_restore = ids_restore.transpose(1, 2).reshape(bs * ch, length)
+        bs, num_patch, ch = ids_restore.shape
+        # ids_restore: [bs x num_patch x n_vars]
+        ids_restore = ids_restore.transpose(1, 2).reshape(bs * ch, num_patch)
+        # ids_restore: [bs * n_vars x num_patch]
         mask_tokens = self.mask_token.repeat(
             x.shape[0], ids_restore.shape[1] - x.shape[1], 1
         )
@@ -234,7 +239,7 @@ class MAEDecoder(nn.Module):
         if self.cls_token:
             x = x[:, 1:, :]
 
-        x = x.reshape(bs, ch, length, -1).transpose(1, 2)
+        x = x.reshape(bs, ch, num_patch, -1).transpose(1, 2)
         # x: [bs x num_patch x n_vars x patch_len]
 
         return x
@@ -394,12 +399,12 @@ class MaskedAutoencoderPredictor(nn.Module):
         else:
             raise ValueError(f"Task {task} not defined.")
 
-    def forward(self, imgs, padding_mask_kept):
-        latent = self.encoder(imgs, padding_mask_kept=padding_mask_kept)
+    def forward(self, imgs, padding_mask):
+        bs, num_patch, n_vars, patch_len = imgs.shape
+
+        latent = self.encoder(imgs, padding_mask=padding_mask)
         # latent: [bs * nvars x num_patch x d_model]
-        latent = torch.reshape(
-            latent, (imgs.shape[0], -1, latent.shape[1], latent.shape[2])
-        )
+        latent = torch.reshape(latent, (bs, n_vars, num_patch, -1))
         # latent: [bs x nvars x num_patch x d_model]
 
         # remove ch token and cls token

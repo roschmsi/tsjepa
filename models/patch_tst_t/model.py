@@ -21,47 +21,47 @@ class PredictionHead(nn.Module):
         self.n_vars = n_vars
         self.flatten = flatten
         head_dim = d_model * num_patch
+        self.forecast_len = forecast_len
 
         self.flatten = nn.Flatten(start_dim=-2)
-        self.linear = nn.Linear(head_dim, forecast_len)
+        self.linear = nn.Linear(head_dim, forecast_len * n_vars)
         self.dropout = nn.Dropout(head_dropout)
 
     def forward(self, x):
         """
-        x: [bs x nvars x d_model x num_patch]
+        x: [bs x num_patch x d_model]
         output: [bs x forecast_len x nvars]
         """
-        if self.individual:
-            x_out = []
-            for i in range(self.n_vars):
-                z = self.flattens[i](x[:, i, :, :])  # z: [bs x d_model * num_patch]
-                z = self.linears[i](z)  # z: [bs x forecast_len]
-                z = self.dropouts[i](z)
-                x_out.append(z)
-            x = torch.stack(x_out, dim=1)  # x: [bs x nvars x forecast_len]
-        else:
-            x = self.flatten(x)  # x: [bs x nvars x (d_model * num_patch)]
-            x = self.dropout(x)
-            x = self.linear(x)  # x: [bs x nvars x forecast_len]
-        return x.transpose(2, 1)  # [bs x forecast_len x nvars]
+        x = self.flatten(x)
+        # x: [bs x num_patch * d_model]
+        x = self.dropout(x)
+        x = self.linear(x)
+        # x: [bs x forecast_len * n_vars]
+        x = x.reshape(-1, self.forecast_len, self.n_vars)
+        # x: [bs x forecast_len x nvars]
+
+        return x
 
 
 class PretrainHead(nn.Module):
     def __init__(self, d_model, patch_len, nvars, dropout):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
-        self.linear = nn.Linear(d_model, patch_len * nvars)
+        self.linear = nn.Linear(d_model, nvars * patch_len)
         self.nvars = nvars
         self.patch_len = patch_len
 
     def forward(self, x):
         """
-        x: tensor [bs x nvars x d_model x num_patch]
+        x: tensor [bs x num_patch x d_model]
         output: tensor [bs x nvars x num_patch x patch_len]
         """
         bs, num_patch, d_model = x.shape
-        x = self.linear(self.dropout(x))  # [bs x nvars x num_patch x patch_len]
+        x = self.linear(self.dropout(x))
+        # x: [bs x num_patch x n_vars * patch_len]
         x = torch.reshape(x, (bs, num_patch, self.nvars, self.patch_len))
+        # x: [bs x num_patch x n_vars x patch_len]
+
         return x
 
 
@@ -78,8 +78,11 @@ class ClassificationHead(nn.Module):
         """
         # extract class token
         x = x[:, 0, :]
+        # x: [bs x d_model]
         x = self.dropout(x)
-        y = self.linear(x)  # y: bs x n_classes
+        y = self.linear(x)
+        # y: [bs x n_classes]
+
         return y
 
 
@@ -253,8 +256,5 @@ class PatchTSTEncoder(nn.Module):
         if self.task != "classification" and self.cls_token is not None:
             z = z[:, 1:, :]
         # z: [bs x num_patch x d_model]
-        if self.task == "forecasting":
-            z = z.reshape(bs, num_patch, n_vars, -1)
-            z = z.permute(0, 2, 3, 1)
 
         return z

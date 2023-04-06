@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from models.patch_tst.layers.encoder import TSTEncoder
 from models.patch_tst.layers.pos_encoding import positional_encoding
-from models.patch_tst_t.model import ClassificationHead
+from models.patch_tst_t.model import ClassificationHead, PredictionHead
 
 
 class MAEEncoder(nn.Module):
@@ -16,7 +16,6 @@ class MAEEncoder(nn.Module):
         enc_d_model: int,
         enc_d_ff: int,
         dropout: float,
-        shared_embedding=True,
         norm: str = "BatchNorm",
         pre_norm: bool = False,
         activation: str = "gelu",
@@ -28,7 +27,6 @@ class MAEEncoder(nn.Module):
         store_attn: bool = False,
     ):
         super().__init__()
-        self.shared_embedding = shared_embedding
         self.enc_d_model = enc_d_model
 
         # input encoding
@@ -69,16 +67,18 @@ class MAEEncoder(nn.Module):
 
         # input encoding
         x = self.W_P(x)
-
         # x: [bs x num_patch x d_model]
 
         # add positional encoding
         encoder_pos_embed = self.encoder_pos_embed.expand(bs, -1, -1)
         if target_masks is not None:
+            # target_masks: [bs x num_patch x n_vars], all n_vars are the same
             target_masks = target_masks[:, :, 0]
+            # target_masks: [bs x num_patch]
             target_masks = target_masks.unsqueeze(-1).expand(-1, -1, self.enc_d_model)
+            # target_masks: [bs x num_patch x d_model]
             encoder_pos_embed = encoder_pos_embed[target_masks.bool()].reshape(
-                bs, -1, self.enc_d_model
+                bs, num_patch, self.enc_d_model
             )
 
         x = self.dropout(x + encoder_pos_embed)
@@ -107,7 +107,6 @@ class MAEDecoder(nn.Module):
         dec_d_model: int,
         dec_d_ff: int,
         dropout: float,
-        shared_embedding=True,
         norm: str = "BatchNorm",
         pre_norm: bool = False,
         activation: str = "gelu",
@@ -150,7 +149,7 @@ class MAEDecoder(nn.Module):
             store_attn=store_attn,
         )
 
-        self.decoder_pred = nn.Linear(dec_d_model, patch_len * c_in)
+        self.decoder_pred = nn.Linear(dec_d_model, c_in * patch_len)
 
     def forward(self, lat, ids_restore, padding_mask):
         # embed latent tokens
@@ -164,7 +163,7 @@ class MAEDecoder(nn.Module):
             x = x[:, 1:, :]
 
         # append and unshuffle mask tokens
-        bs, length, ch = ids_restore.shape
+        bs, num_patch, ch = ids_restore.shape
         # ids_restore = ids_restore.transpose(1, 2).reshape(bs * ch, length)
         mask_tokens = self.mask_token.repeat(
             x.shape[0], ids_restore.shape[1] - x.shape[1], 1
@@ -172,6 +171,7 @@ class MAEDecoder(nn.Module):
 
         x = torch.cat([x, mask_tokens], dim=1)
         ids_restore = ids_restore[:, :, 0]
+        # ids_restore: [bs * num_patch]
         x = torch.gather(
             x, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2])
         )
@@ -195,7 +195,7 @@ class MAEDecoder(nn.Module):
         if self.cls_token:
             x = x[:, 1:, :]
 
-        x = x.reshape(bs, length, ch, -1)
+        x = x.reshape(bs, num_patch, ch, -1)
         # x: [bs x num_patch x n_vars x patch_len]
 
         return x
@@ -217,7 +217,6 @@ class MaskedAutoencoderT(nn.Module):
         dec_d_model: int,
         dec_d_ff: int,
         dropout: float,
-        shared_embedding=True,
         norm: str = "BatchNorm",
         pre_norm: bool = False,
         activation: str = "gelu",
@@ -239,7 +238,6 @@ class MaskedAutoencoderT(nn.Module):
             enc_d_model=enc_d_model,
             enc_d_ff=enc_d_ff,
             dropout=dropout,
-            shared_embedding=shared_embedding,
             norm=norm,
             pre_norm=pre_norm,
             activation=activation,
@@ -261,7 +259,6 @@ class MaskedAutoencoderT(nn.Module):
             dec_d_model=dec_d_model,
             dec_d_ff=dec_d_ff,
             dropout=dropout,
-            shared_embedding=shared_embedding,
             norm=norm,
             pre_norm=pre_norm,
             activation=activation,
@@ -293,7 +290,6 @@ class MaskedAutoencoderTPredictor(nn.Module):
         enc_d_model: int,
         enc_d_ff: int,
         dropout: float,
-        shared_embedding=True,
         norm: str = "BatchNorm",
         pre_norm: bool = False,
         activation: str = "gelu",
@@ -320,7 +316,6 @@ class MaskedAutoencoderTPredictor(nn.Module):
             enc_d_model=enc_d_model,
             enc_d_ff=enc_d_ff,
             dropout=dropout,
-            shared_embedding=shared_embedding,
             norm=norm,
             pre_norm=pre_norm,
             activation=activation,

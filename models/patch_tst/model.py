@@ -100,7 +100,8 @@ class PatchTST(nn.Module):
         """
         z: tensor [bs x num_patch x n_vars x patch_len]
         """
-        z = self.backbone(z.float())  # z: [bs x nvars x d_model x num_patch]
+        z = self.backbone(z.float())
+        # z: [bs x nvars x d_model x num_patch]
         z = self.head(z)
         # z: [bs x target_dim x nvars] for prediction
         #    [bs x target_dim] for regression
