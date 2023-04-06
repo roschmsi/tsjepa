@@ -190,7 +190,7 @@ class PatchTSTEncoder(nn.Module):
         # x: [bs x num_patch x nvars x d_model]
         x = x.transpose(1, 2)
         # x: [bs x nvars x num_patch x d_model]
-        x = torch.reshape(x, (bs * n_vars, num_patch, self.d_model))
+        x = x.reshape(bs * n_vars, num_patch, self.d_model)
         # x: [bs * nvars x num_patch x d_model]
 
         # add positional encoding
