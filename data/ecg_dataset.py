@@ -161,6 +161,10 @@ class ECGDataset(Dataset):
         ]  # get start indices of ecg segment
         data = data[:, start : start + self.window * self.fs]
 
+        if data.shape[1] < self.window * self.fs:
+            missing_len = self.window * self.fs - data.shape[1]
+            data = np.concatenate([data, np.zeros((12, missing_len))], 1)
+
         if self.augment and random.random() < self.augmentation_prob:
             data = np.expand_dims(data.transpose(), 0)
             data = augment(
