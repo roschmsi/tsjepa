@@ -95,7 +95,7 @@ class MAEEncoder(nn.Module):
             # inverse target mask
             target_masks = ~target_masks.bool()
             # target_masks: [bs x num_patch x n_vars]
-            target_masks = target_masks.reshape(bs, num_patch * n_vars)
+            target_masks = target_masks.reshape(bs, -1)
             # target_masks: [bs x num_patch * n_vars]
             target_masks = target_masks.unsqueeze(-1).expand(-1, -1, self.enc_d_model)
             encoder_pos_embed = encoder_pos_embed[target_masks.bool()].reshape(
@@ -107,7 +107,6 @@ class MAEEncoder(nn.Module):
         x = x.reshape(bs, num_patch * n_vars, self.enc_d_model)
 
         # append cls token
-        encoder_pos_embed = self.encoder_pos_embed
         if self.cls_token is not None:
             cls_token = self.cls_token.expand(bs, -1, -1)
             x = torch.cat((cls_token, x), dim=1)

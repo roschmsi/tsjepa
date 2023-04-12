@@ -235,7 +235,7 @@ class PatchTSTEncoder(nn.Module):
     def forward(self, x, padding_mask=None):
         bs, num_patch, n_vars, patch_len = x.shape
 
-        x = torch.reshape(x, (bs, num_patch, n_vars * patch_len))
+        x = x.reshape(bs, num_patch, n_vars * patch_len)
 
         # input encoding
         x = self.W_P(x)

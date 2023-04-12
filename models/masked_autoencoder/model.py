@@ -359,6 +359,7 @@ class MaskedAutoencoderPredictor(nn.Module):
         self.task = task
         self.cls_token = cls_token
         self.ch_token = ch_token
+        self.enc_d_model = enc_d_model
 
         self.encoder = MAEEncoder(
             c_in=c_in,
@@ -406,7 +407,7 @@ class MaskedAutoencoderPredictor(nn.Module):
 
         latent = self.encoder(imgs, padding_mask=padding_mask)
         # latent: [bs * nvars x num_patch x d_model]
-        latent = torch.reshape(latent, (bs, n_vars, num_patch, -1))
+        latent = latent.reshape(bs, n_vars, -1, self.enc_d_model)
         # latent: [bs x nvars x num_patch x d_model]
 
         # remove ch token and cls token
