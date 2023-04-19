@@ -212,7 +212,7 @@ def main(config):
     ):
         # option to unfreeze entire model after initial linear probing
         if "freeze" in config.keys():
-            if config.freeze and epoch >= config.freeze_epochs:
+            if config.freeze and epoch > config.freeze_epochs:
                 for name, param in model.named_parameters():
                     param.requires_grad = True
 
@@ -302,7 +302,6 @@ def main(config):
             probs = []
 
             for batch in val_loader:
-
                 X, targets, padding_masks = batch
                 X = X.to(device)
                 targets = targets.to(device)

@@ -77,10 +77,12 @@ class Options(object):
         # model modes
         self.parser.add_argument("--load_model", help="Path to pre-trained model.")
         self.parser.add_argument("--resume", action="store_true")
-        self.parser.add_argument("--freeze", action="store_true")
         self.parser.add_argument("--test", action="store_true")
         self.parser.add_argument("--debug", action="store_true")
         self.parser.add_argument("--finetuning", action="store_true")
+
+        self.parser.add_argument("--freeze", action="store_true")
+        self.parser.add_argument("--freeze_epochs", type=int)
 
         # task
         self.parser.add_argument(

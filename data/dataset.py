@@ -17,6 +17,7 @@ def load_dataset(config):
         "illness",
         "traffic",
         "weather",
+        "electricity",
     ]:
         return load_fc_dataset(config)
     else:

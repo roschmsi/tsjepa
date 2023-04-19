@@ -34,11 +34,9 @@ def check_config(config):
 
     # check prediction parameters
     if config.seq_len is not None:
-        dir += f"_seq={config.seq_len}"
-    if config.label_len is not None:
-        dir += f"_lab={config.label_len}"
+        dir += f"_sl={config.seq_len}"
     if config.pred_len is not None:
-        dir += f"_pred={config.pred_len}"
+        dir += f"_pl={config.pred_len}"
 
     # check patch parameters
     if config.use_patch:
@@ -69,6 +67,9 @@ def check_config(config):
         dir += f"_lr={config.lr}"
     if config.weight_decay is not None:
         dir += f"_wd={config.weight_decay}"
+
+    if config.freeze:
+        dir += f"_fr={config.freeze_epochs}"
 
     # check transformer parameters
     if config.mae:
@@ -272,11 +273,7 @@ def load_model(
 
     if change_output:
         for key, _ in checkpoint["model_state_dict"].items():
-            if (
-                key.startswith("head")
-                or key.startswith("decoder")
-                or key.startswith("encoder_pos_embed")
-            ):
+            if key.startswith("head") or key.startswith("decoder"):
                 model_state_dict.pop(key)
 
     missing_keys, unexpected_keys = model.load_state_dict(
@@ -303,7 +300,6 @@ class Printer(object):
     """Class for printing output by refreshing the same line in the console, e.g. for indicating progress of a process"""
 
     def __init__(self, console=True):
-
         if console:
             self.print = self.dyn_print
         else:
