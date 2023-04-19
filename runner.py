@@ -286,7 +286,9 @@ class ForecastingRunner(BaseRunner):
     def train_epoch(self, epoch_num=None):
 
         self.model = self.model.train()
+        l1_loss = torch.nn.L1Loss(reduction="mean")
 
+        epoch_mae = 0
         epoch_loss = 0
 
         for batch in self.dataloader:
@@ -314,11 +316,16 @@ class ForecastingRunner(BaseRunner):
             loss.backward()
             self.optimizer.step()
 
+            # mse
             epoch_loss += loss.item()
+
+            # mae
+            epoch_mae += l1_loss(predictions, targets).item()
 
         # average loss per sample for whole epoch
         self.epoch_metrics["epoch"] = epoch_num
         self.epoch_metrics["loss"] = epoch_loss / len(self.dataloader)
+        self.epoch_metrics["mae"] = epoch_mae / len(self.dataloader)
 
         if self.scheduler:
             self.scheduler.step()
@@ -328,8 +335,10 @@ class ForecastingRunner(BaseRunner):
     def evaluate(self, epoch_num=None):
 
         self.model = self.model.eval()
+        l1_loss = torch.nn.L1Loss(reduction="mean")
 
         epoch_loss = 0
+        epoch_mae = 0
 
         for batch in self.dataloader:
 
@@ -342,10 +351,12 @@ class ForecastingRunner(BaseRunner):
             loss = self.criterion(predictions, targets)
 
             epoch_loss += loss.item()
+            epoch_mae += l1_loss(predictions, targets).item()
 
         # average loss per element for whole epoch
         self.epoch_metrics["epoch"] = epoch_num
         self.epoch_metrics["loss"] = epoch_loss / len(self.dataloader)
+        self.epoch_metrics["mae"] = epoch_mae / len(self.dataloader)
 
         return self.epoch_metrics
 
