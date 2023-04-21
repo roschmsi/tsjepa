@@ -12,4 +12,4 @@ output_some_results
 output_fc
 ecg_results_finetuning.png
 ettm1_results_finetuning.png
-.vscode
+.vscode/
