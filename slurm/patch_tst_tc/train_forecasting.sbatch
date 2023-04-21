@@ -16,23 +16,25 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --d_model 128 \
 --d_ff 256 \
 --dropout 0.2 \
---norm BatchNorm \
+--shared_embedding \
+--norm LayerNorm \
 --activation gelu \
 --head_dropout 0 \
 --masking_ratio 0 \
 --use_patch \
 --patch_len 16 \
 --stride 8 \
+--ch_token \
 --optimizer AdamW \
 --lr 0.00001 \
 --scheduler CosineAnnealingLR \
---weight_decay 0.01 \
+--weight_decay 0.1 \
 --epochs 100 \
---batch_size 128 \
+--batch_size 64 \
 --num_workers 4 \
 --patience 20 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
 --task forecasting \
---seq_len 720 \
+--seq_len 512 \
 --label_len 0 \
 --pred_len 96

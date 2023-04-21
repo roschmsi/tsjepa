@@ -13,8 +13,8 @@ source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --model_name cnn_encoder \
 --num_cnn 5 \
---d_model 256 \
---dropout 0.1 \
+--d_model 64 \
+--dropout 0.2 \
 --optimizer AdamW \
 --lr 0.0001 \
 --weight_decay 0.01 \

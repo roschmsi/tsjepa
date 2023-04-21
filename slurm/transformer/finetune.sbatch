@@ -9,7 +9,7 @@
 #SBATCH --output=/storage/slurm/logs/slurm-%j.out
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 #SBATCH --no-requeue
-source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
+source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --model_name transformer \
 --num_layers 8 \
@@ -25,7 +25,7 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --epochs 500 \
 --batch_size 64 \
 --num_workers 4 \
---patience 100 \
+--patience 50 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
 --task classification \
 --finetuning \

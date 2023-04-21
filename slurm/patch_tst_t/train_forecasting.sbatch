@@ -11,24 +11,25 @@
 source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --model_name patch_tst_t \
---num_layers 8 \
---num_heads 8 \
---d_model 256 \
---d_ff 512 \
+--num_layers 3 \
+--num_heads 16 \
+--d_model 128 \
+--d_ff 256 \
 --dropout 0.2 \
 --norm BatchNorm \
 --activation gelu \
---head_dropout 0 \
+--head_dropout 0.2 \
 --masking_ratio 0 \
 --use_patch \
 --patch_len 16 \
 --stride 8 \
+--ch_token \
 --optimizer AdamW \
---lr 0.0001 \
+--lr 0.00001 \
 --scheduler CosineAnnealingLR \
---weight_decay 0.01 \
+--weight_decay 0.1 \
 --epochs 100 \
---batch_size 128 \
+--batch_size 64 \
 --num_workers 4 \
 --patience 20 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \

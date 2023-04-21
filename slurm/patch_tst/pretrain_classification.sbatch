@@ -20,11 +20,12 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --norm BatchNorm \
 --activation gelu \
 --head_dropout 0.1 \
---masking_ratio 0.3 \
+--masking_ratio 0.5 \
 --use_patch \
---patch_len 8 \
+--patch_len 16 \
 --stride 8 \
 --cls_token \
+--ch_token \
 --optimizer AdamW \
 --lr 0.0001 \
 --scheduler CosineAnnealingLR \
@@ -32,6 +33,6 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --epochs 500 \
 --batch_size 64 \
 --num_workers 4 \
---patience 100 \
+--patience 50 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
 --task pretraining

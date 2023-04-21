@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="finetune patch tst"
+#SBATCH --job-name="finetune masked autoencoder tc"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -10,11 +10,16 @@
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
---model_name patch_tst \
---num_layers 3 \
---num_heads 16 \
---d_model 128 \
---d_ff 256 \
+--model_name masked_autoencoder_tc \
+--mae \
+--enc_num_layers 3 \
+--enc_num_heads 16 \
+--enc_d_model 128 \
+--enc_d_ff 256 \
+--dec_num_layers 1 \
+--dec_num_heads 16 \
+--dec_d_model 128 \
+--dec_d_ff 256 \
 --dropout 0.1 \
 --shared_embedding \
 --norm BatchNorm \
@@ -29,14 +34,14 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --lr 0.00001 \
 --scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
---epochs 100 \
+--epochs 500 \
 --batch_size 64 \
 --num_workers 4 \
---patience 20 \
+--patience 50 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
 --task forecasting \
 --seq_len 512 \
 --label_len 0 \
 --pred_len 96 \
 --finetuning \
---load_model
+--load_model 

@@ -16,29 +16,32 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --enc_num_heads 16 \
 --enc_d_model 128 \
 --enc_d_ff 256 \
---dec_num_layers 1 \
+--dec_num_layers 3 \
 --dec_num_heads 16 \
 --dec_d_model 128 \
 --dec_d_ff 256 \
 --dropout 0.1 \
+--shared_embedding \
+--norm BatchNorm \
+--activation gelu \
 --head_dropout 0.1 \
 --masking_ratio 0 \
 --use_patch \
 --patch_len 8 \
 --stride 8 \
 --ch_token \
---cls_token \
 --optimizer AdamW \
 --lr 0.00001 \
+--scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
 --epochs 500 \
 --batch_size 64 \
 --num_workers 4 \
---patience 20 \
+--patience 50 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
 --task forecasting \
 --seq_len 512 \
 --label_len 0 \
 --pred_len 96 \
 --finetuning \
---load_model
+--load_model /home/stud/roschman/ECGAnalysis/output/masked_autoencoder/pretraining/dataset=ettm1_sl=512_pl=0_patch=8_stride=8_mratio=0.5_bs=64_opt=AdamW_sch=CosineAnnealingLR_lr=1e-05_wd=0.01_enc_nlayers=3_nheads=16_dmodel=128_dff=256_dec_nlayers=3_nheads=16_dmodel=128_dff=256_drop=0.2_norm=BatchNorm_act=gelu_chtoken

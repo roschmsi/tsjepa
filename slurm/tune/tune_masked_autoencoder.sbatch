@@ -9,5 +9,5 @@
 #SBATCH --output=/storage/slurm/logs/slurm-%j.out
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 #SBATCH --no-requeue
-source /usr/stud/roschman/ECGAnalysis/ecg_analysis_env/bin/activate
+source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/tune.py --config_model /usr/stud/roschman/ECGAnalysis/models/masked_autoencoder/config_pretraining_masked_autoencoder.yaml --config_data /usr/stud/roschman/ECGAnalysis/data/ecg_dataset.yaml

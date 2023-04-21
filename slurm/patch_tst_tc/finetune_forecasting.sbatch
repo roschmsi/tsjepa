@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="finetune patch tst"
+#SBATCH --job-name="finetune patch tst tc"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -10,7 +10,7 @@
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
---model_name patch_tst \
+--model_name patch_tst_tc \
 --num_layers 3 \
 --num_heads 16 \
 --d_model 128 \
@@ -29,10 +29,10 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --lr 0.00001 \
 --scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
---epochs 100 \
+--epochs 500 \
 --batch_size 64 \
 --num_workers 4 \
---patience 20 \
+--patience 50 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
 --task forecasting \
 --seq_len 512 \

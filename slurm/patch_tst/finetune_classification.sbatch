@@ -27,13 +27,16 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --ch_token \
 --cls_token \
 --optimizer AdamW \
---lr 0.0001 \
+--lr 0.01 \
+--scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
---epochs 500 \
+--epochs 100 \
 --batch_size 64 \
 --num_workers 4 \
 --patience 20 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
 --task classification \
 --finetuning \
---load_model /home/stud/roschman/ECGAnalysis/output/patch_tst_pretraining/dataset=ecg_patch=32_stride=32_mratio=0.7_bs=64_opt=AdamW_sched=None_lr=0.0001_wd=0.01_dmodel=256_dff=512_nlayers=8_nheads=8_chtoken=True
+--freeze \
+--freeze_epochs 100 \
+--load_model /home/stud/roschman/ECGAnalysis/output/patch_tst/pretraining/dataset=ecg_patch=8_stride=8_mratio=0.5_bs=64_opt=AdamW_sch=CosineAnnealingLR_lr=0.0001_wd=0.01_dmodel=256_dff=512_nlayers=8_nheads=8_drop=0.1_norm=BatchNorm_act=gelu_chtoken_clstoken

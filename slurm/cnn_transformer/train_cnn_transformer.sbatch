@@ -13,11 +13,11 @@ source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --model_name cnn_transformer \
 --num_cnn 5 \
---num_layers 1 \
+--num_layers 4 \
 --num_heads 8 \
---d_model 256 \
---d_ff 512 \
---dropout 0.1 \
+--d_model 64 \
+--d_ff 128 \
+--dropout 0.2 \
 --cls_token \
 --optimizer AdamW \
 --lr 0.0001 \

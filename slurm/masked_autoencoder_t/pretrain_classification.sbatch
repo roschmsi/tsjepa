@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --job-name="train masked autoencoder t"
+#SBATCH --job-name="pretrain masked autoencoder t"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:1,VRAM:32G
+#SBATCH --gres=gpu:1,VRAM:16G
 #SBATCH --mem=4G
 #SBATCH --time=120:00:00
 #SBATCH --mail-type=ALL
@@ -21,20 +21,21 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --dec_d_model 256 \
 --dec_d_ff 512 \
 --dropout 0.1 \
+--norm BatchNorm \
+--activation gelu \
 --head_dropout 0.1 \
---masking_ratio 0 \
+--masking_ratio 0.9 \
 --use_patch \
 --patch_len 8 \
 --stride 8 \
 --cls_token \
 --optimizer AdamW \
 --lr 0.0001 \
+--scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
 --epochs 500 \
---batch_size 32 \
+--batch_size 64 \
 --num_workers 4 \
---patience 20 \
+--patience 50 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
---task classification \
---finetuning \
---load_model
+--task pretraining
