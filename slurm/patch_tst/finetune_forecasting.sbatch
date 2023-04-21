@@ -15,7 +15,7 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --num_heads 16 \
 --d_model 128 \
 --d_ff 256 \
---dropout 0.1 \
+--dropout 0.2 \
 --shared_embedding \
 --norm BatchNorm \
 --activation gelu \
@@ -35,8 +35,10 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --patience 20 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
 --task forecasting \
---seq_len 512 \
+--seq_len 336 \
 --label_len 0 \
---pred_len 96 \
+--pred_len 192 \
 --finetuning \
---load_model
+--freeze \
+--freeze_epochs 100 \
+--load_model /home/stud/roschman/ECGAnalysis/output/patch_tst/pretraining/dataset=ettm1_sl=336_pl=0_patch=8_stride=8_mratio=0.5_bs=64_opt=AdamW_sch=CosineAnnealingLR_lr=1e-05_wd=0.01_dmodel=128_dff=256_nlayers=3_nheads=16_drop=0.2_norm=BatchNorm_act=gelu_chtoken

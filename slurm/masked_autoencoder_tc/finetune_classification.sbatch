@@ -34,10 +34,10 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --lr 0.00001 \
 --scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
---epochs 500 \
+--epochs 100 \
 --batch_size 32 \
 --num_workers 4 \
---patience 50 \
+--patience 20 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
 --task classification \
 --finetuning \

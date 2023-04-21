@@ -10,3 +10,6 @@ old_runs
 output_intermediate_results
 output_some_results
 output_fc
+ecg_results_finetuning.png
+ettm1_results_finetuning.png
+.vscode

@@ -16,7 +16,7 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --enc_num_heads 16 \
 --enc_d_model 128 \
 --enc_d_ff 256 \
---dec_num_layers 1 \
+--dec_num_layers 3 \
 --dec_num_heads 16 \
 --dec_d_model 128 \
 --dec_d_ff 256 \
@@ -38,7 +38,7 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --batch_size 64 \
 --num_workers 4 \
 --patience 50 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/weather.yaml \
 --task pretraining \
 --seq_len 512 \
 --label_len 0 \
