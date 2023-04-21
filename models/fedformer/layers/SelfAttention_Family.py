@@ -1,3 +1,4 @@
+# Reference: https://github.com/MAZiqing/FEDformer
 from math import sqrt
 
 import numpy as np

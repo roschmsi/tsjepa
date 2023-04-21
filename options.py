@@ -50,6 +50,7 @@ class Options(object):
         self.parser.add_argument("--version", type=str)
         self.parser.add_argument("--mode_select", type=str)
         self.parser.add_argument("--modes", type=int)
+        self.parser.add_argument("--base", type=str)
         self.parser.add_argument("--moving_avg")
 
         # dataset

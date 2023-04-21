@@ -7,7 +7,6 @@ from tsaug import AddNoise, Crop, Drift, Dropout, Pool, Quantize, Reverse
 
 from data.ecg_dataset import load_ecg_dataset
 from data.fc_dataset import load_fc_dataset
-from data.uea_dataset import load_uea_dataset
 from options import Options
 from utils import seed_everything, setup
 

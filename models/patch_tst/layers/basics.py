@@ -1,3 +1,5 @@
+# Reference: https://github.com/yuqinie98/PatchTST
+
 __all__ = [
     "Transpose",
     "LinBnDrop",

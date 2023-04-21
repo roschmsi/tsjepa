@@ -1,3 +1,5 @@
+# Reference: https://github.com/yuqinie98/PatchTST
+
 import torch
 from torch import nn
 import math

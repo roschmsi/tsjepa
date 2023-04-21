@@ -171,11 +171,12 @@ def model_factory(config):
             num_heads=config.num_heads,
             d_model=config.d_model,
             d_ff=config.d_ff,
+            dropout=config.dropout,
             num_classes=config.num_classes,
             max_seq_len=max_seq_len,
-            dropout=config.dropout,
             num_cnn=config.num_cnn,
             cls_token=config.cls_token,
+            learn_pe=config.learn_pe,
         )
     elif config.model_name == "fedformer_encoder":
         config.activation = "relu"
@@ -183,7 +184,21 @@ def model_factory(config):
     elif config.model_name == "cnn_fedformer_encoder":
         return CNNFEDformerEncoder(config)
     elif config.model_name == "decomp_fedformer_encoder":
-        return DecompFEDformerEncoder(config)
+        return DecompFEDformerEncoder(
+            num_layers=config.num_layers,
+            num_heads=config.num_heads,
+            d_model=config.d_model,
+            d_ff=config.d_ff,
+            dropout=config.dropout,
+            activation=config.activation,
+            version=config.version,
+            modes=config.modes,
+            mode_select=config.mode_select,
+            seq_len=max_seq_len,
+            moving_avg=[25, 50, 100],
+            feat_dim=config.feat_dim,
+            num_classes=config.num_classes,
+        )
     elif config.model_name == "cnn_time_freq_encoder":
         return CNNTimeFreqEncoder(config)
     elif config.model_name == "cnn_decomp_time_freq_encoder":
@@ -309,7 +324,7 @@ def model_factory(config):
         elif config.task in ["classification", "forecasting"]:
             return MaskedAutoencoderPredictor(
                 c_in=config.feat_dim,
-                c_out=config.num_classes,
+                c_out=c_out,
                 num_patch=num_patch,
                 patch_len=config.patch_len,
                 enc_num_layers=config.enc_num_layers,

@@ -1,3 +1,5 @@
+# Reference: https://physionet.org/content/challenge-2020/1.0.2/
+
 import math
 
 import torch

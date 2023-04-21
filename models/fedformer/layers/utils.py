@@ -1,3 +1,4 @@
+# Reference: https://github.com/MAZiqing/FEDformer
 from functools import partial
 
 import numpy as np
@@ -21,7 +22,6 @@ def phi_(phi_c, x, lb=0, ub=1):
 
 
 def get_phi_psi(k, base):
-
     x = Symbol("x")
     phi_coeff = np.zeros((k, k))
     phi_2x_coeff = np.zeros((k, k))

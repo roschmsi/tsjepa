@@ -1,3 +1,7 @@
+# References:
+# https://github.com/facebookresearch/mae
+# https://github.com/yuqinie98/PatchTST
+
 import torch
 import torch.nn as nn
 from models.patch_tst.layers.heads import PredictionHead

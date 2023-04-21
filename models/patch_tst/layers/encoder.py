@@ -1,3 +1,5 @@
+# Reference: https://github.com/yuqinie98/PatchTST
+
 from typing import Optional
 from torch import nn
 from torch import Tensor

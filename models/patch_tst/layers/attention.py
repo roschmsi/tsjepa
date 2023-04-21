@@ -1,3 +1,5 @@
+# Reference: https://github.com/yuqinie98/PatchTST
+
 import torch
 from torch import nn
 from torch import Tensor
@@ -59,7 +61,6 @@ class MultiheadAttention(nn.Module):
         key_padding_mask: Optional[Tensor] = None,
         attn_mask: Optional[Tensor] = None,
     ):
-
         bs = Q.size(0)
         if K is None:
             K = Q

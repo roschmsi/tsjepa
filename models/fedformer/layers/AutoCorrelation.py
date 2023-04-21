@@ -1,3 +1,5 @@
+# Reference: https://github.com/MAZiqing/FEDformer
+
 import math
 import time
 

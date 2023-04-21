@@ -1,3 +1,5 @@
+# Reference: https://github.com/seitalab/RandECG
+
 from rand_ecg.augment_functions import *
 import numpy as np
 

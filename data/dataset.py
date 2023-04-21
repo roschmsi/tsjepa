@@ -1,3 +1,7 @@
+# References:
+# https://github.com/gzerveas/mvts_transformer
+# https://github.com/yuqinie98/PatchTST
+
 import numpy as np
 from torch.utils.data import Dataset
 import torch

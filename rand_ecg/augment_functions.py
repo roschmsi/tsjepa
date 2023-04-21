@@ -1,3 +1,5 @@
+# Reference: https://github.com/seitalab/RandECG
+
 import numpy as np
 from scipy import signal as scipy_signal
 import biosppy

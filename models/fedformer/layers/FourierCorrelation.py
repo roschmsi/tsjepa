@@ -1,3 +1,4 @@
+# Reference: https://github.com/MAZiqing/FEDformer
 # coding=utf-8
 # author=maziqing
 # email=maziqing.mzq@alibaba-inc.com

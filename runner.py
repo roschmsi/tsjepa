@@ -1,3 +1,5 @@
+# Reference: https://github.com/gzerveas/mvts_transformer
+
 import logging
 import os
 from collections import OrderedDict
@@ -54,7 +56,6 @@ class BaseRunner(object):
         mixup=0,
         mae=False,
     ):
-
         self.model = model
         self.dataloader = dataloader
         self.device = device
@@ -76,7 +77,6 @@ class BaseRunner(object):
         raise NotImplementedError("Please override in child class")
 
     def print_callback(self, i_batch, metrics, prefix=""):
-
         total_batches = len(self.dataloader)
 
         template = "{:5.1f}% | batch: {:9d} of {:9d}"
@@ -92,13 +92,11 @@ class BaseRunner(object):
 
 class UnsupervisedRunner(BaseRunner):
     def train_epoch(self, epoch_num=None):
-
         self.model = self.model.train()
 
         epoch_loss = 0
 
         for batch in self.dataloader:
-
             X, targets, target_masks, padding_masks = batch
             targets = targets.to(self.device)
 
@@ -131,13 +129,11 @@ class UnsupervisedRunner(BaseRunner):
         return self.epoch_metrics
 
     def evaluate(self, epoch_num=None):
-
         self.model = self.model.eval()
 
         epoch_loss = 0  # total loss of epoch
 
         for batch in self.dataloader:
-
             X, targets, target_masks, padding_masks = batch
             targets = targets.to(self.device)
 
@@ -166,7 +162,6 @@ class UnsupervisedRunner(BaseRunner):
 
 class SupervisedRunner(BaseRunner):
     def train_epoch(self, epoch_num=None):
-
         self.model = self.model.train()
 
         epoch_loss = 0  # total loss of epoch
@@ -176,7 +171,6 @@ class SupervisedRunner(BaseRunner):
         probs = []
 
         for batch in self.dataloader:
-
             X, targets, padding_masks = batch
             X = X.to(self.device)
             targets = targets.to(self.device)
@@ -234,7 +228,6 @@ class SupervisedRunner(BaseRunner):
         return self.epoch_metrics
 
     def evaluate(self, epoch_num=None):
-
         self.model = self.model.eval()
 
         epoch_loss = 0  # total loss of epoch
@@ -244,7 +237,6 @@ class SupervisedRunner(BaseRunner):
         probs = []
 
         for batch in self.dataloader:
-
             X, targets, padding_masks = batch
             X = X.to(self.device)
             targets = targets.to(self.device)
@@ -284,7 +276,6 @@ class SupervisedRunner(BaseRunner):
 
 class ForecastingRunner(BaseRunner):
     def train_epoch(self, epoch_num=None):
-
         self.model = self.model.train()
         l1_loss = torch.nn.L1Loss(reduction="mean")
 
@@ -292,7 +283,6 @@ class ForecastingRunner(BaseRunner):
         epoch_loss = 0
 
         for batch in self.dataloader:
-
             X, targets, padding_masks = batch
             X = X.to(self.device)
             targets = targets.to(self.device)
@@ -333,7 +323,6 @@ class ForecastingRunner(BaseRunner):
         return self.epoch_metrics
 
     def evaluate(self, epoch_num=None):
-
         self.model = self.model.eval()
         l1_loss = torch.nn.L1Loss(reduction="mean")
 
@@ -341,7 +330,6 @@ class ForecastingRunner(BaseRunner):
         epoch_mae = 0
 
         for batch in self.dataloader:
-
             X, targets, padding_masks = batch
             X = X.to(self.device)
             targets = targets.to(self.device)
@@ -363,13 +351,11 @@ class ForecastingRunner(BaseRunner):
 
 class UnsupervisedPatchRunner(BaseRunner):
     def train_epoch(self, epoch_num=None):
-
         self.model = self.model.train()
 
         epoch_loss = 0
 
         for batch in self.dataloader:
-
             (
                 X,
                 X_kept,
@@ -427,13 +413,11 @@ class UnsupervisedPatchRunner(BaseRunner):
         return self.epoch_metrics
 
     def evaluate(self, epoch_num=None):
-
         self.model = self.model.eval()
 
         epoch_loss = 0  # total loss of epoch
 
         for batch in self.dataloader:
-
             (
                 X,
                 X_kept,

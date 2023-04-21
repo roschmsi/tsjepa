@@ -1,3 +1,5 @@
+# Reference: https://github.com/gzerveas/mvts_transformer
+
 import torch
 import torch.nn as nn
 from torch.nn import BCEWithLogitsLoss

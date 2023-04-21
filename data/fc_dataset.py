@@ -1,3 +1,5 @@
+# Reference: https://github.com/yuqinie98/PatchTST
+
 import os
 import warnings
 from typing import List

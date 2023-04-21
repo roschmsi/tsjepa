@@ -1,3 +1,5 @@
+# Reference: https://github.com/MAZiqing/FEDformer
+
 import torch
 import torch.nn as nn
 
@@ -234,15 +236,32 @@ class DecompFEDformerEncoder(nn.Module):
     FEDformer performs the attention mechanism on frequency domain and achieved O(N) complexity
     """
 
-    def __init__(self, config):
+    def __init__(
+        self,
+        num_layers,
+        num_heads,
+        d_model,
+        d_ff,
+        dropout,
+        activation,
+        version,
+        modes,
+        mode_select,
+        seq_len,
+        moving_avg,
+        feat_dim,
+        num_classes,
+        L=None,
+        base=None,
+    ):
         super(DecompFEDformerEncoder, self).__init__()
-        self.version = config.version
-        self.mode_select = config.mode_select
-        self.modes = config.modes
-        self.seq_len = config.window * config.fs
+        self.version = version
+        self.mode_select = mode_select
+        self.modes = modes
+        self.seq_len = seq_len
 
         # Decomp
-        kernel_size = config.moving_avg
+        kernel_size = moving_avg
         if isinstance(kernel_size, list):
             self.decomp = series_decomp_multi(kernel_size)
         else:
@@ -252,49 +271,45 @@ class DecompFEDformerEncoder(nn.Module):
         # The series-wise connection inherently contains the sequential information.
         # Thus, we can discard the position embedding of transformers.
         self.enc_embedding = DataEmbedding_onlypos(
-            c_in=config.d_model,
-            d_model=config.d_model,
-            dropout=config.dropout,
+            c_in=d_model,
+            d_model=d_model,
+            dropout=dropout,
         )
 
-        if config.version == "Wavelets":
-            encoder_self_att = MultiWaveletTransform(
-                ich=config.d_model, L=config.L, base=config.base
-            )
+        if version == "Wavelets":
+            encoder_self_att = MultiWaveletTransform(ich=d_model, L=L, base=base)
         else:
             encoder_self_att = FourierBlock(
-                in_channels=config.d_model,
-                out_channels=config.d_model,
+                in_channels=d_model,
+                out_channels=d_model,
                 seq_len=self.seq_len,
-                modes=config.modes,
-                mode_select_method=config.mode_select,
+                modes=modes,
+                mode_select_method=mode_select,
             )
         # Encoder
-        enc_modes = int(min(config.modes, self.seq_len // 2))
+        enc_modes = int(min(modes, self.seq_len // 2))
         print("enc_modes: {}".format(enc_modes))
 
         self.encoder = EncoderDecomp(
             [
                 EncoderLayerDecomp(
-                    AutoCorrelationLayer(
-                        encoder_self_att, config.d_model, config.num_heads
-                    ),
-                    config.d_model,
-                    config.d_ff,
-                    moving_avg=config.moving_avg,
-                    dropout=config.dropout,
-                    activation=config.activation,
+                    AutoCorrelationLayer(encoder_self_att, d_model, num_heads),
+                    d_model,
+                    d_ff,
+                    moving_avg=moving_avg,
+                    dropout=dropout,
+                    activation=activation,
                 )
-                for _ in range(config.num_layers)
+                for _ in range(num_layers)
             ],
             # norm_layer=my_Layernorm(config_model.d_model),
         )
 
         # 27 classes to predict
-        self.classification_head = nn.Linear(config.d_model, config.num_classes)
+        self.classification_head = nn.Linear(d_model, num_classes)
 
-        self.trend_head = nn.Linear(config.feat_dim, config.d_model)
-        self.seasonal_head = nn.Linear(config.feat_dim, config.d_model)
+        self.trend_head = nn.Linear(feat_dim, d_model)
+        self.seasonal_head = nn.Linear(feat_dim, d_model)
 
     def forward(self, x_enc, enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
         # decomp init

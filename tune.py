@@ -1,6 +1,5 @@
-"""
-Adapted from George Zerveas
-"""
+# Reference: https://github.com/gzerveas/mvts_transformer
+
 import logging
 import os
 

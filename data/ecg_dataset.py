@@ -1,3 +1,5 @@
+# Reference: https://physionet.org/content/challenge-2020/1.0.2/
+
 from pathlib import Path
 import numpy as np
 from torch.utils.data import Dataset

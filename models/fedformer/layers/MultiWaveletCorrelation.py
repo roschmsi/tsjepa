@@ -1,3 +1,4 @@
+# Reference: https://github.com/MAZiqing/FEDformer
 import math
 from typing import List, Tuple
 
@@ -418,7 +419,6 @@ class MWT_CZ1d(nn.Module):
         return d, s
 
     def evenOdd(self, x):
-
         B, N, c, ich = x.shape  # (B, N, c, k)
         assert ich == 2 * self.k
         x_e = torch.matmul(x, self.rc_e)
