@@ -1,3 +1,5 @@
+# Reference: https://github.com/physionetchallenges/evaluation-2020
+
 #!/usr/bin/env python
 
 # This file contains functions for evaluating algorithms for the 2020 PhysioNet/

@@ -30,6 +30,7 @@ We select eight multivariate datasets which are publicly available at the [Autof
 * The [ETT](https://github.com/zhouhaoyi/ETDataset) datasets depict the load and oil temperature of electric transformers. They are collected from two different devices, denoted as transformer 1 and 2, at two different resolutions (15 minutes and 1 hour), denoted as m and h, between July 2016 and July 2018. In total, this recording scheme yields four ETT datasets, namely ETTm1, ETTm2, ETTh1, and ETTh2.
 Following [Wu et al.](https://arxiv.org/abs/2106.13008), the datasets are split into train, validation, and test sets in chronological order, with a ratio of 6:2:2 for the ETT dataset and 7:1:2 for the other datasets.
 
+
 ## Models
 Inspired by the success of masked modeling in NLP and CV, [Nie et al.](https://arxiv.org/pdf/2211.14730.pdf) proposed the **Patch Time Series Transformer (PatchTST)**. Pre-training this Transformer model on time series patches according to the masked modeling paradigm yields state-of-the-art results in time series forecasting with a notable improvement over the fully supervised approach.
 We are the first to conduct an in-depth investigation of the PatchTST components for time series classification. While Nie et al. assume channel independence in their time series forecasting experiments, we attempt to model inter-channel dependencies. Therefore, we introduce channel tokens to the PatchTST architecture and examine the utility of different patching strategies (patch_tst, patch_tst_t, patch_tst_tc) across time and channel dimension.
@@ -49,13 +50,14 @@ The performance of these Patch Transformers can be compared to a strong baseline
 frequencies. Proposed by Zhou et al. for time series forecasting, we adapt the model for time series classification.
 
 ## Training
-Please check out the directory ==/slurm== with a variety of scripts to train the models on a SLURM-compatible compute system. In options.py you can see which parameters can be set for each training run. 
-The models are specified with the options "--model_name". Supervised models can be trained for two tasks: 'classification' and 'forecasting'. Unsupervised models can be pretrained by specifying the task "pretraining" and finetuned by specifying one the two supervised tasks. Finetuning a model requires to load a pretrained model "--load_model" and set the flag "--finetuning".
-To use a patched input, we set the flag "--use_patch" and specify the patch_len as well as the stride.
+The folder `slurm/` contains scripts to train the models on a SLURM-compatible compute system. Check out `options.py` to gain an overview of the training parameters.
+
+To train a model, you have to provide the `model_name`. Supervised models can be trained for two tasks: `classification` and `forecasting`. Unsupervised models can be pretrained by specifying the task `pretraining` and finetuned by selecting one the two supervised tasks. Finetuning a model requires to load a pretrained model with `--load_model` and set the flag `--finetuning`.
+To use a patched input, please set the flag `--use_patch` and specify `--patch_len` and `--stride`.
 
 
 ### Pretraining
-The pretraining of our MAE for time series with a masking ratio of 50 % and non-overlapping patches of size 8 can be started as follows:
+The pretraining of our MAE for time series with a masking ratio of 50 % and non-overlapping patches of size 8 can be initiated as follows:
 
 ```bash
 python3 main.py \
@@ -92,7 +94,7 @@ python3 main.py \
 ```
 
 ### Finetuning
-To finetune the pre-trained MAE for ECG classification, please use the following command:
+To finetune the pre-trained MAE for ECG classification, please adapt the following command:
 
 ```bash
 python3 main.py \
@@ -134,22 +136,18 @@ python3 main.py \
 ```
 
 
-## Acknowledgement
+## Acknowledgements
 
 We appreciate the following websites and repositories for their valuable code base and datasets:
 
-https://physionet.org/content/challenge-2020/1.0.2/
-
-https://github.com/yuqinie98/PatchTST
-
-https://github.com/facebookresearch/mae
-
-https://github.com/gzerveas/mvts_transformer
-
-https://github.com/MAZiqing/FEDformer
-
-https://github.com/thuml/Autoformer
-https://github.com/seitalab/RandECG
+* https://physionet.org/content/challenge-2020/1.0.2/
+* https://github.com/physionetchallenges/evaluation-2020
+* https://github.com/yuqinie98/PatchTST
+* https://github.com/facebookresearch/mae
+* https://github.com/gzerveas/mvts_transformer
+* https://github.com/MAZiqing/FEDformer
+* https://github.com/thuml/Autoformer
+* https://github.com/seitalab/RandECG
 
 
 ## Contact
