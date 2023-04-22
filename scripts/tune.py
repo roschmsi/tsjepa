@@ -13,7 +13,7 @@ from data.fc_dataset import load_fc_dataset
 from factory import model_factory, optimizer_factory, pipeline_factory, tune_factory
 from loss import get_criterion
 from options import Options
-from physionet_evaluation.evaluate_12ECG_score import (
+from evaluation.evaluate_12ECG_score import (
     compute_challenge_metric,
     load_weights,
 )

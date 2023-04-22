@@ -21,7 +21,7 @@ from factory import (
 )
 from loss import get_criterion
 from options import Options
-from physionet_evaluation.evaluate_12ECG_score import (
+from evaluation.evaluate_12ECG_score import (
     compute_challenge_metric,
     load_weights,
 )

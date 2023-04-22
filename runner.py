@@ -9,7 +9,7 @@ import torch
 from sklearn.metrics import roc_auc_score
 
 from data.mixup import mixup_criterion, mixup_data
-from physionet_evaluation.evaluate_12ECG_score import compute_auc
+from evaluation.evaluate_12ECG_score import compute_auc
 from utils import Printer, save_model
 
 logger = logging.getLogger("__main__")

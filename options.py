@@ -120,7 +120,7 @@ class Options(object):
         self.parser.add_argument(
             "--weights_file",
             type=str,
-            default="/usr/stud/roschman/ECGAnalysis/physionet_evaluation/weights.csv",
+            default="/usr/stud/roschman/ECGAnalysis/evaluation/weights.csv",
         )
         self.parser.add_argument(
             "--output_dir",
