@@ -2,7 +2,7 @@
 
 Machine learning algorithms can be trained to automatically detect and classify cardiac abnormalities given a patient's electrocardiogram (ECG).Recent studies on multivariate time series have shown that the unsupervised pre-training of a model and its subsequent application in downstream tasks can outperform fully supervised approaches.
 
-In this work, we investigate the effectivenss of unsupervised pre-training for ECG analysis. We identify the pivotal elements of masked time series modeling with Transformers and achieve state-of-the-art classification results on a large-scale ECG dataset. Additionally, we propose masked autoencoders for time series and demonstrate their applicability in classification and forecasting tasks.
+In this work, we investigate the effectiveness of unsupervised pre-training for ECG analysis. We identify the pivotal elements of masked time series modeling with Transformers and achieve state-of-the-art classification results on a large-scale ECG dataset. Additionally, we propose masked autoencoders for time series and demonstrate their applicability in classification and forecasting tasks.
 
 ## Dependencies
 This repository works with Python 3.10 and PyTorch 1.13. Please create a virtual environment and install the dependencies specified in requirements.txt.
@@ -19,7 +19,7 @@ For each dataset, you can find a configuration file under data/configs.
 
 ### ECG Classification
 The [PhysioNet/Computing in Cardiology Challenge 2020](https://physionet.org/content/challenge-2020/1.0.2/) provided 43101 12-lead ECG recordings from six different sources. The sampling frequency of the recordings varies from 257 Hz to 1000 Hz, their individual length lies between 6 seconds and 30 minutes. In total, there are 111 labeled abnormalities, 27 of which are included in the official scoring metric.
-Hence, we associate each recording with a multilabel target comprising 27 clinical diagnoses. We extract windows of $10 s$ at a random position from each recording and apply zero padding for smaller sequences. We sample the time series signal at a frequency of 100 Hz and normalize the ECG recordings, such that the signal of each channel lies within the range of -1 to 1. Following Natarajan et al. \cite{natarajan2020wideanddeep}, we provide the option to apply a Finite Impulse Reponse (FIR) bandpass filter with a bandwith between 3 - 45 Hz to attenuate noise. The dataset is split into train, validation, and test sets in an 8:1:1 ratio.
+Hence, we associate each recording with a multilabel target comprising 27 clinical diagnoses. We extract windows of $10 s$ at a random position from each recording and apply zero padding for smaller sequences. We sample the time series signal at a frequency of 100 Hz and normalize the ECG recordings, such that the signal of each channel lies within the range of -1 to 1. Following [Natarajan et al.](https://www.cinc.org/2020/Program/accepted/107_CinCFinalPDF.pdf), we provide the option to apply a Finite Impulse Reponse (FIR) bandpass filter with a bandwith between 3 - 45 Hz to attenuate noise. The dataset is split into train, validation, and test sets in an 8:1:1 ratio.
 
 ### Time Series Forecasting
 We select eight multivariate datasets which are publicly available at the [Autoformer repository](https://github.com/thuml/Autoformer) and have been extensively used to benchmark the performance of forecasting algorithms. 
@@ -44,16 +44,16 @@ MAE (right, inspired by [He et al.](https://arxiv.org/abs/2111.06377)) is an enc
 
 The performance of these Patch Transformers can be compared to a strong baseline of supervised classification approaches.
 - **CNN Classifier**: We provide a simple CNN classifier comprising two convolutional layers with kernel size 11 and stride 3, two convolutional layers with kernel size 7 and stride 2 and one convolutional layer with kernel size 3 and stride 1.
-- **CNN Transformer**: Inspired by the [winning approach](https://ieeexplore.ieee.org/abstract/document/9344053) of the PhysioNet Challenge 2020, this model also utilizes a CNN Encoder with the above-mentiond configuration and applies an additional Transformer on the extracted features for feature enhancement.
-- **Transformer**: [Zerveas et al.](https://github.com/gzerveas/mvts_transformer) were the first to investigate unsupervised representation learning of multivariate time series with a Transformer encoder. While PatchTST and MAE apply patching, this approach directly masks parts of the raw time series input during pre-training. This Transformer model can also be trained on the the raw time series input in a supervised manner.
-- **FEDformer**: This model applies attention operations in the frequency domain and achieves linear complexity by randomly selecting a fixed size subset of
-frequencies. Proposed by Zhou et al. for time series forecasting, we adapt the model for time series classification.
+- **CNN Transformer**: Inspired by the [winning approach](https://www.cinc.org/2020/Program/accepted/107_CinCFinalPDF.pdf) of the PhysioNet Challenge 2020, this model utilizes a CNN Encoder with the above-mentioned configuration and applies an additional Transformer on the extracted features for feature enhancement.
+- **Transformer**: [Zerveas et al.](https://github.com/gzerveas/mvts_transformer) were the first to investigate unsupervised representation learning of multivariate time series with a Transformer. While PatchTST and MAE apply patching, this approach directly masks parts of the raw time series input during pre-training. The model can also be trained on the raw time series input in a supervised manner.
+- **FEDformer**: [Zhou et al.](https://proceedings.mlr.press/v162/zhou22g/zhou22g.pdf) have proposed FEDformer (Frequency Enhanced Decomposed Transformer) for time series forecasting. The model incorporates seasonal-trend decomposition and applies self-attention in the frequency domain rather than the time domain to better capture global properties. We adapt the FEDformer encoder and append a classification head to perform ECG classification.
 
 ## Training
-The folder `slurm/` contains scripts to train the models on a SLURM-compatible compute system. Check out `options.py` to gain an overview of the training parameters.
+The `slurm/` folder contains scripts to train the models on a SLURM-compatible compute system. Check out `options.py` to gain an overview of the training parameters.
 
-To train a model, you have to provide the `model_name`. Supervised models can be trained for two tasks: `classification` and `forecasting`. Unsupervised models can be pretrained by specifying the task `pretraining` and finetuned by selecting one the two supervised tasks. Finetuning a model requires to load a pretrained model with `--load_model` and set the flag `--finetuning`.
-To use a patched input, please set the flag `--use_patch` and specify `--patch_len` and `--stride`.
+To train a particular model, you have to provide the `--model_name` and define its configuration. Supervised models can be trained for two tasks: `classification` or `forecasting`. If you are interested in unsupervised models, you can pre-train them by selecting the task `pretraining`. Once you have a pre-trained model, you can fine-tune it for a supervised task. You need to load the pre-trained model with `--load_model` and set the `--finetuning` flag.
+
+To patch the time series input, please set the `--use_patch` flag and specify `--patch_len` and `--stride`.
 
 
 ### Pretraining
@@ -152,4 +152,4 @@ We appreciate the following websites and repositories for their valuable code ba
 
 ## Contact
 
-If you have any questions or concerns, please contact me: simon.roschmann@tum.de
+If you have any questions or concerns, please feel free to contact me: simon.roschmann@tum.de
