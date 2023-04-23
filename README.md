@@ -1,8 +1,9 @@
 # Unsupervised Representation Learning for ECG Analysis
 
-Machine learning algorithms can be trained to automatically detect and classify cardiac abnormalities given a patient's electrocardiogram (ECG).Recent studies on multivariate time series have shown that the unsupervised pre-training of a model and its subsequent application in downstream tasks can outperform fully supervised approaches.
+Machine learning algorithms can be trained to automatically detect and classify cardiac abnormalities given a patient's electrocardiogram (ECG).
+Recent studies on multivariate time series have shown that the unsupervised pre-training of a model and its subsequent application in downstream tasks can outperform fully supervised approaches.
 
-In this work, we investigate the effectiveness of unsupervised pre-training for ECG analysis. We identify the pivotal elements of masked time series modeling with Transformers and achieve state-of-the-art classification results on a large-scale ECG dataset. Additionally, we propose masked autoencoders for time series and demonstrate their applicability in classification and forecasting tasks.
+In this work, we investigate the effectiveness of unsupervised pre-training for ECG analysis. We identify the pivotal elements of masked time series modeling with Transformers and achieve state-of-the-art classification results on a large-scale ECG dataset. Additionally, we propose masked autoencoders for time series and demonstrate their applicability in time series representation learning, classification and forecasting.
 
 ## Dependencies
 This repository works with Python 3.10 and PyTorch 1.13. Please create a virtual environment and install the dependencies specified in requirements.txt.
@@ -15,7 +16,7 @@ python3 -m pip install -r requirements.txt
 
 ## Data
 We conduct most experiments on the ECG classification dataset provided for the PhysioNet Challenge 2020. However, our models can also be evaluated on eight popular forecasting datasets.
-For each dataset, you can find a configuration file under data/configs.
+For each dataset, you can find a configuration file under `data/configs/`.
 
 ### ECG Classification
 The [PhysioNet/Computing in Cardiology Challenge 2020](https://physionet.org/content/challenge-2020/1.0.2/) provided 43101 12-lead ECG recordings from six different sources. The sampling frequency of the recordings varies from 257 Hz to 1000 Hz, their individual length lies between 6 seconds and 30 minutes. In total, there are 111 labeled abnormalities, 27 of which are included in the official scoring metric.
