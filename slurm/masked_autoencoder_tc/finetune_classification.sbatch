@@ -31,7 +31,7 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --stride 8 \
 --cls_token \
 --optimizer AdamW \
---lr 0.00001 \
+--lr 0.0001 \
 --scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
 --epochs 100 \
@@ -41,4 +41,4 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
 --task classification \
 --finetuning \
---load_model /home/stud/roschman/ECGAnalysis/output/masked_autoencoder_tc/pretraining/dataset=ecg_patch=8_stride=8_mratio=0.3_bs=32_opt=AdamW_sch=CosineAnnealingLR_lr=0.0001_wd=0.01_enc_nlayers=8_nheads=8_dmodel=256_dff=512_dec_nlayers=2_nheads=8_dmodel=256_dff=512_drop=0.1_norm=BatchNorm_act=gelu_clstoken
+--load_model /home/stud/roschman/ECGAnalysis/output/masked_autoencoder_tc/pretraining/dataset=ecg_patch=8_stride=8_mratio=0.9_bs=32_opt=AdamW_sch=CosineAnnealingLR_lr=0.0001_wd=0.01_enc_nlayers=8_nheads=8_dmodel=256_dff=512_dec_nlayers=2_nheads=8_dmodel=256_dff=512_drop=0.1_norm=BatchNorm_act=gelu_clstoken

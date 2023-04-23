@@ -38,7 +38,7 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --batch_size 64 \
 --num_workers 4 \
 --patience 50 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/weather.yaml \
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm2.yaml \
 --task pretraining \
 --seq_len 512 \
 --label_len 0 \

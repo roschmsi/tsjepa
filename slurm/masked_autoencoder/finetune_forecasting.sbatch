@@ -38,10 +38,12 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --batch_size 64 \
 --num_workers 4 \
 --patience 20 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm2.yaml \
 --task forecasting \
 --seq_len 512 \
 --label_len 0 \
---pred_len 192 \
+--pred_len 96 \
 --finetuning \
---load_model /home/stud/roschman/ECGAnalysis/output/masked_autoencoder/pretraining/dataset=ettm1_sl=512_pl=0_patch=8_stride=8_mratio=0.5_bs=64_opt=AdamW_sch=CosineAnnealingLR_lr=1e-05_wd=0.01_enc_nlayers=3_nheads=16_dmodel=128_dff=256_dec_nlayers=3_nheads=16_dmodel=128_dff=256_drop=0.2_norm=BatchNorm_act=gelu_chtoken
+--freeze \
+--freeze_epochs 100 \
+--load_model /home/stud/roschman/ECGAnalysis/output/masked_autoencoder/pretraining/dataset=ettm2_sl=512_pl=0_patch=8_stride=8_mratio=0.5_bs=64_opt=AdamW_sch=CosineAnnealingLR_lr=0.0001_wd=0.01_enc_nlayers=3_nheads=16_dmodel=128_dff=256_dec_nlayers=3_nheads=16_dmodel=128_dff=256_drop=0.2_norm=BatchNorm_act=gelu_chtoken

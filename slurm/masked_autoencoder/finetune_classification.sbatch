@@ -16,7 +16,7 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --enc_num_heads 8 \
 --enc_d_model 256 \
 --enc_d_ff 512 \
---dec_num_layers 2 \
+--dec_num_layers 4 \
 --dec_num_heads 8 \
 --dec_d_model 256 \
 --dec_d_ff 512 \
@@ -42,6 +42,4 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
 --task classification \
 --finetuning \
---freeze \
---freeze_epochs 100 \
---load_model /home/stud/roschman/ECGAnalysis/output/masked_autoencoder/pretraining/dataset=ecg_patch=8_stride=8_mratio=0.7_bs=64_opt=AdamW_sch=CosineAnnealingLR_lr=0.0001_wd=0.01_enc_nlayers=8_nheads=8_dmodel=256_dff=512_dec_nlayers=2_nheads=8_dmodel=256_dff=512_drop=0.1_norm=BatchNorm_act=gelu_chtoken_clstoken
+--resume

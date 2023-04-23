@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --job-name="pretrain unsupervised transformer"
+#SBATCH --job-name="finetune transformer"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:1,VRAM:16G
+#SBATCH --gres=gpu:1,VRAM:32G
 #SBATCH --mem=4G
 #SBATCH --time=120:00:00
 #SBATCH --mail-type=ALL

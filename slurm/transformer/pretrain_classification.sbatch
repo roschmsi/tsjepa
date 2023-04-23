@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="pretrain unsupervised transformer"
+#SBATCH --job-name="pretrain transformer"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:32G
