@@ -20,7 +20,7 @@ For each dataset, you can find a configuration file under `data/configs/`.
 
 ### ECG Classification
 The [PhysioNet/Computing in Cardiology Challenge 2020](https://physionet.org/content/challenge-2020/1.0.2/) provided 43101 12-lead ECG recordings from six different sources. The sampling frequency of the recordings varies from 257 Hz to 1000 Hz, their individual length lies between 6 seconds and 30 minutes. In total, there are 111 labeled abnormalities, 27 of which are included in the official scoring metric.
-Hence, we associate each recording with a multilabel target comprising 27 clinical diagnoses. We extract windows of $10 s$ at a random position from each recording and apply zero padding for smaller sequences. We sample the time series signal at a frequency of 100 Hz and normalize the ECG recordings, such that the signal of each channel lies within the range of -1 to 1. Following [Natarajan et al.](https://www.cinc.org/2020/Program/accepted/107_CinCFinalPDF.pdf), we provide the option to apply a Finite Impulse Reponse (FIR) bandpass filter with a bandwith between 3 - 45 Hz to attenuate noise. The dataset is split into train, validation, and test sets in an 8:1:1 ratio.
+Hence, we associate each recording with a multilabel target comprising 27 clinical diagnoses. We extract windows of 10 seconds at a random position from each recording and apply zero padding for smaller sequences. We sample the time series signal at a frequency of 100 Hz and normalize the ECG recordings, such that the signal of each channel lies within the range of -1 to 1. Following [Natarajan et al.](https://www.cinc.org/2020/Program/accepted/107_CinCFinalPDF.pdf), we provide the option to apply a Finite Impulse Reponse (FIR) bandpass filter with a bandwith between 3 - 45 Hz to attenuate noise. The dataset is split into train, validation, and test sets in an 8:1:1 ratio.
 
 ### Time Series Forecasting
 We select eight multivariate datasets which are publicly available at the [Autoformer repository](https://github.com/thuml/Autoformer) and have been extensively used to benchmark the performance of forecasting algorithms. 
@@ -29,6 +29,7 @@ We select eight multivariate datasets which are publicly available at the [Autof
 * The [Electricity](https://archive.ics.uci.edu/ml/datasets/ElectricityLoadDiagrams20112014) dataset includes hourly electricity consumption data from 321 customers over three entire years, spanning from 2012 to 2014.
 * The [ILI](https://gis.cdc.gov/grasp/fluview/fluportaldashboard.html) dataset is recorded by the Centers for Disease Control and Prevention of the United States. It contains records of the total number of patients and the ratio of patients with influenza-like illness (ILI) in different age groups on a weekly basis between 2002 to 2021.
 * The [ETT](https://github.com/zhouhaoyi/ETDataset) datasets depict the load and oil temperature of electric transformers. They are collected from two different devices, denoted as transformer 1 and 2, at two different resolutions (15 minutes and 1 hour), denoted as m and h, between July 2016 and July 2018. In total, this recording scheme yields four ETT datasets, namely ETTm1, ETTm2, ETTh1, and ETTh2.
+
 Following [Wu et al.](https://arxiv.org/abs/2106.13008), the datasets are split into train, validation, and test sets in chronological order, with a ratio of 6:2:2 for the ETT dataset and 7:1:2 for the other datasets.
 
 
@@ -57,8 +58,8 @@ To train a particular model, you have to provide the `--model_name` and define i
 To patch the time series input, please set the `--use_patch` flag and specify `--patch_len` and `--stride`.
 
 
-### Pretraining
-The pretraining of our MAE for time series with a masking ratio of 50 % and non-overlapping patches of size 8 can be initiated as follows:
+### Pre-training
+The pre-training of our MAE for time series with a masking ratio of 50 % and non-overlapping patches of size 8 can be initiated as follows:
 
 ```bash
 python3 main.py \
@@ -133,7 +134,7 @@ python3 main.py \
 --finetuning \
 --freeze \
 --freeze_epochs 100 \
---load_model "path to pretrained model"
+--load_model "path to pre-trained model"
 ```
 
 
