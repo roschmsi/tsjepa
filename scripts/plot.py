@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib
 
-matplotlib.rcParams.update({"font.size": 12})
+matplotlib.rcParams.update({"font.size": 16})
 plt.rcParams["figure.dpi"] = 300
 
 ecg_results_finetuning = {
@@ -28,47 +28,21 @@ plt.tight_layout()
 plt.savefig("ecg_results_finetuning.png")
 plt.close()
 
-# ettm1_results_finetuning = {
-#     "PatchTST": [[0.1, 0.3, 0.5, 0.7, 0.9], [0.9, 0.95, 0.95, 0.95, 0.95], "x"],
-#     "PatchTST-T": [[0.1, 0.3, 0.5, 0.7, 0.9], [0.9, 0.95, 0.95, 0.95, 0.9], "x"],
-#     "PatchTST-TC": [[0.1, 0.3, 0.5, 0.7, 0.9], [0.9, 0.95, 0.95, 0.9, 0.95], "x"],
-#     "MAE": [[0.1, 0.3, 0.5, 0.7, 0.9], [0.9386, 0.9463, 0.9439, 0.9466, 0.9444], "o"],
-#     "MAE-T": [[0.3, 0.5, 0.7], [0.9370, 0.9390, 0.9349], "o"],
-#     "MAE-TC": [[0.5, 0.7], [0.9342, 0.9413], "o"],
-# }
-
-
-# plt.figure(figsize=(10, 4))
-# for k, v in ettm1_results_finetuning.items():
-#     plt.plot(v[0], v[1], marker=v[2], linestyle="-", label=k)
-
-# plt.xlabel("masking ratio")
-# plt.ylabel("AUROC")
-# plt.legend(loc="right")
-# plt.tight_layout()
-# plt.savefig("ettm1_results_finetuning.png")
-# plt.close()
-
-# set width of bar
-barWidth = 0.2
+barWidth = 0.15
 fig = plt.subplots(figsize=(8, 6))
 
-# set height of bar
 mae = [0.9414, 0.9439, 0.9408]
 mae_t = [0.9400, 0.9390, 0.9360]
 mae_tc = [0.9371, 0.9413, 0.9220]
 
-# Set position of bar on X axis
 br1 = [0, 1, 2]
-br2 = [x + barWidth for x in br1]
-br3 = [x + barWidth for x in br2]
+br2 = [x + barWidth + 0.05 for x in br1]
+br3 = [x + barWidth + 0.05 for x in br2]
 
-# Make the plot
-plt.bar(br1, mae, color="#219ebc", width=barWidth, label="MAE")
-plt.bar(br2, mae_t, color="#d62828", width=barWidth, label="MAE-T")
-plt.bar(br3, mae_tc, color="#fcbf49", width=barWidth, label="MAE-TC")
+plt.bar(br1, mae, color="#bad7e7", width=barWidth, edgecolor="black", label="MAE")
+plt.bar(br2, mae_t, color="#ffffff", width=barWidth, edgecolor="black", label="MAE-T")
+plt.bar(br3, mae_tc, color="#f8d984", width=barWidth, edgecolor="black", label="MAE-TC")
 
-# Adding Xticks
 plt.xlabel("Number of decoder layers")
 plt.ylabel("AUROC")
 plt.xticks([r + barWidth for r in range(len(mae))], ["1", "2", "4"])
