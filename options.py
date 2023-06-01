@@ -53,6 +53,13 @@ class Options(object):
         self.parser.add_argument("--base", type=str)
         self.parser.add_argument("--moving_avg")
 
+        # hierarchical mae
+        self.parser.add_argument("--enc_num_levels", type=int)
+        self.parser.add_argument("--dec_num_levels", type=int)
+
+        # hierarchical patch tst
+        self.parser.add_argument("--num_levels", type=int)
+
         # dataset
         self.parser.add_argument("--data_config", type=str)
         self.parser.add_argument("--filter_bandwidth", action="store_true")

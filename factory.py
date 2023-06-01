@@ -21,6 +21,11 @@ from models.fedformer.model import (
     DecompFEDformerEncoder,
     FEDformerEncoder,
 )
+from models.hierarchical_masked_autoencoder.model import (
+    HierarchicalMaskedAutoencoder,
+    HierarchicalMaskedAutoencoderPredictor,
+)
+from models.hierarchical_patch_tst.model import HierarchicalPatchTST
 from models.masked_autoencoder.model import (
     MaskedAutoencoder,
     MaskedAutoencoderPredictor,
@@ -256,6 +261,29 @@ def model_factory(config):
             task=config.task,
             head_dropout=config.head_dropout,
         )
+    # hierarchical patch tst with channel independence
+    elif config.model_name == "hierarchical_patch_tst":
+        return HierarchicalPatchTST(
+            c_in=config.feat_dim,
+            c_out=c_out,
+            num_patch=num_patch,
+            patch_len=config.patch_len,
+            num_levels=config.num_levels,
+            num_layers=config.num_layers,
+            num_heads=config.num_heads,
+            d_model=config.d_model,
+            d_ff=config.d_ff,
+            dropout=config.dropout,
+            shared_embedding=config.shared_embedding,
+            norm=config.norm,
+            activation=config.activation,
+            pe="sincos",
+            learn_pe=config.learn_pe,
+            ch_token=config.ch_token,
+            cls_token=config.cls_token,
+            task=config.task,
+            head_dropout=config.head_dropout,
+        )
     # patch tst with temporal encoding
     elif config.model_name == "patch_tst_t":
         return PatchTransformerT(
@@ -327,6 +355,53 @@ def model_factory(config):
                 c_out=c_out,
                 num_patch=num_patch,
                 patch_len=config.patch_len,
+                enc_num_layers=config.enc_num_layers,
+                enc_num_heads=config.enc_num_heads,
+                enc_d_model=config.enc_d_model,
+                enc_d_ff=config.enc_d_ff,
+                dropout=config.dropout,
+                shared_embedding=config.shared_embedding,
+                norm=config.norm,
+                activation=config.activation,
+                pe="sincos",
+                learn_pe=config.learn_pe,
+                cls_token=config.cls_token,
+                ch_token=config.ch_token,
+                task=config.task,
+                head_dropout=config.head_dropout,
+            )
+    elif config.model_name == "hierarchical_masked_autoencoder":
+        if config.task == "pretraining":
+            return HierarchicalMaskedAutoencoder(
+                c_in=config.feat_dim,
+                num_patch=num_patch,
+                patch_len=config.patch_len,
+                enc_num_levels=config.enc_num_levels,
+                enc_num_layers=config.enc_num_layers,
+                enc_num_heads=config.enc_num_heads,
+                enc_d_model=config.enc_d_model,
+                enc_d_ff=config.enc_d_ff,
+                dec_num_levels=config.dec_num_levels,
+                dec_num_layers=config.dec_num_layers,
+                dec_num_heads=config.dec_num_heads,
+                dec_d_model=config.dec_d_model,
+                dec_d_ff=config.dec_d_ff,
+                dropout=config.dropout,
+                shared_embedding=config.shared_embedding,
+                norm=config.norm,
+                activation=config.activation,
+                pe="sincos",
+                learn_pe=config.learn_pe,
+                cls_token=config.cls_token,
+                ch_token=config.ch_token,
+            )
+        elif config.task in ["classification", "forecasting"]:
+            return HierarchicalMaskedAutoencoderPredictor(
+                c_in=config.feat_dim,
+                c_out=c_out,
+                num_patch=num_patch,
+                patch_len=config.patch_len,
+                enc_num_levels=config.enc_num_levels,
                 enc_num_layers=config.enc_num_layers,
                 enc_num_heads=config.enc_num_heads,
                 enc_d_model=config.enc_d_model,
