@@ -49,12 +49,14 @@ from models.transformer.model import (
     TSTransformerEncoder,
     TSTransformerEncoderClassifier,
 )
+from models.ts_jepa.model import Data2VecConfig, TimeSeriesJEPA
 from runner import (
     ForecastingRunner,
     SupervisedRunner,
     UnsupervisedPatchRunner,
     UnsupervisedRunner,
 )
+from utils import load_config_yaml
 
 
 def pipeline_factory(config):
@@ -500,9 +502,16 @@ def model_factory(config):
                 task=config.task,
                 head_dropout=config.head_dropout,
             )
+    elif config.model_name == "ts_jepa":
+        if config.task == "pretraining":
+            jepa_config_yaml = load_config_yaml(
+                "/home/stud/roschman/ECGAnalysis/models/ts_jepa/config.yaml"
+            )
+            jepa_config = Data2VecConfig(**jepa_config_yaml)
+            return TimeSeriesJEPA(cfg=jepa_config)
     else:
         raise ValueError(
-            "Model class for task '{}' does not exist".format(config["task"])
+            f"Model {config.model_name} for task '{config.task}' does not exist"
         )
 
 

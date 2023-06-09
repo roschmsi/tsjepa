@@ -1,0 +1,46 @@
+ema_decay: 0.9998
+ema_end_decay: 0.99999
+ema_anneal_end_step: 100000
+instance_norm_target_layer: true
+layer_norm_target_layer: false
+layer_norm_targets: true
+end_of_block_targets: false
+
+depth: 8
+num_heads: 8
+embed_dim: 128
+mlp_ratio: 2
+average_top_k_layers: 8
+clone_batch: 4
+
+norm_eps: 1e-6
+
+min_target_var: 0
+min_pred_var: 0
+
+encoder_dropout: 0
+post_mlp_drop: 0
+attention_dropout: 0
+activation_dropout: 0
+
+cls_loss: 0.01
+
+ema_encoder_only: false
+
+# modality:
+#   inverse_mask: true
+#   mask_prob: 0.8
+#   mask_prob_adjust: 0.07
+#   mask_length: 3
+#   mask_noise_std: 0.01
+#   prenet_depth: 2
+#   ema_local_encoder: true
+#   num_extra_tokens: 1
+#   init_extra_token_zero: false
+#   use_alibi_encoder: false
+#   decoder:
+#     decoder_dim: 64
+#     decoder_groups: 8
+#     decoder_kernel: 3
+#     decoder_layers: 1
+#     input_dropout: 0
