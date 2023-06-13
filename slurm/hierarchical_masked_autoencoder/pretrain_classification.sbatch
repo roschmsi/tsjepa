@@ -12,12 +12,11 @@ source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --model_name hierarchical_masked_autoencoder \
 --mae \
---enc_num_levels 2 \
+--num_levels 2 \
 --enc_num_layers 3 \
 --enc_num_heads 16 \
 --enc_d_model 128 \
 --enc_d_ff 256 \
---dec_num_levels 2 \
 --dec_num_layers 1 \
 --dec_num_heads 16 \
 --dec_d_model 128 \

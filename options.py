@@ -46,19 +46,16 @@ class Options(object):
         self.parser.add_argument("--cls_token", action="store_true")
         self.parser.add_argument("--ch_token", action="store_true")
 
+        # hierarchical
+        self.parser.add_argument("--hierarchical", action="store_true")
+        self.parser.add_argument("--num_levels", type=int)
+
         # fedformer
         self.parser.add_argument("--version", type=str)
         self.parser.add_argument("--mode_select", type=str)
         self.parser.add_argument("--modes", type=int)
         self.parser.add_argument("--base", type=str)
         self.parser.add_argument("--moving_avg")
-
-        # hierarchical mae
-        self.parser.add_argument("--enc_num_levels", type=int)
-        self.parser.add_argument("--dec_num_levels", type=int)
-
-        # hierarchical patch tst
-        self.parser.add_argument("--num_levels", type=int)
 
         # dataset
         self.parser.add_argument("--data_config", type=str)

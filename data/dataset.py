@@ -286,7 +286,9 @@ def collate_unsuperv(data, max_len=None, mask_compensation=False):
     return X, targets, target_masks, padding_masks
 
 
-def collate_patch_unsuperv(data, feat_dim, max_len, patch_len, stride, masking_ratio=0):
+def collate_patch_unsuperv(
+    data, feat_dim, max_len, patch_len, stride, masking_ratio=0, num_levels=None
+):
     """Build mini-batch tensors from a list of (X, mask) tuples. Mask input. Create
     Args:
         data: len(batch_size) list of tuples (X, mask).
@@ -352,9 +354,19 @@ def collate_patch_unsuperv(data, feat_dim, max_len, patch_len, stride, masking_r
         torch.tensor(lengths_kept, dtype=torch.int32), max_len=max_len_kept
     )
 
+    ids_restore_max_len = (
+        max_len if num_levels is None else max_len // (2 ** (num_levels - 1))
+    )
     ids_restore = torch.stack(
         [
-            torch.cat([ids, torch.zeros(max_len - len(ids), feat_dim, dtype=torch.int)])
+            torch.cat(
+                [
+                    ids,
+                    torch.zeros(
+                        ids_restore_max_len - len(ids), feat_dim, dtype=torch.int
+                    ),
+                ]
+            )
             for ids in ids_restore
         ]
     )
@@ -499,6 +511,8 @@ class PretrainingPatchDataset(Dataset):
         stride,
         debug=False,
         only_time_masking=False,
+        hierarchical=False,
+        num_levels=None,
     ):
         super(PretrainingPatchDataset, self).__init__()
         self.dataset = dataset
@@ -507,6 +521,8 @@ class PretrainingPatchDataset(Dataset):
         self.stride = stride
         self.debug = debug
         self.only_time_masking = only_time_masking
+        self.hierarchical = hierarchical
+        self.num_levels = num_levels
 
     def __getitem__(self, idx):
         """
@@ -524,7 +540,16 @@ class PretrainingPatchDataset(Dataset):
         else:
             X = torch.from_numpy(X).unsqueeze(0)
 
-        X = create_patch(X, self.patch_len, self.stride)
+        bs, seq_len, feat_dim = X.shape
+
+        # ensure that consecutive patches are masked for hierarchical pretraining
+        patch_len = self.patch_len
+        stride = self.stride
+        if self.hierarchical:
+            patch_len = self.patch_len * (2 ** (self.num_levels - 1))
+            stride = patch_len
+
+        X = create_patch(X, patch_len=patch_len, stride=stride)
         if self.only_time_masking:
             X_masked, X_kept, mask, ids_restore = random_patch_masking_only_time(
                 X, self.masking_ratio, debug=self.debug
@@ -533,6 +558,31 @@ class PretrainingPatchDataset(Dataset):
             X_masked, X_kept, mask, ids_restore = random_patch_masking(
                 X, self.masking_ratio, debug=self.debug
             )
+
+        # reshape
+        if self.hierarchical:
+            X_masked = (
+                X_masked.transpose(2, 3)
+                .reshape(bs, -1, feat_dim)
+                .reshape(bs, -1, self.patch_len, feat_dim)
+                .transpose(2, 3)
+            )
+
+            X_kept = (
+                X_kept.transpose(2, 3)
+                .reshape(bs, -1, feat_dim)
+                .reshape(bs, -1, self.patch_len, feat_dim)
+                .transpose(2, 3)
+            )
+
+            X = (
+                X.transpose(2, 3)
+                .reshape(bs, -1, feat_dim)
+                .reshape(bs, -1, self.patch_len, feat_dim)
+                .transpose(2, 3)
+            )
+
+            mask = mask.repeat_interleave(repeats=2 ** (self.num_levels - 1), dim=1)
 
         return (
             X_masked.squeeze(),

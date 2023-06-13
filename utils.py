@@ -73,11 +73,13 @@ def check_config(config):
     if config.freeze:
         dir += f"_fr={config.freeze_epochs}"
 
+    # hierarchical
+    if config.num_levels is not None:
+        dir += f"_nlevels={config.num_levels}"
+
     # check transformer parameters
     if config.mae:
         dir += "_enc"
-        if config.enc_num_levels is not None:
-            dir += f"_nlevels={config.enc_num_levels}"
         if config.enc_num_layers is not None:
             dir += f"_nlayers={config.enc_num_layers}"
         if config.enc_num_heads is not None:
@@ -96,8 +98,6 @@ def check_config(config):
         if config.dec_d_ff is not None:
             dir += f"_dff={config.dec_d_ff}"
     else:
-        if config.num_levels is not None:
-            dir += f"_nlevels={config.num_levels}"
         if config.num_layers is not None:
             dir += f"_nlayers={config.num_layers}"
         if config.num_heads is not None:

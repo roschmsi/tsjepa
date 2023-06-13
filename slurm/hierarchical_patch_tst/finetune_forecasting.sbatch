@@ -11,16 +11,16 @@
 source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --model_name hierarchical_patch_tst \
---num_levels 5 \
+--num_levels 4 \
 --num_layers 1 \
 --num_heads 16 \
---d_model 32 \
---d_ff 64 \
+--d_model 64 \
+--d_ff 128 \
 --dropout 0.2 \
 --shared_embedding \
 --norm BatchNorm \
 --activation gelu \
---head_dropout 0.1 \
+--head_dropout 0 \
 --masking_ratio 0 \
 --use_patch \
 --patch_len 4 \
@@ -35,8 +35,9 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --patience 20 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
 --task forecasting \
+--hierarchical \
 --seq_len 512 \
 --label_len 0 \
---pred_len 336 \
+--pred_len 96 \
 --finetuning \
---load_model /home/stud/roschman/ECGAnalysis/output/hierarchical_patch_tst/pretraining/dataset=ettm1_sl=512_pl=0_patch=4_stride=4_mratio=0.7_bs=64_opt=AdamW_sch=CosineAnnealingLR_lr=1e-05_wd=0.01_nlevels=5_nlayers=1_nheads=16_dmodel=32_dff=64_drop=0.2_norm=BatchNorm_act=gelu
+--load_model /home/stud/roschman/ECGAnalysis/output/hierarchical_patch_tst/pretraining/dataset=ettm1_sl=512_pl=0_patch=4_stride=4_mratio=0.7_bs=64_opt=AdamW_sch=CosineAnnealingLR_lr=1e-05_wd=0.01_nlevels=4_nlayers=1_nheads=16_dmodel=64_dff=128_drop=0.2_norm=BatchNorm_act=gelu_hierarchical

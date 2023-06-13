@@ -14,8 +14,8 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --num_levels 5 \
 --num_layers 1 \
 --num_heads 16 \
---d_model 32 \
---d_ff 64 \
+--d_model 64 \
+--d_ff 128 \
 --dropout 0.2 \
 --shared_embedding \
 --norm BatchNorm \
@@ -33,7 +33,7 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --batch_size 64 \
 --num_workers 4 \
 --patience 20 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/weather.yaml \
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
 --task forecasting \
 --seq_len 512 \
 --label_len 0 \
