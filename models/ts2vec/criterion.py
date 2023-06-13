@@ -1,11 +1,12 @@
+import logging
+
 import torch
 from torch.nn.modules.loss import _Loss
-import logging
 
 logger = logging.getLogger(__name__)
 
 
-class JEPACriterion(_Loss):
+class TS2VecCriterion(_Loss):
     def __init__(self, loss_weights=None, log_keys=None, can_sum=True):
         super().__init__()
         self.loss_weights = loss_weights
@@ -20,12 +21,9 @@ class JEPACriterion(_Loss):
 
         scaled_losses = {}
 
-        if hasattr(model, "get_losses"):
-            losses = model.get_losses(net_output, sample)
-        elif isinstance(net_output, dict) and "losses" in net_output:
-            losses = net_output["losses"]
-        else:
-            raise Exception("Could not retrieve losses")
+        losses = net_output["losses"]
+
+        # scale losses
 
         for lk, p in losses.items():
             try:
@@ -47,6 +45,8 @@ class JEPACriterion(_Loss):
 
         if reduce and loss.numel() > 1:
             loss = loss.sum()
+
+        # logging
 
         logging_output = {
             "loss": loss.data,

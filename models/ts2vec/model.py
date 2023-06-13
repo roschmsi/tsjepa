@@ -11,14 +11,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
-from models.ts_jepa.ts_encoder import (
-    D2vImageConfig,
+from models.ts2vec.ts_encoder import (
     D2vTimeSeriesConfig,
-    ImageEncoder,
     TimeSeriesEncoder,
     get_annealed_rate,
 )
-from models.ts_jepa.utils import (
+from models.ts2vec.utils import (
     AltBlock,
     D2vDecoderConfig,
     Decoder1d,
@@ -29,13 +27,13 @@ from easydict import EasyDict
 from omegaconf import II
 from typing import Optional
 
-from models.ts_jepa.ema_module import EMAModule
+from models.ts2vec.ema_module import EMAModule
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class Data2VecConfig:
+class TS2VecConfig:
     loss_beta: float = field(
         default=0, metadata={"help": "beta for smooth l1 loss. 0 means use l2 loss"}
     )
@@ -46,7 +44,7 @@ class Data2VecConfig:
         },
     )
 
-    depth: int = 1
+    depth: int = 8
     start_drop_path_rate: float = 0
     end_drop_path_rate: float = 0
     num_heads: int = 1
@@ -123,10 +121,10 @@ class Data2VecConfig:
     decoder_group: bool = False
 
 
-class TimeSeriesJEPA(nn.Module):
+class TS2Vec(nn.Module):
     def __init__(
         self,
-        cfg: Data2VecConfig,
+        cfg: TS2VecConfig,
         skip_ema=False,
         task=None,
     ):
@@ -155,8 +153,8 @@ class TimeSeriesJEPA(nn.Module):
             )
 
         self.alibi_biases = {}
-        mod_cfg = cfg.modality  # TODO: create D2vTimeSeriesConfig
-        self.ts_encoder = TimeSeriesEncoder(  # ImageEncoder
+        mod_cfg = cfg.modality
+        self.ts_encoder = TimeSeriesEncoder(
             mod_cfg,
             cfg.embed_dim,
             make_block,
@@ -243,7 +241,7 @@ class TimeSeriesJEPA(nn.Module):
     def make_target_model(self):
         logger.info("making target model")
 
-        model_copy = TimeSeriesJEPA(self.cfg, skip_ema=True, task=self.task)
+        model_copy = TS2Vec(self.cfg, skip_ema=True, task=self.task)
 
         if self.cfg.ema_encoder_only:
             model_copy = model_copy.blocks
@@ -391,6 +389,8 @@ class TimeSeriesJEPA(nn.Module):
 
         xs = []
 
+        # use decoder to make predictions for masked patches
+        # TODO implement self.decoder
         if self.shared_decoder is not None:
             dx = self.forward_decoder(
                 x,

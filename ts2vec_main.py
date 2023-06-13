@@ -1,6 +1,6 @@
 # Reference: https://github.com/gzerveas/mvts_transformer
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import logging
 import os
 import sys
@@ -8,28 +8,26 @@ import time
 from typing import List, Optional
 
 import numpy as np
-from omegaconf import II, MISSING
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+from data.dataset import load_dataset
 
 from data.ecg_dataset import classes, normal_class
 from factory import (
     model_factory,
     optimizer_factory,
-    pipeline_factory,
     scheduler_factory,
 )
-from loss import get_criterion
-from models.ts_jepa.criterion import JEPACriterion
-from models.ts_jepa.dataset import MaeImageDataset
+from models.ts2vec.criterion import TS2VecCriterion
+from models.ts2vec.dataset import MaeTimeSeriesDataset
 from options import Options
 from evaluation.evaluate_12ECG_score import (
     compute_challenge_metric,
     load_weights,
 )
-from runner import JEPARunner
+from runner import TS2VecRunner
 from utils import (
     count_parameters,
     load_model,
@@ -61,10 +59,22 @@ class ImageMaskingConfig:
 
 
 @dataclass
-class MaeImagePretrainingConfig:
-    data: str = "/storage/user/roschman/datasets/tiny-imagenet-200"
+class TimeSeriesMaskingConfig:
+    patch_size: int
+    mask_prob: float
+    mask_prob_adjust: float
+    mask_length: int
+    inverse_mask: bool
+    mask_dropout: float
+    clone_batch: int
+    expand_adjacent: bool = False
+    non_overlapping: bool = False
+
+
+@dataclass
+class MaeTimeSeriesPretrainingConfig:
     multi_data: Optional[List[str]] = None
-    input_size: int = 224
+    input_size: int = 512  # TODO load from config
     local_cache_path: Optional[str] = None
     key: str = "imgs"
 
@@ -74,15 +84,15 @@ class MaeImagePretrainingConfig:
 
     rebuild_batches: bool = True
 
-    precompute_mask_config: Optional[ImageMaskingConfig] = None
+    precompute_mask_config: Optional[TimeSeriesMaskingConfig] = None
 
     subsample: float = 1
     seed = 42
     dataset_type: str = "imagefolder"
 
 
-def load_dataset(split: str, config):
-    img_cfg = MaeImagePretrainingConfig()
+def load_mae_dataset(dataset, config):
+    img_cfg = MaeTimeSeriesPretrainingConfig()
     img_cfg.precompute_mask_config = {
         "patch_size": config.modality.patch_size,
         "mask_prob": config.modality.mask_prob,
@@ -100,17 +110,11 @@ def load_dataset(split: str, config):
     if compute_mask:
         mask_args = img_cfg.precompute_mask_config
 
-    return MaeImageDataset(
-        root=img_cfg.data,
-        split=split,
+    return MaeTimeSeriesDataset(
+        dataset=dataset,
         input_size=img_cfg.input_size,
-        local_cache_path=img_cfg.local_cache_path,
         key=img_cfg.key,
-        beit_transforms=img_cfg.beit_transforms,
-        target_transform=img_cfg.target_transform,
-        no_transform=img_cfg.no_transform,
         compute_mask=compute_mask,
-        dataset_type=img_cfg.dataset_type,
         **mask_args,
     )
 
@@ -133,7 +137,7 @@ def main(config):
         config.augment = False
 
     # build ecg data
-    # train_dataset, val_dataset, test_dataset = load_dataset(config)
+    train_dataset, val_dataset, test_dataset = load_dataset(config)
 
     # create model
     model = model_factory(config)
@@ -181,7 +185,7 @@ def main(config):
     model.to(device)
 
     # initialize loss
-    criterion = JEPACriterion(
+    criterion = TS2VecCriterion(
         loss_weights={},
         log_keys=[
             "ema_decay",
@@ -203,7 +207,7 @@ def main(config):
         max_len = config.window * config.fs
 
     # start model training
-    train_dataset = load_dataset("train", model.cfg)
+    train_dataset = load_mae_dataset(train_dataset, model.cfg)
     train_loader = DataLoader(
         dataset=train_dataset,
         batch_size=config.batch_size,
@@ -214,7 +218,7 @@ def main(config):
     )
 
     scheduler = scheduler_factory(config, optimizer, iters_per_epoch=len(train_loader))
-    trainer = JEPARunner(
+    trainer = TS2VecRunner(
         model,
         train_loader,
         device,
@@ -227,7 +231,7 @@ def main(config):
         scheduler=scheduler,
     )
 
-    val_dataset = load_dataset("val", model.cfg)
+    val_dataset = load_mae_dataset(val_dataset, model.cfg)
     val_loader = DataLoader(
         dataset=val_dataset,
         batch_size=config.batch_size,
@@ -236,7 +240,7 @@ def main(config):
         pin_memory=True,
         collate_fn=lambda x: val_dataset.collater(x),
     )
-    val_evaluator = JEPARunner(
+    val_evaluator = TS2VecRunner(
         model,
         val_loader,
         device,
@@ -247,7 +251,7 @@ def main(config):
         multilabel=config.multilabel,
     )
 
-    test_dataset = load_dataset("test", model.cfg)
+    test_dataset = load_mae_dataset(test_dataset, model.cfg)
     test_loader = DataLoader(
         dataset=test_dataset,
         batch_size=config.batch_size,
@@ -256,7 +260,7 @@ def main(config):
         pin_memory=True,
         collate_fn=lambda x: test_dataset.collater(x),
     )
-    test_evaluator = JEPARunner(
+    test_evaluator = TS2VecRunner(
         model,
         test_loader,
         device,

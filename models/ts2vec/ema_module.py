@@ -1,13 +1,9 @@
-import logging
 import copy
+import logging
+
 import torch
 
-try:
-    from amp_C import multi_tensor_l2norm
-
-    multi_tensor_l2norm_available = True
-except ImportError:
-    multi_tensor_l2norm_available = False
+multi_tensor_l2norm_available = False
 
 logger = logging.getLogger(__name__)
 

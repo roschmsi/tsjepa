@@ -49,7 +49,7 @@ from models.transformer.model import (
     TSTransformerEncoder,
     TSTransformerEncoderClassifier,
 )
-from models.ts_jepa.model import Data2VecConfig, TimeSeriesJEPA
+from models.ts2vec.model import Data2VecConfig, TS2Vec
 from runner import (
     ForecastingRunner,
     SupervisedRunner,
@@ -77,6 +77,8 @@ def pipeline_factory(config):
                     or config.model_name == "patch_tst_t"
                 )
                 else False,
+                hierarchical=config.hierarchical,
+                num_levels=config.num_levels,
             )
             return (
                 dataset,
@@ -86,6 +88,7 @@ def pipeline_factory(config):
                     patch_len=config.patch_len,
                     stride=config.stride,
                     masking_ratio=config.masking_ratio,
+                    num_levels=config.num_levels,
                 ),
                 partial(
                     UnsupervisedPatchRunner,
@@ -378,12 +381,11 @@ def model_factory(config):
                 c_in=config.feat_dim,
                 num_patch=num_patch,
                 patch_len=config.patch_len,
-                enc_num_levels=config.enc_num_levels,
+                num_levels=config.num_levels,
                 enc_num_layers=config.enc_num_layers,
                 enc_num_heads=config.enc_num_heads,
                 enc_d_model=config.enc_d_model,
                 enc_d_ff=config.enc_d_ff,
-                dec_num_levels=config.dec_num_levels,
                 dec_num_layers=config.dec_num_layers,
                 dec_num_heads=config.dec_num_heads,
                 dec_d_model=config.dec_d_model,
@@ -403,7 +405,7 @@ def model_factory(config):
                 c_out=c_out,
                 num_patch=num_patch,
                 patch_len=config.patch_len,
-                enc_num_levels=config.enc_num_levels,
+                num_levels=config.num_levels,
                 enc_num_layers=config.enc_num_layers,
                 enc_num_heads=config.enc_num_heads,
                 enc_d_model=config.enc_d_model,
@@ -502,13 +504,13 @@ def model_factory(config):
                 task=config.task,
                 head_dropout=config.head_dropout,
             )
-    elif config.model_name == "ts_jepa":
+    elif config.model_name == "ts2vec":
         if config.task == "pretraining":
-            jepa_config_yaml = load_config_yaml(
-                "/home/stud/roschman/ECGAnalysis/models/ts_jepa/config.yaml"
+            ts2vec_config_yaml = load_config_yaml(
+                "/home/stud/roschman/ECGAnalysis/models/ts2vec/config.yaml"
             )
-            jepa_config = Data2VecConfig(**jepa_config_yaml)
-            return TimeSeriesJEPA(cfg=jepa_config)
+            ts2vec_config = Data2VecConfig(**ts2vec_config_yaml)
+            return TS2Vec(cfg=ts2vec_config)
     else:
         raise ValueError(
             f"Model {config.model_name} for task '{config.task}' does not exist"

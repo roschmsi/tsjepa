@@ -465,7 +465,7 @@ class UnsupervisedPatchRunner(BaseRunner):
         return self.epoch_metrics
 
 
-class JEPARunner(BaseRunner):
+class TS2VecRunner(BaseRunner):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.update_num = 0
