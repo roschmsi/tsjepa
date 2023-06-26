@@ -23,8 +23,6 @@ class TS2VecCriterion(_Loss):
 
         losses = net_output["losses"]
 
-        # scale losses
-
         for lk, p in losses.items():
             try:
                 coef = 1.0 if len(self.loss_weights) == 0 else self.loss_weights[lk]
@@ -70,18 +68,10 @@ class TS2VecCriterion(_Loss):
             for lk, l in scaled_losses.items():
                 if l.numel() > 1:
                     l = l.sum()
-                logging_output[f"loss_{lk}"] = l.item()
+                logging_output[f"d{lk}"] = l.item()
 
         if "logs" in net_output:
             for lgw in net_output["logs"]:
                 logging_output[lgw] = net_output["logs"][lgw]
 
         return loss, sample_size, logging_output
-
-    def logging_outputs_can_be_summed(self) -> bool:
-        """
-        Whether the logging outputs returned by `forward` can be summed
-        across workers prior to calling `reduce_metrics`. Setting this
-        to True will improves distributed training speed.
-        """
-        return self.can_sum

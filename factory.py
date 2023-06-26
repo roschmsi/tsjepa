@@ -49,7 +49,7 @@ from models.transformer.model import (
     TSTransformerEncoder,
     TSTransformerEncoderClassifier,
 )
-from models.ts2vec.model import Data2VecConfig, TS2Vec
+from models.ts2vec.model import TS2VecConfig, TS2Vec, TS2VecPredictor
 from runner import (
     ForecastingRunner,
     SupervisedRunner,
@@ -509,8 +509,14 @@ def model_factory(config):
             ts2vec_config_yaml = load_config_yaml(
                 "/home/stud/roschman/ECGAnalysis/models/ts2vec/config.yaml"
             )
-            ts2vec_config = Data2VecConfig(**ts2vec_config_yaml)
+            ts2vec_config = TS2VecConfig(**ts2vec_config_yaml)
             return TS2Vec(cfg=ts2vec_config)
+        elif config.task in ["classification", "forecasting"]:
+            ts2vec_config_yaml = load_config_yaml(
+                "/home/stud/roschman/ECGAnalysis/models/ts2vec/config.yaml"
+            )
+            ts2vec_config = TS2VecConfig(**ts2vec_config_yaml)
+            return TS2VecPredictor(cfg=ts2vec_config, c_out=c_out, task=config.task)
     else:
         raise ValueError(
             f"Model {config.model_name} for task '{config.task}' does not exist"

@@ -654,7 +654,12 @@ def data_provider(config, split):
 
 def load_fc_dataset(config):
     train_dataset = data_provider(config, split="train")
-    val_dataset = data_provider(config, split="val")
-    test_dataset = data_provider(config, split="test")
+
+    if config.debug:
+        val_dataset = train_dataset
+        test_dataset = train_dataset
+    else:
+        val_dataset = data_provider(config, split="val")
+        test_dataset = data_provider(config, split="test")
 
     return train_dataset, val_dataset, test_dataset

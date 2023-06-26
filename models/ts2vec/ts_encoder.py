@@ -1,18 +1,15 @@
-from dataclasses import dataclass
 from functools import partial
 from typing import Dict, Optional, Callable
-from omegaconf import II
 import torch
 import torch.nn as nn
 import math
 import numpy as np
 import torch.nn.functional as F
 from models.patch_tst.layers.pos_encoding import PositionalEncoding
+from models.ts2vec.config import TimeSeriesConfig
+from models.ts2vec.decoder import Decoder1d
 from models.ts2vec.utils import (
     BlockEncoder,
-    D2vDecoderConfig,
-    Decoder2d,
-    EncDecTransformerDecoder,
     FixedPositionalEncoder,
     GradMultiply,
     MaskInfo,
@@ -21,66 +18,6 @@ from models.ts2vec.utils import (
     compute_mask_indices,
     index_put,
 )
-
-
-@dataclass
-class D2vModalityConfig:
-    prenet_depth: int = 0
-    prenet_layerdrop: float = 0
-    prenet_dropout: float = 0
-    start_drop_path_rate: float = 0
-    end_drop_path_rate: float = 0
-
-    num_extra_tokens: int = 1
-    init_extra_token_zero: bool = False
-
-    mask_noise_std: float = 0.01
-    mask_prob_min: Optional[float] = None
-    mask_prob: float = 0.8
-    inverse_mask: bool = True
-    mask_prob_adjust: float = 0.07
-    keep_masked_pct: float = 0
-
-    mask_length: int = 3
-    add_masks: bool = False
-    remove_masks: bool = False
-    mask_dropout: float = 0.0
-    encoder_zero_mask: bool = True
-
-    mask_channel_prob: float = 0.0
-    mask_channel_length: int = 4
-
-    ema_local_encoder: bool = True  # used in data2vec_multi
-    local_grad_mult: float = 1.0
-
-    use_alibi_encoder: bool = False
-    alibi_scale: float = 1.0
-    learned_alibi: bool = False
-    alibi_max_pos: Optional[int] = None
-    learned_alibi_scale: bool = False
-    learned_alibi_scale_per_head: bool = False
-    learned_alibi_scale_per_layer: bool = False
-
-    num_alibi_heads: int = II("model.num_heads")
-    model_depth: int = II("model.depth")
-
-    decoder: Optional[D2vDecoderConfig] = D2vDecoderConfig()
-
-
-@dataclass
-class D2vTimeSeriesConfig(D2vModalityConfig):
-    input_size: int = 512
-    in_chans: int = 1
-    patch_size: int = 16
-    embed_dim: int = 64
-
-    alibi_dims: int = 2
-    alibi_distance: str = "manhattan"
-
-    fixed_positions: bool = True
-
-    transformer_decoder: bool = True
-    enc_dec_transformer: bool = False
 
 
 class ModalitySpecificEncoder(nn.Module):
@@ -121,50 +58,50 @@ class ModalitySpecificEncoder(nn.Module):
                 nn.init.normal_(self.extra_tokens[:, 1:])
 
         self.alibi_scale = None
-        if self.get_alibi_bias is not None:
-            self.alibi_scale = nn.Parameter(
-                torch.full(
-                    (
-                        (modality_cfg.prenet_depth + modality_cfg.model_depth)
-                        if modality_cfg.learned_alibi_scale_per_layer
-                        else 1,
-                        1,
-                        self.modality_cfg.num_alibi_heads
-                        if modality_cfg.learned_alibi_scale_per_head
-                        else 1,
-                        1,
-                        1,
-                    ),
-                    modality_cfg.alibi_scale,
-                    dtype=torch.float,
-                ),
-                requires_grad=modality_cfg.learned_alibi_scale,
-            )
+        # if self.get_alibi_bias is not None:
+        #     self.alibi_scale = nn.Parameter(
+        #         torch.full(
+        #             (
+        #                 (modality_cfg.prenet_depth + modality_cfg.model_depth)
+        #                 if modality_cfg.learned_alibi_scale_per_layer
+        #                 else 1,
+        #                 1,
+        #                 self.modality_cfg.num_alibi_heads
+        #                 if modality_cfg.learned_alibi_scale_per_head
+        #                 else 1,
+        #                 1,
+        #                 1,
+        #             ),
+        #             modality_cfg.alibi_scale,
+        #             dtype=torch.float,
+        #         ),
+        #         requires_grad=modality_cfg.learned_alibi_scale,
+        #     )
 
-        if modality_cfg.learned_alibi and self.get_alibi_bias is not None:
-            assert modality_cfg.alibi_max_pos is not None
-            alibi_bias = self.get_alibi_bias(
-                batch_size=1,
-                time_steps=modality_cfg.alibi_max_pos,
-                heads=modality_cfg.num_alibi_heads,
-                scale=1.0,
-                dtype=torch.float,
-                device="cpu",
-            )
-            self.alibi_bias = nn.Parameter(alibi_bias)
-            self.get_alibi_bias = partial(
-                _learned_alibi_bias, alibi_bias=self.alibi_bias
-            )
+        # if modality_cfg.learned_alibi and self.get_alibi_bias is not None:
+        #     assert modality_cfg.alibi_max_pos is not None
+        #     alibi_bias = self.get_alibi_bias(
+        #         batch_size=1,
+        #         time_steps=modality_cfg.alibi_max_pos,
+        #         heads=modality_cfg.num_alibi_heads,
+        #         scale=1.0,
+        #         dtype=torch.float,
+        #         device="cpu",
+        #     )
+        #     self.alibi_bias = nn.Parameter(alibi_bias)
+        #     self.get_alibi_bias = partial(
+        #         _learned_alibi_bias, alibi_bias=self.alibi_bias
+        #     )
 
-    def upgrade_state_dict_named(self, state_dict, name):
-        k = f"{name}.alibi_scale"
-        if k in state_dict and state_dict[k].dim() == 4:
-            state_dict[k] = state_dict[k].unsqueeze(0)
+    # def upgrade_state_dict_named(self, state_dict, name):
+    #     k = f"{name}.alibi_scale"
+    #     if k in state_dict and state_dict[k].dim() == 4:
+    #         state_dict[k] = state_dict[k].unsqueeze(0)
 
-        return state_dict
+    #     return state_dict
 
-    def convert_padding_mask(self, x, padding_mask):
-        return padding_mask
+    # def convert_padding_mask(self, x, padding_mask):
+    #     return padding_mask
 
     def decoder_input(self, x, mask_info: MaskInfo):
         inp_drop = self.modality_cfg.decoder.input_dropout
@@ -223,12 +160,12 @@ class ModalitySpecificEncoder(nn.Module):
         mask_seeds: Optional[torch.Tensor] = None,
         precomputed_mask=None,
     ):
-        if padding_mask is not None:
-            padding_mask = self.convert_padding_mask(x, padding_mask)
+        # if padding_mask is not None:
+        #     padding_mask = self.convert_padding_mask(x, padding_mask)
 
         local_features = x
-        if mask and clone_batch == 1:
-            local_features = local_features.clone()
+        # if mask and clone_batch == 1:
+        #     local_features = local_features.clone()
 
         orig_B, orig_T, _ = x.shape
         pre_mask_B = orig_B
@@ -236,29 +173,27 @@ class ModalitySpecificEncoder(nn.Module):
 
         x_pos = None
         if self.fixed_positional_encoder is not None:
-            x = (
-                x + self.fixed_positional_encoder(x, padding_mask).cuda()
-            )  # TODO check why not same device
+            x = x + self.fixed_positional_encoder(x, padding_mask)
 
         if mask:
             if clone_batch > 1:
                 x = x.repeat_interleave(clone_batch, 0)
-                if mask_seeds is not None:
-                    clone_hash = [
-                        int(hash((mask_seeds.seed, ind)) % 1e10)
-                        for ind in range(clone_batch - 1)
-                    ]
-                    clone_hash = torch.tensor([0] + clone_hash).long().view(1, -1)
+                # if mask_seeds is not None:
+                #     clone_hash = [
+                #         int(hash((mask_seeds.seed, ind)) % 1e10)
+                #         for ind in range(clone_batch - 1)
+                #     ]
+                #     clone_hash = torch.tensor([0] + clone_hash).long().view(1, -1)
 
-                    id = mask_seeds.ids
-                    id = id.repeat_interleave(clone_batch, 0)
-                    id = id.view(-1, clone_batch) + clone_hash.to(id)
-                    id = id.view(-1)
-                    mask_seeds = MaskSeed(
-                        seed=mask_seeds.seed, update=mask_seeds.update, ids=id
-                    )
-                if padding_mask is not None:
-                    padding_mask = padding_mask.repeat_interleave(clone_batch, 0)
+                #     id = mask_seeds.ids
+                #     id = id.repeat_interleave(clone_batch, 0)
+                #     id = id.view(-1, clone_batch) + clone_hash.to(id)
+                #     id = id.view(-1)
+                #     mask_seeds = MaskSeed(
+                #         seed=mask_seeds.seed, update=mask_seeds.update, ids=id
+                #     )
+                # if padding_mask is not None:
+                #     padding_mask = padding_mask.repeat_interleave(clone_batch, 0)
 
             x, mask_info = self.compute_mask(
                 x,
@@ -268,14 +203,14 @@ class ModalitySpecificEncoder(nn.Module):
                 precomputed_mask=precomputed_mask,
             )
 
-        if self.relative_positional_encoder is not None:
-            x_pos = self.relative_positional_encoder(x)
+        # if self.relative_positional_encoder is not None:
+        #     x_pos = self.relative_positional_encoder(x)
 
         masked_padding_mask = padding_mask
         if mask and remove_masked:
             x = mask_info.x_unmasked
-            if x_pos is not None:
-                x = x + gather_unmasked(x_pos, mask_info)
+            # if x_pos is not None:
+            #     x = x + gather_unmasked(x_pos, mask_info)
 
             if padding_mask is not None and padding_mask.any():
                 masked_padding_mask = gather_unmasked_mask(padding_mask, mask_info)
@@ -290,36 +225,36 @@ class ModalitySpecificEncoder(nn.Module):
         alibi_bias = None
         alibi_scale = self.alibi_scale
 
-        if self.get_alibi_bias is not None:
-            alibi_bias = self.get_alibi_bias(
-                batch_size=pre_mask_B,
-                time_steps=orig_T,
-                heads=self.modality_cfg.num_alibi_heads,
-                dtype=torch.float32,
-                device=x.device,
-            )
+        # if self.get_alibi_bias is not None:
+        #     alibi_bias = self.get_alibi_bias(
+        #         batch_size=pre_mask_B,
+        #         time_steps=orig_T,
+        #         heads=self.modality_cfg.num_alibi_heads,
+        #         dtype=torch.float32,
+        #         device=x.device,
+        #     )
 
-            if alibi_scale is not None:
-                alibi_scale = alibi_scale.clamp_min(0)
-                if alibi_scale.size(0) == 1:
-                    alibi_bias = alibi_bias * alibi_scale.squeeze(0).type_as(alibi_bias)
-                    alibi_scale = None
+        #     if alibi_scale is not None:
+        #         alibi_scale = alibi_scale.clamp_min(0)
+        #         if alibi_scale.size(0) == 1:
+        #             alibi_bias = alibi_bias * alibi_scale.squeeze(0).type_as(alibi_bias)
+        #             alibi_scale = None
 
-            if clone_batch > 1:
-                alibi_bias = alibi_bias.repeat_interleave(clone_batch, 0)
+        #     if clone_batch > 1:
+        #         alibi_bias = alibi_bias.repeat_interleave(clone_batch, 0)
 
-            if mask_info is not None and remove_masked:
-                alibi_bias = masked_alibi(alibi_bias, mask_info)
+        #     if mask_info is not None and remove_masked:
+        #         alibi_bias = masked_alibi(alibi_bias, mask_info)
 
         if self.extra_tokens is not None:
             num = self.extra_tokens.size(1)
             x = torch.cat([self.extra_tokens.expand(x.size(0), -1, -1), x], dim=1)
-            if masked_padding_mask is not None:
-                # B x T
-                masked_padding_mask = F.pad(masked_padding_mask, (num, 0))
-            if alibi_bias is not None:
-                # B x H x T x T
-                alibi_bias = F.pad(alibi_bias, (num, 0, num, 0))
+            # if masked_padding_mask is not None:
+            #     # B x T
+            #     masked_padding_mask = F.pad(masked_padding_mask, (num, 0))
+            # if alibi_bias is not None:
+            #     # B x H x T x T
+            #     alibi_bias = F.pad(alibi_bias, (num, 0, num, 0))
 
         x = self.context_encoder(
             x,
@@ -487,6 +422,226 @@ class ModalitySpecificEncoder(nn.Module):
             self.decoder = None
 
 
+class TimeSeriesPatchEmbed(nn.Module):
+    """1D Time Series to Patch Embedding"""
+
+    def __init__(
+        self,
+        patch_size: int = 16,
+        in_chans: int = 1,
+        embed_dim: int = 64,
+        bias: bool = True,
+    ):
+        super().__init__()
+
+        self.proj = nn.Conv1d(
+            in_channels=in_chans,
+            out_channels=embed_dim,
+            kernel_size=patch_size,
+            stride=patch_size,
+            bias=bias,
+        )
+
+    def forward(self, x):
+        x = self.proj(x).transpose(1, 2)
+        return x
+
+
+class TimeSeriesEncoder(ModalitySpecificEncoder):
+    modality_cfg: TimeSeriesConfig
+
+    def __init__(
+        self,
+        modality_cfg: TimeSeriesConfig,
+        embed_dim: int,
+        make_block: Callable[[float, Optional[int], Optional[int]], nn.ModuleList],
+        norm_layer: Callable[[int], nn.LayerNorm],
+        layer_norm_first: bool,
+        alibi_biases: Dict,
+        task=None,
+    ):
+        ts_size = modality_cfg.input_size  # time series length
+        patch_size = modality_cfg.patch_size  # time series patch length
+        num_patches = ts_size // patch_size  # number of patches
+
+        # generate and initialize local encoder (patch embedding)
+        local_encoder = TimeSeriesPatchEmbed(
+            patch_size=modality_cfg.patch_size,
+            in_chans=modality_cfg.in_chans,
+            embed_dim=modality_cfg.embed_dim,
+        )
+
+        w = local_encoder.proj.weight.data
+        torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
+
+        # if modality_cfg.embed_dim != embed_dim:
+        #     local_encoder = nn.Sequential(
+        #         local_encoder,
+        #         nn.Linear(modality_cfg.embed_dim, embed_dim),
+        #     )
+
+        project_features = nn.Identity()
+
+        emb = nn.Parameter(PositionalEncoding(q_len=num_patches, d_model=embed_dim))
+        # pos_embed.data.copy_(torch.from_numpy(emb).float().unsqueeze(0))
+        fixed_positional_encoder = (
+            FixedPositionalEncoder(emb) if modality_cfg.fixed_positions else None
+        )
+
+        dpr = np.linspace(
+            modality_cfg.start_drop_path_rate,
+            modality_cfg.end_drop_path_rate,
+            modality_cfg.prenet_depth,
+        )
+
+        # transformer encoder for context
+        context_encoder = BlockEncoder(
+            nn.ModuleList(make_block(dpr[i]) for i in range(modality_cfg.prenet_depth)),
+            norm_layer(embed_dim) if not layer_norm_first else None,
+            layer_norm_first,
+            modality_cfg.prenet_layerdrop,
+            modality_cfg.prenet_dropout,
+        )
+
+        # get mae decoder
+        if modality_cfg.transformer_decoder:
+            # if modality_cfg.enc_dec_transformer:
+            #     decoder = EncDecTransformerDecoder(modality_cfg.decoder, embed_dim)
+            # else:
+            dec_enc = BlockEncoder(
+                nn.ModuleList(
+                    make_block(0, modality_cfg.decoder.decoder_dim, 8)
+                    for _ in range(modality_cfg.decoder.decoder_layers)
+                ),
+                None,
+                layer_norm_first,
+                0,
+                0,
+            )
+            decoder = TransformerDecoder(modality_cfg.decoder, embed_dim, dec_enc)
+        else:
+            decoder = (
+                Decoder1d(modality_cfg.decoder, embed_dim)
+                if modality_cfg.decoder is not None
+                else None
+            )
+
+        alibi_bias_fn = partial(
+            get_alibi_bias,
+            alibi_biases=alibi_biases,
+            heads=modality_cfg.num_alibi_heads,
+            dims=modality_cfg.alibi_dims,
+            distance=modality_cfg.alibi_distance,
+        )
+
+        super().__init__(
+            modality_cfg=modality_cfg,
+            embed_dim=embed_dim,
+            local_encoder=local_encoder,
+            project_features=project_features,
+            fixed_positional_encoder=fixed_positional_encoder,
+            relative_positional_encoder=None,
+            context_encoder=context_encoder,
+            decoder=decoder,
+            get_alibi_bias=alibi_bias_fn,
+        )
+
+    def reset_parameters(self):
+        super().reset_parameters()
+        if self.decoder is not None:
+            self.decoder.reset_parameters()
+
+    def compute_mask(
+        self,
+        x,
+        padding_mask,
+        mask_seed: Optional[MaskSeed],
+        apply,
+        shape=None,
+        precomputed_mask=None,
+    ):
+        mlen = self.modality_cfg.mask_length
+        if mlen <= 1:
+            return super().compute_mask(
+                x, padding_mask, mask_seed, apply, precomputed_mask
+            )
+
+        if precomputed_mask is not None:
+            mask = precomputed_mask
+        # else:
+        #     from fairseq.data.data_utils import compute_block_mask_2d
+
+        #     if shape is not None:
+        #         B, L, D = shape
+        #     else:
+        #         B, L, D = x.shape
+
+        #     mask = compute_block_mask_2d(
+        #         shape=(B, L),
+        #         mask_prob=self.modality_cfg.mask_prob,
+        #         mask_length=self.modality_cfg.mask_length,
+        #         mask_prob_adjust=self.modality_cfg.mask_prob_adjust,
+        #         inverse_mask=self.modality_cfg.inverse_mask,
+        #         require_same_masks=True,
+        #         mask_dropout=self.modality_cfg.mask_dropout,
+        #     )
+
+        mask_info = self.make_maskinfo(x, mask, shape)
+        if apply:
+            x = self.apply_mask(x, mask_info)
+
+        return x, mask_info
+
+    def decoder_input(self, x, mask_info):
+        if (
+            not self.modality_cfg.transformer_decoder
+            or not self.modality_cfg.enc_dec_transformer
+        ):
+            return super().decoder_input(x, mask_info)
+
+        # inp_drop = self.modality_cfg.decoder.input_dropout
+        # if inp_drop > 0:
+        #     x = F.dropout(x, inp_drop, training=self.training, inplace=True)
+
+        # kv = x[:, self.modality_cfg.num_extra_tokens :]
+
+        # assert self.fixed_positional_encoder is not None
+        # pos = self.fixed_positional_encoder(x, None).expand(x.size(0), -1, -1)
+
+        # mask = mask_info.mask.bool()
+        # if self.modality_cfg.decoder.add_positions_all:
+        #     kv = kv + pos[~mask].view(kv.shape)
+
+        # q = pos[mask].view(x.size(0), -1, x.size(-1))
+
+        # return q, kv
+
+    def forward(
+        self,
+        features,
+        padding_mask,
+        mask: bool,
+        remove_masked: bool,
+        clone_batch: int = 1,
+        mask_seeds: Optional[torch.Tensor] = None,
+        precomputed_mask=None,
+    ):
+        # channel independence
+        B, L, C = features.shape
+        features = features.transpose(1, 2).reshape(-1, 1, L)
+        # features: [batch_size * num_channels, 1, seq_len]
+        x = self.local_features(features)
+        return self.contextualized_features(
+            x,
+            padding_mask,
+            mask,
+            remove_masked,
+            clone_batch,
+            mask_seeds,
+            precomputed_mask,
+        )
+
+
 def get_annealed_rate(start, end, curr_step, total_steps):
     if curr_step >= total_steps:
         return end
@@ -532,12 +687,12 @@ def random_masking(x, mask_ratio, mask_seed: Optional[MaskSeed]):
     )
 
 
-def gather_unmasked(x: torch.Tensor, mask_info: MaskInfo) -> torch.Tensor:
-    return torch.gather(
-        x,
-        dim=1,
-        index=mask_info.ids_keep,
-    )
+# def gather_unmasked(x: torch.Tensor, mask_info: MaskInfo) -> torch.Tensor:
+#     return torch.gather(
+#         x,
+#         dim=1,
+#         index=mask_info.ids_keep,
+#     )
 
 
 def gather_unmasked_mask(x: torch.Tensor, mask_info: MaskInfo) -> torch.Tensor:
@@ -694,257 +849,3 @@ def masked_alibi(alibi_bias, mask_info):
     )
 
     return alibi_bias
-
-
-class TimeSeriesPatchEmbed(nn.Module):
-    """1D Time Series to Patch Embedding"""
-
-    def __init__(
-        self,
-        patch_size: int = 16,
-        in_chans: int = 1,
-        embed_dim: int = 64,
-        bias: bool = True,
-    ):
-        super().__init__()
-
-        self.proj = nn.Conv1d(
-            in_channels=in_chans,
-            out_channels=embed_dim,
-            kernel_size=patch_size,
-            stride=patch_size,
-            bias=bias,
-        )
-
-    def forward(self, x):
-        x = self.proj(x)
-        return x
-
-
-class TimeSeriesEncoder(ModalitySpecificEncoder):
-    modality_cfg: D2vTimeSeriesConfig
-
-    def __init__(
-        self,
-        modality_cfg: D2vTimeSeriesConfig,
-        embed_dim: int,
-        make_block: Callable[[float, Optional[int], Optional[int]], nn.ModuleList],
-        norm_layer: Callable[[int], nn.LayerNorm],
-        layer_norm_first: bool,
-        alibi_biases: Dict,
-        task=None,
-    ):
-        ts_size = modality_cfg.input_size  # time series length
-        patch_size = modality_cfg.patch_size  # time series patch length
-        num_patches = ts_size // patch_size  # number of patches
-
-        # generate and initialize local encoder (patch embedding)
-        local_encoder = TimeSeriesPatchEmbed(
-            patch_size=modality_cfg.patch_size,
-            in_chans=modality_cfg.in_chans,
-            embed_dim=modality_cfg.embed_dim,
-        )
-
-        w = local_encoder.proj.weight.data
-        torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
-
-        if modality_cfg.embed_dim != embed_dim:
-            local_encoder = nn.Sequential(
-                local_encoder,
-                nn.Linear(modality_cfg.embed_dim, embed_dim),
-            )
-
-        project_features = nn.Identity()
-
-        # get fixed 1d positional encoding
-        # pos_embed = nn.Parameter(
-        #     torch.zeros(1, num_patches, embed_dim), requires_grad=False
-        # )
-
-        emb = PositionalEncoding(q_len=num_patches, d_model=embed_dim)
-        # pos_embed.data.copy_(torch.from_numpy(emb).float().unsqueeze(0))
-        fixed_positional_encoder = (
-            FixedPositionalEncoder(emb) if modality_cfg.fixed_positions else None
-        )
-
-        dpr = np.linspace(
-            modality_cfg.start_drop_path_rate,
-            modality_cfg.end_drop_path_rate,
-            modality_cfg.prenet_depth,
-        )
-
-        # transformer encoder for context
-        context_encoder = BlockEncoder(
-            nn.ModuleList(make_block(dpr[i]) for i in range(modality_cfg.prenet_depth)),
-            norm_layer(embed_dim) if not layer_norm_first else None,
-            layer_norm_first,
-            modality_cfg.prenet_layerdrop,
-            modality_cfg.prenet_dropout,
-        )
-
-        # get mae decoder
-        if modality_cfg.transformer_decoder:
-            if modality_cfg.enc_dec_transformer:
-                decoder = EncDecTransformerDecoder(modality_cfg.decoder, embed_dim)
-            else:
-                dec_enc = BlockEncoder(
-                    nn.ModuleList(
-                        make_block(0, modality_cfg.decoder.decoder_dim, 8)
-                        for _ in range(modality_cfg.decoder.decoder_layers)
-                    ),
-                    None,
-                    layer_norm_first,
-                    0,
-                    0,
-                )
-                decoder = TransformerDecoder(modality_cfg.decoder, embed_dim, dec_enc)
-        else:
-            decoder = (
-                Decoder2d(modality_cfg.decoder, embed_dim, side_n, side_n)
-                if modality_cfg.decoder is not None
-                else None
-            )
-
-        alibi_bias_fn = partial(
-            get_alibi_bias,
-            alibi_biases=alibi_biases,
-            heads=modality_cfg.num_alibi_heads,
-            dims=modality_cfg.alibi_dims,
-            distance=modality_cfg.alibi_distance,
-        )
-
-        super().__init__(
-            modality_cfg=modality_cfg,
-            embed_dim=embed_dim,
-            local_encoder=local_encoder,
-            project_features=project_features,
-            fixed_positional_encoder=fixed_positional_encoder,
-            relative_positional_encoder=None,
-            context_encoder=context_encoder,
-            decoder=decoder,
-            get_alibi_bias=alibi_bias_fn,
-        )
-
-    def reset_parameters(self):
-        super().reset_parameters()
-        if self.decoder is not None:
-            self.decoder.reset_parameters()
-
-    @torch.no_grad()
-    def patchify(self, imgs):
-        """
-        imgs: (N, 3, H, W)
-        x: (N, L, patch_size**2 *3)
-        """
-        p = self.modality_cfg.patch_size
-        h = w = imgs.shape[2] // p
-        x = imgs.reshape(shape=(imgs.shape[0], 3, h, p, w, p))
-        x = torch.einsum("nchpwq->nhwpqc", x)
-        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * 3))
-
-        return x
-
-    @torch.no_grad()
-    def unpatchify(self, x):
-        """
-        x: (N, L, patch_size**2 *3)
-        imgs: (N, 3, H, W)
-        """
-        p = self.modality_cfg.patch_size
-        h = w = int(x.shape[1] ** 0.5)
-        assert h * w == x.shape[1]
-
-        x = x.reshape(shape=(x.shape[0], h, w, p, p, 3))
-        x = torch.einsum("nhwpqc->nchpwq", x)
-        imgs = x.reshape(shape=(x.shape[0], 3, h * p, h * p))
-        return imgs
-
-    def compute_mask(
-        self,
-        x,
-        padding_mask,
-        mask_seed: Optional[MaskSeed],
-        apply,
-        shape=None,
-        precomputed_mask=None,
-    ):
-        mlen = self.modality_cfg.mask_length
-        if mlen <= 1:
-            return super().compute_mask(
-                x, padding_mask, mask_seed, apply, precomputed_mask
-            )
-
-        if precomputed_mask is not None:
-            mask = precomputed_mask
-        else:
-            from fairseq.data.data_utils import compute_block_mask_2d
-
-            if shape is not None:
-                B, L, D = shape
-            else:
-                B, L, D = x.shape
-
-            mask = compute_block_mask_2d(
-                shape=(B, L),
-                mask_prob=self.modality_cfg.mask_prob,
-                mask_length=self.modality_cfg.mask_length,
-                mask_prob_adjust=self.modality_cfg.mask_prob_adjust,
-                inverse_mask=self.modality_cfg.inverse_mask,
-                require_same_masks=True,
-                mask_dropout=self.modality_cfg.mask_dropout,
-            )
-
-        mask_info = self.make_maskinfo(x, mask, shape)
-        if apply:
-            x = self.apply_mask(x, mask_info)
-
-        return x, mask_info
-
-    def decoder_input(self, x, mask_info):
-        if (
-            not self.modality_cfg.transformer_decoder
-            or not self.modality_cfg.enc_dec_transformer
-        ):
-            return super().decoder_input(x, mask_info)
-
-        inp_drop = self.modality_cfg.decoder.input_dropout
-        if inp_drop > 0:
-            x = F.dropout(x, inp_drop, training=self.training, inplace=True)
-
-        kv = x[:, self.modality_cfg.num_extra_tokens :]
-
-        assert self.fixed_positional_encoder is not None
-        pos = self.fixed_positional_encoder(x, None).expand(x.size(0), -1, -1)
-
-        mask = mask_info.mask.bool()
-        if self.modality_cfg.decoder.add_positions_all:
-            kv = kv + pos[~mask].view(kv.shape)
-
-        q = pos[mask].view(x.size(0), -1, x.size(-1))
-
-        return q, kv
-
-    def forward(
-        self,
-        features,
-        padding_mask,
-        mask: bool,
-        remove_masked: bool,
-        clone_batch: int = 1,
-        mask_seeds: Optional[torch.Tensor] = None,
-        precomputed_mask=None,
-    ):
-        # channel independence
-        B, L, C = features.shape
-        features = features.transpose(1, 2).reshape(-1, 1, L)
-        x = self.local_features(features)
-        x = x.transpose(1, 2)
-        return self.contextualized_features(
-            x,
-            padding_mask,
-            mask,
-            remove_masked,
-            clone_batch,
-            mask_seeds,
-            precomputed_mask,
-        )

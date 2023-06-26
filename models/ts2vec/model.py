@@ -2,7 +2,6 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-from dataclasses import dataclass, field
 from functools import partial
 import logging
 import math
@@ -11,114 +10,20 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
+from models.ts2vec.config import TS2VecConfig
 from models.ts2vec.ts_encoder import (
-    D2vTimeSeriesConfig,
     TimeSeriesEncoder,
     get_annealed_rate,
 )
 from models.ts2vec.utils import (
     AltBlock,
-    D2vDecoderConfig,
-    Decoder1d,
-    MaskSeed,
     init_bert_params,
 )
 from easydict import EasyDict
-from omegaconf import II
-from typing import Optional
 
 from models.ts2vec.ema_module import EMAModule
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class TS2VecConfig:
-    loss_beta: float = field(
-        default=0, metadata={"help": "beta for smooth l1 loss. 0 means use l2 loss"}
-    )
-    loss_scale: Optional[float] = field(
-        default=None,
-        metadata={
-            "help": "scale the reconstruction loss by this constant. if None then scales by 1/sqrt(dim)"
-        },
-    )
-
-    depth: int = 8
-    start_drop_path_rate: float = 0
-    end_drop_path_rate: float = 0
-    num_heads: int = 1
-    norm_eps: float = 1e-6
-    norm_affine: bool = True
-    encoder_dropout: float = 0.1
-    post_mlp_drop: float = 0.1
-    attention_dropout: float = 0.1
-    activation_dropout: float = 0.0
-    dropout_input: float = 0.0
-    layerdrop: float = 0.0
-    embed_dim: int = 4
-    mlp_ratio: float = 2
-    layer_norm_first: bool = False
-
-    average_top_k_layers: int = field(
-        default=8, metadata={"help": "how many layers to average"}
-    )
-
-    end_of_block_targets: bool = False
-
-    clone_batch: int = 1
-
-    layer_norm_target_layer: bool = False
-    batch_norm_target_layer: bool = False
-    instance_norm_target_layer: bool = False
-    instance_norm_targets: bool = False
-    layer_norm_targets: bool = False
-
-    ema_decay: float = field(default=0.999, metadata={"help": "initial ema decay rate"})
-    ema_same_dtype: bool = True
-    log_norms: bool = True
-    ema_end_decay: float = field(
-        default=0.9999, metadata={"help": "final ema decay rate"}
-    )
-
-    # when to finish annealing ema decay rate
-    ema_anneal_end_step: int = II("optimization.max_update")
-
-    ema_encoder_only: bool = field(
-        default=True,
-        metadata={
-            "help": "whether to momentum update only the shared transformer encoder"
-        },
-    )
-
-    max_update: int = II("optimization.max_update")
-
-    modality: Optional[
-        D2vTimeSeriesConfig
-    ] = D2vTimeSeriesConfig()  # Optional[D2vImageConfig] = D2vImageConfig()
-
-    shared_decoder: Optional[D2vDecoderConfig] = None
-
-    min_target_var: float = field(
-        default=0.1, metadata={"help": "stop training if target var falls below this"}
-    )
-    min_pred_var: float = field(
-        default=0.01,
-        metadata={"help": "stop training if prediction var falls below this"},
-    )
-
-    # supported_modality: Optional[Modality] = None
-    mae_init: bool = False
-
-    seed: int = II("common.seed")
-
-    skip_ema: bool = False
-
-    cls_loss: float = 0
-    recon_loss: float = 0
-    d2v_loss: float = 1
-
-    decoder_group: bool = False
 
 
 class TS2Vec(nn.Module):
@@ -188,13 +93,13 @@ class TS2Vec(nn.Module):
 
         if not skip_ema:
             self.ema = self.make_ema_teacher(cfg.ema_decay)
-            self.shared_decoder = (
-                Decoder1d(cfg.shared_decoder, cfg.embed_dim)
-                if self.cfg.shared_decoder is not None
-                else None
-            )
-            if self.shared_decoder is not None:
-                self.shared_decoder.apply(self._init_weights)
+            self.shared_decoder = None  # (
+            #     Decoder1d(cfg.shared_decoder, cfg.embed_dim)
+            #     if self.cfg.shared_decoder is not None
+            #     else None
+            # )
+            # if self.shared_decoder is not None:
+            #     self.shared_decoder.apply(self._init_weights)
 
             self.recon_proj = None
             if cfg.recon_loss > 0:
@@ -318,19 +223,13 @@ class TS2Vec(nn.Module):
         remove_extra_tokens=True,
         precomputed_mask=None,
     ):
-        feature_extractor = self.ts_encoder
-
-        mask_seeds = None
-        if id is not None:
-            mask_seeds = MaskSeed(seed=self.cfg.seed, update=self.num_updates, ids=id)
-
-        extractor_out = feature_extractor(
+        extractor_out = self.ts_encoder(
             source,
             padding_mask,
             mask,
             remove_masked=not features_only or force_remove_masked,
-            clone_batch=self.cfg.clone_batch if not features_only else 1,
-            mask_seeds=mask_seeds,
+            clone_batch=self.cfg.clone_batch,
+            mask_seeds=None,
             precomputed_mask=precomputed_mask,
         )
 
@@ -351,13 +250,13 @@ class TS2Vec(nn.Module):
                 or (np.random.random() > self.cfg.layerdrop)
             ):
                 ab = masked_alibi_bias
-                if ab is not None and alibi_scale is not None:
-                    scale = (
-                        alibi_scale[i]
-                        if alibi_scale.size(0) > 1
-                        else alibi_scale.squeeze(0)
-                    )
-                    ab = ab * scale.type_as(ab)
+                # if ab is not None and alibi_scale is not None:
+                #     scale = (
+                #         alibi_scale[i]
+                #         if alibi_scale.size(0) > 1
+                #         else alibi_scale.squeeze(0)
+                #     )
+                #     ab = ab * scale.type_as(ab)
 
                 x, lr = blk(
                     x,
@@ -374,10 +273,10 @@ class TS2Vec(nn.Module):
 
         if features_only:
             if remove_extra_tokens:
-                x = x[:, feature_extractor.modality_cfg.num_extra_tokens :]
+                x = x[:, self.ts_encoder.modality_cfg.num_extra_tokens :]
                 if masked_padding_mask is not None:
                     masked_padding_mask = masked_padding_mask[
-                        :, feature_extractor.modality_cfg.num_extra_tokens :
+                        :, self.ts_encoder.modality_cfg.num_extra_tokens :
                     ]
 
             return {
@@ -394,16 +293,16 @@ class TS2Vec(nn.Module):
         if self.shared_decoder is not None:
             dx = self.forward_decoder(
                 x,
-                feature_extractor,
+                self.ts_encoder,
                 self.shared_decoder,
                 encoder_mask,
             )
             xs.append(dx)
-        if feature_extractor.decoder is not None:  # here
+        if self.ts_encoder.decoder is not None:  # here
             dx = self.forward_decoder(
                 x,
-                feature_extractor,
-                feature_extractor.decoder,
+                self.ts_encoder,
+                self.ts_encoder.decoder,
                 encoder_mask,
             )
             xs.append(dx)
@@ -411,7 +310,7 @@ class TS2Vec(nn.Module):
 
         assert len(xs) > 0
 
-        # xs: len=1, [clone_size, seq_len, hidden_size]
+        # xs: len=1, [batch_size * clone_size, seq_len, hidden_size]
 
         p = next(self.ema.model.parameters())
         device = x.device
@@ -443,7 +342,7 @@ class TS2Vec(nn.Module):
             if self.cfg.ema_encoder_only:
                 assert target is None
                 ema_input = extractor_out["local_features"]
-                ema_input = feature_extractor.contextualized_features(
+                ema_input = self.ts_encoder.contextualized_features(
                     ema_input.to(dtype=ema_dtype),
                     padding_mask,
                     mask=False,
@@ -452,7 +351,7 @@ class TS2Vec(nn.Module):
                 ema_blocks = tm
             else:
                 ema_blocks = tm.blocks
-                if feature_extractor.modality_cfg.ema_local_encoder:
+                if self.ts_encoder.modality_cfg.ema_local_encoder:
                     inp = (
                         target.to(dtype=ema_dtype)
                         if target is not None
@@ -485,16 +384,16 @@ class TS2Vec(nn.Module):
 
             y = []
             ema_x = []
-            extra_tokens = feature_extractor.modality_cfg.num_extra_tokens
+            extra_tokens = self.ts_encoder.modality_cfg.num_extra_tokens
             for i, blk in enumerate(ema_blocks):
                 ab = ema_alibi_bias
-                if ab is not None and alibi_scale is not None:
-                    scale = (
-                        ema_alibi_scale[i]
-                        if ema_alibi_scale.size(0) > 1
-                        else ema_alibi_scale.squeeze(0)
-                    )
-                    ab = ab * scale.type_as(ab)
+                # if ab is not None and alibi_scale is not None:
+                #     scale = (
+                #         ema_alibi_scale[i]
+                #         if ema_alibi_scale.size(0) > 1
+                #         else ema_alibi_scale.squeeze(0)
+                #     )
+                #     ab = ab * scale.type_as(ab)
 
                 ema_input, lr = blk(
                     ema_input,
@@ -538,26 +437,26 @@ class TS2Vec(nn.Module):
                 self.cfg.cls_loss * sample_size
             )
 
-        if self.cfg.recon_loss > 0:  # here 0
-            with torch.no_grad():
-                target = feature_extractor.patchify(source)
-                mean = target.mean(dim=-1, keepdim=True)
-                var = target.var(dim=-1, keepdim=True)
-                target = (target - mean) / (var + 1.0e-6) ** 0.5
+        # if self.cfg.recon_loss > 0:  # here 0
+        #     with torch.no_grad():
+        #         target = self.ts_encoder.patchify(source)
+        #         mean = target.mean(dim=-1, keepdim=True)
+        #         var = target.var(dim=-1, keepdim=True)
+        #         target = (target - mean) / (var + 1.0e-6) ** 0.5
 
-                if self.cfg.clone_batch > 1:
-                    target = target.repeat_interleave(self.cfg.clone_batch, 0)
+        #         if self.cfg.clone_batch > 1:
+        #             target = target.repeat_interleave(self.cfg.clone_batch, 0)
 
-                if masked_b is not None:
-                    target = target[masked_b]
+        #         if masked_b is not None:
+        #             target = target[masked_b]
 
-            recon = xs[0]
-            if self.recon_proj is not None:
-                recon = self.recon_proj(recon)
+        #     recon = xs[0]
+        #     if self.recon_proj is not None:
+        #         recon = self.recon_proj(recon)
 
-            result["losses"]["recon"] = (
-                self.d2v_loss(recon, target.float()) * self.cfg.recon_loss
-            )
+        #     result["losses"]["recon"] = (
+        #         self.d2v_loss(recon, target.float()) * self.cfg.recon_loss
+        #     )
 
         if self.cfg.d2v_loss > 0:  # here 1
             for i, x in enumerate(xs):
@@ -568,6 +467,7 @@ class TS2Vec(nn.Module):
         # remove suffix
         with torch.no_grad():
             if encoder_mask is not None:
+                # masked percentage
                 result["masked_pct"] = 1 - (
                     encoder_mask.ids_keep.size(1) / encoder_mask.ids_restore.size(1)
                 )
@@ -581,23 +481,23 @@ class TS2Vec(nn.Module):
             y = y.float()
             result["target_var"] = self.compute_var(y)
 
-            if self.num_updates > 5000:
-                if result["target_var"] < self.cfg.min_target_var:
-                    logger.error(
-                        f"target var is {result[f'target_var'].item()} < {self.cfg.min_target_var}, exiting"
-                    )
-                    raise Exception(
-                        f"target var is {result[f'target_var'].item()} < {self.cfg.min_target_var}, exiting"
-                    )
+            # if self.num_updates > 5000:
+            #     if result["target_var"] < self.cfg.min_target_var:
+            #         logger.error(
+            #             f"target var is {result[f'target_var'].item()} < {self.cfg.min_target_var}, exiting"
+            #         )
+            #         raise Exception(
+            #             f"target var is {result[f'target_var'].item()} < {self.cfg.min_target_var}, exiting"
+            #         )
 
-                for k in result.keys():
-                    if k.startswith("pred_var") and result[k] < self.cfg.min_pred_var:
-                        logger.error(
-                            f"{k} is {result[k].item()} < {self.cfg.min_pred_var}, exiting"
-                        )
-                        raise Exception(
-                            f"{k} is {result[k].item()} < {self.cfg.min_pred_var}, exiting"
-                        )
+            #     for k in result.keys():
+            #         if k.startswith("pred_var") and result[k] < self.cfg.min_pred_var:
+            #             logger.error(
+            #                 f"{k} is {result[k].item()} < {self.cfg.min_pred_var}, exiting"
+            #             )
+            #             raise Exception(
+            #                 f"{k} is {result[k].item()} < {self.cfg.min_pred_var}, exiting"
+            #             )
 
             result["ema_decay"] = self.ema.get_decay() * 1000
 
@@ -726,3 +626,81 @@ class TS2Vec(nn.Module):
                 )
                 if not keep_decoder:
                     self.modality_encoders[k].decoder = None
+
+
+# @dataclass
+# class TS2VecPredictorConfig:
+#     model_path: str = MISSING
+#     no_pretrained_weights: bool = False
+#     num_classes: int = 1000
+#     mixup: float = 0.8
+#     cutmix: float = 1.0
+#     label_smoothing: float = 0.1
+
+#     pretrained_model_args: Any = None
+#     data: str = II("task.data")
+
+
+class TS2VecPredictor(nn.Module):
+    def __init__(self, cfg, c_out, task):
+        super().__init__()
+        self.cfg = cfg
+
+        model = TS2Vec(cfg)
+
+        model.remove_pretraining_modules()
+
+        self.model = model
+
+        if state is not None and not cfg.no_pretrained_weights:
+            self.load_model_weights(state, model, cfg)
+
+        self.head = PredictionHead(
+            individual=individual,
+            n_vars=c_in,
+            d_model=enc_d_model,
+            num_patch=num_patch,
+            forecast_len=c_out,
+            head_dropout=head_dropout,
+        )
+
+    def load_model_weights(self, state, model, cfg):
+        if "_ema" in state["model"]:
+            del state["model"]["_ema"]
+        model.load_state_dict(state["model"], strict=True)
+
+    def forward(
+        self,
+        img,
+        label=None,
+    ):
+        x = self.model(img, mask=False)
+        x = x[:, 1:]
+        x = self.fc_norm(x.mean(1))
+        x = self.head(x)
+
+        if label is None:
+            return x
+
+        if self.training and self.mixup_fn is not None:
+            loss = -label * F.log_softmax(x.float(), dim=-1)
+        else:
+            loss = F.cross_entropy(
+                x.float(),
+                label,
+                label_smoothing=self.cfg.label_smoothing if self.training else 0,
+                reduction="none",
+            )
+
+        result = {
+            "losses": {"regression": loss},
+            "sample_size": img.size(0),
+        }
+
+        if not self.training:
+            with torch.no_grad():
+                pred = x.argmax(-1)
+                correct = (pred == label).sum()
+                result["correct"] = correct
+
+        return result

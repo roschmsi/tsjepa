@@ -27,7 +27,7 @@ from evaluation.evaluate_12ECG_score import (
     compute_challenge_metric,
     load_weights,
 )
-from runner import TS2VecRunner
+from runner import ForecastingRunner, TS2VecRunner
 from utils import (
     count_parameters,
     load_model,
@@ -91,9 +91,8 @@ class MaeTimeSeriesPretrainingConfig:
     dataset_type: str = "imagefolder"
 
 
-def load_mae_dataset(dataset, config):
-    img_cfg = MaeTimeSeriesPretrainingConfig()
-    img_cfg.precompute_mask_config = {
+def load_mae_dataset(dataset, config, debug=False):
+    mask_args = {
         "patch_size": config.modality.patch_size,
         "mask_prob": config.modality.mask_prob,
         "mask_prob_adjust": config.modality.mask_prob_adjust,
@@ -105,17 +104,13 @@ def load_mae_dataset(dataset, config):
         "non_overlapping": False,
     }
 
-    compute_mask = img_cfg.precompute_mask_config is not None
-    mask_args = {}
-    if compute_mask:
-        mask_args = img_cfg.precompute_mask_config
-
     return MaeTimeSeriesDataset(
         dataset=dataset,
-        input_size=img_cfg.input_size,
-        key=img_cfg.key,
-        compute_mask=compute_mask,
+        input_size=config.modality.input_size,
+        key="imgs",
+        compute_mask=True,
         **mask_args,
+        debug=debug,
     )
 
 
@@ -207,7 +202,7 @@ def main(config):
         max_len = config.window * config.fs
 
     # start model training
-    train_dataset = load_mae_dataset(train_dataset, model.cfg)
+    train_dataset = load_mae_dataset(train_dataset, model.cfg, debug=config.debug)
     train_loader = DataLoader(
         dataset=train_dataset,
         batch_size=config.batch_size,
@@ -218,7 +213,15 @@ def main(config):
     )
 
     scheduler = scheduler_factory(config, optimizer, iters_per_epoch=len(train_loader))
-    trainer = TS2VecRunner(
+
+    if config.task == "pretraining":
+        runner = TS2VecRunner
+    elif config.task == "finetuning":
+        runner = ForecastingRunner
+    else:
+        raise ValueError(f"Task {config.task} not supported")
+
+    trainer = runner(
         model,
         train_loader,
         device,
@@ -231,7 +234,13 @@ def main(config):
         scheduler=scheduler,
     )
 
-    val_dataset = load_mae_dataset(val_dataset, model.cfg)
+    if config.debug:
+        val_dataset = train_dataset
+        test_dataset = train_dataset
+    else:
+        val_dataset = load_mae_dataset(val_dataset, model.cfg)
+        test_dataset = load_mae_dataset(test_dataset, model.cfg)
+
     val_loader = DataLoader(
         dataset=val_dataset,
         batch_size=config.batch_size,
@@ -240,7 +249,7 @@ def main(config):
         pin_memory=True,
         collate_fn=lambda x: val_dataset.collater(x),
     )
-    val_evaluator = TS2VecRunner(
+    val_evaluator = runner(
         model,
         val_loader,
         device,
@@ -251,7 +260,6 @@ def main(config):
         multilabel=config.multilabel,
     )
 
-    test_dataset = load_mae_dataset(test_dataset, model.cfg)
     test_loader = DataLoader(
         dataset=test_dataset,
         batch_size=config.batch_size,
@@ -260,7 +268,7 @@ def main(config):
         pin_memory=True,
         collate_fn=lambda x: test_dataset.collater(x),
     )
-    test_evaluator = TS2VecRunner(
+    test_evaluator = runner(
         model,
         test_loader,
         device,

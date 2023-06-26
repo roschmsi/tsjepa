@@ -195,6 +195,7 @@ class MaeTimeSeriesDataset(torch.utils.data.Dataset):
         non_overlapping: bool = False,
         require_same_masks: bool = True,
         clone_batch: int = 1,
+        debug=False,
     ):
         super().__init__()
         self.shuffle = shuffle
@@ -213,6 +214,17 @@ class MaeTimeSeriesDataset(torch.utils.data.Dataset):
         self.non_overlapping = non_overlapping
         self.require_same_masks = require_same_masks
         self.clone_batch = clone_batch
+        self.debug = debug
+
+        self.debug_mask = compute_block_mask_1d(
+            shape=(self.clone_batch * 7, self.patches),  # TODO use in channels here
+            mask_prob=self.mask_prob,
+            mask_length=self.mask_length,
+            mask_prob_adjust=self.mask_prob_adjust,
+            inverse_mask=self.inverse_mask,
+            require_same_masks=True,
+            non_overlapping=self.non_overlapping,
+        )
 
     def __getitem__(self, index):
         img, _ = self.dataset[index]
@@ -226,14 +238,21 @@ class MaeTimeSeriesDataset(torch.utils.data.Dataset):
 
         if self.is_compute_mask:
             # if self.mask_length == 1:
-            mask = compute_block_mask_1d(
-                shape=(self.clone_batch * 7, self.patches),  # TODO use in channels here
-                mask_prob=self.mask_prob,
-                mask_length=self.mask_length,
-                mask_prob_adjust=self.mask_prob_adjust,
-                inverse_mask=self.inverse_mask,
-                require_same_masks=True,
-            )
+            if not self.debug:
+                mask = compute_block_mask_1d(
+                    shape=(
+                        self.clone_batch * 7,
+                        self.patches,
+                    ),  # TODO use in channels here
+                    mask_prob=self.mask_prob,
+                    mask_length=self.mask_length,
+                    mask_prob_adjust=self.mask_prob_adjust,
+                    inverse_mask=self.inverse_mask,
+                    require_same_masks=True,
+                    non_overlapping=self.non_overlapping,
+                )
+            else:
+                mask = self.debug_mask
 
             v["precomputed_mask"] = mask
 
