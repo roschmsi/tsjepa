@@ -19,6 +19,8 @@ def get_criterion(config):
         else:  # one class per time series
             return NoFussCrossEntropyLoss(reduction="none")
     elif config.task == "forecasting":
+        if config.model_name == "hierarchical_linear":
+            return HierarchicalForecastingLoss(num_levels=config.num_levels, window=2)
         return torch.nn.MSELoss(reduction="mean")
     else:
         raise ValueError(
@@ -86,4 +88,47 @@ class MaskedPatchLoss(nn.Module):
         loss = loss.mean(dim=-1)
         # mean loss on removed patches
         loss = (loss * mask).sum() / mask.sum()
+        return loss
+
+
+class HierarchicalForecastingLoss(nn.Module):
+    def __init__(self, num_levels, window):
+        super().__init__()
+
+        self.num_levels = num_levels
+        self.window = window
+
+        enc_layers = []
+
+        pooling_kernel = 2 ** (self.num_levels - 1)
+        for _ in range(self.num_levels):
+            enc_layers.append(
+                nn.AvgPool1d(kernel_size=pooling_kernel, stride=pooling_kernel)
+            )
+            pooling_kernel = pooling_kernel // self.window
+
+        self.enc_layers = nn.Sequential(*enc_layers)
+
+        self.loss_fn = torch.nn.MSELoss(reduction="mean")
+
+    def forward(self, output, target):
+        preds = output[0]
+        preds_repeated = output[1]
+
+        target = target.permute(0, 2, 1)
+        target_features = []
+
+        pooling_kernel = 2 ** (self.num_levels - 1)
+        x = target
+        for i in range(self.num_levels):
+            m = self.enc_layers[i](x)
+            target_features.append(m)
+            m = torch.repeat_interleave(m, repeats=pooling_kernel, dim=2)
+            pooling_kernel = pooling_kernel // self.window
+            x = x - m
+
+        loss = 0
+        for i in range(self.num_levels):
+            loss += self.loss_fn(preds[i], target_features[i])
+
         return loss

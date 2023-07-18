@@ -278,8 +278,10 @@ class ForecastingRunner(BaseRunner):
     def train_epoch(self, epoch_num=None):
         self.model = self.model.train()
         l1_loss = torch.nn.L1Loss(reduction="mean")
+        l2_loss = torch.nn.MSELoss(reduction="mean")
 
         epoch_mae = 0
+        epoch_mse = 0
         epoch_loss = 0
 
         for batch in self.dataloader:
@@ -306,16 +308,23 @@ class ForecastingRunner(BaseRunner):
             loss.backward()
             self.optimizer.step()
 
-            # mse
+            # loss, can be mse or hierarchical mse
             epoch_loss += loss.item()
 
-            # mae
+            # hierarchical linear output
+            if len(predictions) == 2:
+                predictions = torch.stack(predictions[1]).sum(0)
+                predictions = predictions.permute(0, 2, 1)
+
+            # mse and mae
+            epoch_mse += l2_loss(predictions, targets).item()
             epoch_mae += l1_loss(predictions, targets).item()
 
         # average loss per sample for whole epoch
         self.epoch_metrics["epoch"] = epoch_num
         self.epoch_metrics["loss"] = epoch_loss / len(self.dataloader)
         self.epoch_metrics["mae"] = epoch_mae / len(self.dataloader)
+        self.epoch_metrics["mse"] = epoch_mse / len(self.dataloader)
 
         if self.scheduler:
             self.scheduler.step()
@@ -325,8 +334,10 @@ class ForecastingRunner(BaseRunner):
     def evaluate(self, epoch_num=None):
         self.model = self.model.eval()
         l1_loss = torch.nn.L1Loss(reduction="mean")
+        l2_loss = torch.nn.MSELoss(reduction="mean")
 
         epoch_loss = 0
+        epoch_mse = 0
         epoch_mae = 0
 
         for batch in self.dataloader:
@@ -338,13 +349,22 @@ class ForecastingRunner(BaseRunner):
             predictions = self.model(X, padding_masks)
             loss = self.criterion(predictions, targets)
 
+            # hierarchical linear output
+            if len(predictions) == 2:
+                predictions = torch.stack(predictions[1]).sum(0)
+                predictions = predictions.permute(0, 2, 1)
+
             epoch_loss += loss.item()
+
+            # mse and mae
+            epoch_mse += l2_loss(predictions, targets).item()
             epoch_mae += l1_loss(predictions, targets).item()
 
         # average loss per element for whole epoch
         self.epoch_metrics["epoch"] = epoch_num
         self.epoch_metrics["loss"] = epoch_loss / len(self.dataloader)
         self.epoch_metrics["mae"] = epoch_mae / len(self.dataloader)
+        self.epoch_metrics["mse"] = epoch_mse / len(self.dataloader)
 
         return self.epoch_metrics
 

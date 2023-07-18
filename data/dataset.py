@@ -92,6 +92,19 @@ class ClassificationDataset(Dataset):
         return len(self.ecg_dataset)
 
 
+class ForecastingDataset(Dataset):
+    def __init__(self, dataset):
+        super(ForecastingDataset, self).__init__()
+        self.dataset = dataset
+
+    def __getitem__(self, ind):
+        X, y = self.dataset.__getitem__(ind)
+        return X, y
+
+    def __len__(self):
+        return len(self.dataset)
+
+
 class ClassificationPatchDataset(Dataset):
     def __init__(self, dataset, patch_len=16, stride=8):
         super(ClassificationPatchDataset, self).__init__()

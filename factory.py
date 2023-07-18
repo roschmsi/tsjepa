@@ -5,6 +5,7 @@ import torch
 from data.dataset import (
     ClassificationDataset,
     ClassificationPatchDataset,
+    ForecastingDataset,
     ForecastingPatchDataset,
     PretrainingDataset,
     PretrainingPatchDataset,
@@ -21,6 +22,7 @@ from models.fedformer.model import (
     DecompFEDformerEncoder,
     FEDformerEncoder,
 )
+from models.hierarchical_linear.model import HierarchialLinear
 from models.hierarchical_masked_autoencoder.model import (
     HierarchicalMaskedAutoencoder,
     HierarchicalMaskedAutoencoderPredictor,
@@ -142,7 +144,7 @@ def pipeline_factory(config):
                 ForecastingRunner,
             )
         else:
-            return ClassificationDataset, collate_superv, SupervisedRunner
+            return ForecastingDataset, collate_superv, ForecastingRunner
 
     else:
         raise NotImplementedError("Task '{}' not implemented".format(config["task"]))
@@ -213,6 +215,15 @@ def model_factory(config):
         return CNNTimeFreqEncoder(config)
     elif config.model_name == "cnn_decomp_time_freq_encoder":
         return CNNDecompTimeFreqEncoder(config)
+    # linear
+    elif config.model_name == "hierarchical_linear":
+        if config.task == "forecasting":
+            return HierarchialLinear(
+                seq_len=max_seq_len,
+                pred_len=config.pred_len,
+                enc_in=config.feat_dim,
+                num_levels=config.num_levels,
+            )
     # transformer
     elif config.model_name == "transformer":
         if config.task == "pretraining":

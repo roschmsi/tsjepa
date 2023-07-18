@@ -26,7 +26,7 @@ class TimeSeriesConfig:
     input_size: int = 512
     in_chans: int = 1
     patch_size: int = 16
-    embed_dim: int = 64
+    embed_dim: int = 128
 
     alibi_dims: int = 2
     alibi_distance: str = "manhattan"
@@ -86,8 +86,8 @@ class TS2VecConfig:
     loss_scale: Optional[float] = None
 
     depth: int = 4
-    num_heads: int = 1
-    embed_dim: int = 64
+    num_heads: int = 16
+    embed_dim: int = 128
     mlp_ratio: float = 2
 
     start_drop_path_rate: float = 0
@@ -100,7 +100,7 @@ class TS2VecConfig:
     encoder_dropout: float = 0.0
     post_mlp_drop: float = 0.0
     attention_dropout: float = 0.0
-    activation_dropout: float = 0.0
+    activation_dropout: float = 0.2
     dropout_input: float = 0.0
     layerdrop: float = 0.0
 
@@ -116,7 +116,7 @@ class TS2VecConfig:
     instance_norm_targets: bool = False
     layer_norm_targets: bool = False
 
-    ema_decay: float = 0.9
+    ema_decay: float = 0.996
     ema_end_decay: float = 0.9999
     ema_same_dtype: bool = True
     log_norms: bool = True
