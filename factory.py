@@ -53,13 +53,11 @@ from models.transformer.model import (
     TSTransformerEncoderClassifier,
 )
 from models.ts2vec.model import TS2VecConfig, TS2Vec, TS2VecPredictor
-from runner import (
-    ForecastingRunner,
-    SupervisedRunner,
-    UnsupervisedPatchRunner,
-    UnsupervisedRunner,
-)
 from utils import load_config_yaml
+
+from runner.classification import SupervisedRunner
+from runner.forecasting import ForecastingRunner
+from runner.unsupervised import UnsupervisedRunner, UnsupervisedPatchRunner
 
 
 def setup_pipeline(config):

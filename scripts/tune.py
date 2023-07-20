@@ -17,7 +17,7 @@ from evaluation.evaluate_12ECG_score import (
     compute_challenge_metric,
     load_weights,
 )
-from runner import validate_without_logging
+from runner.base import validate_without_logging
 from utils import (
     seed_everything,
     setup_tuning,
