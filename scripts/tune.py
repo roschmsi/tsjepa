@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from data.ecg_dataset import classes, load_ecg_dataset, normal_class
 from data.uea_dataset import load_uea_dataset
 from data.fc_dataset import load_fc_dataset
-from factory import model_factory, optimizer_factory, pipeline_factory, tune_factory
+from factory import setup_model, setup_optimizer, setup_pipeline, tune_factory
 from loss import get_criterion
 from options import Options
 from evaluation.evaluate_12ECG_score import (
@@ -66,7 +66,7 @@ def train(config):
         raise ValueError("Dataset type is not specified")
 
     # create model
-    model = model_factory(config)
+    model = setup_model(config)
 
     # freeze all weights except for output layer in classification task
     if config.model_name == "transformer_finetuning":
@@ -77,7 +77,7 @@ def train(config):
                 else:
                     param.requires_grad = False
 
-    optimizer = optimizer_factory(config, model)
+    optimizer = setup_optimizer(config, model)
     if config.scheduler:
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
     else:
@@ -102,7 +102,7 @@ def train(config):
     loss_module = get_criterion(config)
 
     # initialize data generator and runner
-    dataset_class, collate_fn, runner_class = pipeline_factory(config)
+    dataset_class, collate_fn, runner_class = setup_pipeline(config)
 
     if "max_seq_len" in config.keys():
         max_len = config.max_seq_len

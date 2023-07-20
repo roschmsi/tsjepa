@@ -15,6 +15,7 @@ from data.dataset import (
     collate_unsuperv,
 )
 from models.cnn_transformer.model import CNNClassifier, CNNTransformer
+from models.cross_patch_tst.model import CrossPatchTST
 from models.fedformer.model import (
     CNNDecompTimeFreqEncoder,
     CNNFEDformerEncoder,
@@ -61,7 +62,7 @@ from runner import (
 from utils import load_config_yaml
 
 
-def pipeline_factory(config):
+def setup_pipeline(config):
     """For the task specified in the configuration returns the corresponding combination of
     Dataset class, collate function and Runner class."""
 
@@ -150,7 +151,7 @@ def pipeline_factory(config):
         raise NotImplementedError("Task '{}' not implemented".format(config["task"]))
 
 
-def model_factory(config):
+def setup_model(config):
     if config.seq_len is not None:
         max_seq_len = config.seq_len
     else:
@@ -515,6 +516,29 @@ def model_factory(config):
                 task=config.task,
                 head_dropout=config.head_dropout,
             )
+
+    # cross patch tst
+    elif config.model_name == "cross_patch_tst":
+        return CrossPatchTST(
+            c_in=config.feat_dim,
+            c_out=c_out,
+            num_patch=num_patch,
+            patch_len=config.patch_len,
+            num_layers=config.num_layers,
+            num_heads=config.num_heads,
+            d_model=config.d_model,
+            d_ff=config.d_ff,
+            dropout=config.dropout,
+            factor=7,  # config.factor,
+            shared_embedding=config.shared_embedding,
+            norm=config.norm,
+            activation=config.activation,
+            pe="sincos",
+            learn_pe=config.learn_pe,
+            cls_token=config.cls_token,
+            task=config.task,
+            head_dropout=config.head_dropout,
+        )
     elif config.model_name == "ts2vec":
         if config.task == "pretraining":
             ts2vec_config_yaml = load_config_yaml(
@@ -534,7 +558,7 @@ def model_factory(config):
         )
 
 
-def optimizer_factory(config, model):
+def setup_optimizer(config, model):
     if config.optimizer == "Adam":
         optimizer = torch.optim.Adam(
             model.parameters(),
@@ -553,7 +577,7 @@ def optimizer_factory(config, model):
     return optimizer
 
 
-def scheduler_factory(config, optimizer, iters_per_epoch):
+def setup_scheduler(config, optimizer, iters_per_epoch):
     if config.scheduler == "StepLR":
         scheduler = torch.optim.lr_scheduler.StepLR(
             optimizer=optimizer, step_size=10, gamma=0.1

@@ -16,9 +16,9 @@ from data.dataset import load_dataset
 
 from data.ecg_dataset import classes, normal_class
 from factory import (
-    model_factory,
-    optimizer_factory,
-    scheduler_factory,
+    setup_model,
+    setup_optimizer,
+    setup_scheduler,
 )
 from models.ts2vec.criterion import TS2VecCriterion
 from models.ts2vec.dataset import MaeTimeSeriesDataset
@@ -135,7 +135,7 @@ def main(config):
     train_dataset, val_dataset, test_dataset = load_dataset(config)
 
     # create model
-    model = model_factory(config)
+    model = setup_model(config)
 
     if "freeze" in config.keys():
         if config.freeze:
@@ -152,7 +152,7 @@ def main(config):
     )
 
     # create optimizer and scheduler
-    optimizer = optimizer_factory(config, model)
+    optimizer = setup_optimizer(config, model)
 
     # load model and optimizer states
     start_epoch = 0
@@ -212,7 +212,7 @@ def main(config):
         collate_fn=lambda x: train_dataset.collater(x),
     )
 
-    scheduler = scheduler_factory(config, optimizer, iters_per_epoch=len(train_loader))
+    scheduler = setup_scheduler(config, optimizer, iters_per_epoch=len(train_loader))
 
     if config.task == "pretraining":
         runner = TS2VecRunner

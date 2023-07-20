@@ -14,10 +14,10 @@ from data.dataset import load_dataset
 
 from data.ecg_dataset import classes, normal_class
 from factory import (
-    model_factory,
-    optimizer_factory,
-    pipeline_factory,
-    scheduler_factory,
+    setup_model,
+    setup_optimizer,
+    setup_pipeline,
+    setup_scheduler,
 )
 from loss import get_criterion
 from options import Options
@@ -58,12 +58,13 @@ def main(config):
         config.batch_size = 1
         config.val_interval = 5
         config.augment = False
+        config.dropout = 0
 
     # build ecg data
     train_dataset, val_dataset, test_dataset = load_dataset(config)
 
     # create model
-    model = model_factory(config)
+    model = setup_model(config)
 
     if "freeze" in config.keys():
         if config.freeze:
@@ -80,7 +81,7 @@ def main(config):
     )
 
     # create optimizer and scheduler
-    optimizer = optimizer_factory(config, model)
+    optimizer = setup_optimizer(config, model)
 
     # load model and optimizer states
     start_epoch = 0
@@ -111,7 +112,7 @@ def main(config):
     criterion = get_criterion(config)
 
     # initialize data generator and runner
-    dataset_class, collate_fn, runner_class = pipeline_factory(config)
+    dataset_class, collate_fn, runner_class = setup_pipeline(config)
 
     if config.seq_len is not None:
         max_len = config.seq_len
@@ -129,7 +130,7 @@ def main(config):
         collate_fn=lambda x: collate_fn(x, max_len=max_len),
     )
 
-    scheduler = scheduler_factory(config, optimizer, iters_per_epoch=len(train_loader))
+    scheduler = setup_scheduler(config, optimizer, iters_per_epoch=len(train_loader))
     trainer = runner_class(
         model,
         train_loader,

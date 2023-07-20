@@ -34,11 +34,16 @@ class HierarchialLinear(nn.Module):
         for _ in range(self.num_levels):
             dec_layers.append(
                 nn.Sequential(
-                    nn.Linear(look_back, 64),
+                    nn.Linear(look_back, 128),
                     nn.ReLU(),
-                    nn.Linear(64, 64),
+                    nn.Dropout(0.1),
+                    nn.Linear(128, 128),
                     nn.ReLU(),
-                    nn.Linear(64, horizon),
+                    nn.Dropout(0.1),
+                    nn.Linear(128, 128),
+                    nn.ReLU(),
+                    nn.Dropout(0.1),
+                    nn.Linear(128, horizon),
                 )
             )
             look_back = look_back // self.window
