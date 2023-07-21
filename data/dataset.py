@@ -11,7 +11,7 @@ from data.fc_dataset import load_fc_dataset
 
 
 def load_dataset(config):
-    if config.dataset in ["ecg", "ptb-xl"]:
+    if config.dataset in ["ecg", "ptb-xl", "ecg5"]:
         return load_ecg_dataset(config)
     elif config.dataset in [
         "etth1",

@@ -55,6 +55,7 @@ def load_ecg_dataset(config):
     ).reset_index(drop=True)
 
     # filter for ptb-xl data
+    reduced_classes = False
     if config.dataset == "ptb-xl":
         data_df = data_df[data_df["Patient"].str.contains("HR")].reset_index(drop=True)
     elif config.dataset == "ptb-xl-5000":
@@ -67,6 +68,10 @@ def load_ecg_dataset(config):
         data_df = data_df.sample(frac=1000 / len(data_df), random_state=42).reset_index(
             drop=True
         )
+    elif config.dataset == "ecg5":
+        data_df = data_df[data_df[classes[0:5]].sum(axis=1) > 0].reset_index(drop=True)
+        data_df = data_df.drop(columns=classes[5:])
+        reduced_classes = True
     elif config.dataset == "ecg":
         pass
     else:
@@ -94,6 +99,7 @@ def load_ecg_dataset(config):
         fs=config.fs,
         aug=config.augment,
         rand_ecg=config.rand_ecg,
+        reduced_classes=reduced_classes,
     )
     val_dataset = ECGDataset(
         val_df,
@@ -103,6 +109,7 @@ def load_ecg_dataset(config):
         fs=config.fs,
         aug=False,
         rand_ecg="",
+        reduced_classes=reduced_classes,
     )
     test_dataset = ECGDataset(
         test_df,
@@ -112,13 +119,24 @@ def load_ecg_dataset(config):
         fs=config.fs,
         aug=False,
         rand_ecg="",
+        reduced_classes=reduced_classes,
     )
 
     return train_dataset, val_dataset, test_dataset
 
 
 class ECGDataset(Dataset):
-    def __init__(self, df, window, src_path, filter_bandwidth, fs, aug, rand_ecg):
+    def __init__(
+        self,
+        df,
+        window,
+        src_path,
+        filter_bandwidth,
+        fs,
+        aug,
+        rand_ecg,
+        reduced_classes=False,
+    ):
         """Return randome window length segments from ecg signal, pad if window is too large
         df: trn_df, val_df or tst_df
         window: ecg window length e.g 2500 (5 seconds)
@@ -132,6 +150,7 @@ class ECGDataset(Dataset):
         self.augment = aug
         self.augmentation_prob = 0.5
         self.rand_ecg = rand_ecg
+        self.reduced_classes = reduced_classes
 
     def __len__(self):
         return len(self.df)
@@ -148,7 +167,12 @@ class ECGDataset(Dataset):
             data = apply_filter(data, filter_bandwidth=[3, 45], fs=self.fs)
 
         data = normalize(data)
-        lbl = row[classes].values.astype(np.int)
+
+        cls = classes
+        if self.reduced_classes:
+            cls = cls[0:5]
+
+        lbl = row[cls].values.astype(np.float)
 
         # Add just enough padding to allow window
         # pad = np.abs(np.min([seq_len - self.window, 0]))

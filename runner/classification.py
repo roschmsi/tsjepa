@@ -73,7 +73,9 @@ class SupervisedRunner(BaseRunner):
             auroc, _ = compute_auc(lbls, probs)
         else:
             probs = torch.nn.functional.softmax(torch.from_numpy(probs), dim=1).numpy()
-            auroc = roc_auc_score(lbls, probs, multi_class="ovo")
+            auroc = 0
+            # auroc = roc_auc_score(lbls, probs, multi_class="ovo")
+            # TODO reactivate AUROC
 
         self.epoch_metrics["auroc"] = auroc
 
@@ -119,7 +121,9 @@ class SupervisedRunner(BaseRunner):
             auroc, _ = compute_auc(lbls, probs)
         else:
             probs = torch.nn.functional.softmax(torch.from_numpy(probs), dim=1).numpy()
-            auroc = roc_auc_score(lbls, probs, multi_class="ovo")
+            # auroc = roc_auc_score(lbls, probs, multi_class="ovo")
+            auroc = 0
+            # TODO reactivate AUROC
 
         self.epoch_metrics["auroc"] = auroc
 
