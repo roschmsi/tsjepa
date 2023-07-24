@@ -48,6 +48,7 @@ from models.patch_tst.model import PatchTST
 from models.patch_tst.patch_tst_search_space import get_patch_tst_search_space
 from models.patch_tst_t.model import PatchTransformerT
 from models.patch_tst_tc.model import PatchTransformerTC
+from models.sequential_linear.model import SeqLinear
 from models.transformer.model import (
     TSTransformerEncoder,
     TSTransformerEncoderClassifier,
@@ -550,6 +551,14 @@ def setup_model(config):
             )
             ts2vec_config = TS2VecConfig(**ts2vec_config_yaml)
             return TS2VecPredictor(cfg=ts2vec_config, c_out=c_out, task=config.task)
+
+    elif config.model_name == "sequential_linear":
+        return SeqLinear(
+            seq_len=max_seq_len,
+            pred_len=config.pred_len,
+            enc_in=config.feat_dim,
+            individual=False,
+        )
     else:
         raise ValueError(
             f"Model {config.model_name} for task '{config.task}' does not exist"

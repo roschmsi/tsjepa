@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="train hieararchical linear"
+#SBATCH --job-name="train sequential linear"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -12,7 +12,7 @@ source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --model_name sequential_linear \
 --optimizer AdamW \
---lr 0.00001 \
+--lr 0.001 \
 --weight_decay 0.01 \
 --epochs 100 \
 --batch_size 64 \
