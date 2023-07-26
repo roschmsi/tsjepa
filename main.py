@@ -277,6 +277,7 @@ def main(config):
         logger.info(f"{k}: {v}")
 
     with torch.no_grad():
+        # test_evaluator.model = model
         aggr_metrics_test = test_evaluator.evaluate(
             epoch_num=int(best_metrics_val["epoch"])
         )

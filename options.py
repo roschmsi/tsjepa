@@ -32,10 +32,16 @@ class Options(object):
         self.parser.add_argument("--enc_d_ff", type=int)
         self.parser.add_argument("--enc_num_heads", type=int)
         self.parser.add_argument("--enc_num_layers", type=int)
+        self.parser.add_argument("--enc_mlp_ratio", type=int)
         self.parser.add_argument("--dec_d_model", type=int)
         self.parser.add_argument("--dec_d_ff", type=int)
         self.parser.add_argument("--dec_num_heads", type=int)
         self.parser.add_argument("--dec_num_layers", type=int)
+        self.parser.add_argument("--dec_mlp_ratio", type=int)
+
+        # tsjepa
+        self.parser.add_argument("--ema_start", type=float)
+        self.parser.add_argument("--ema_end", type=float)
 
         # patch and mask
         self.parser.add_argument("--use_patch", action="store_true")
@@ -105,7 +111,7 @@ class Options(object):
         self.parser.add_argument(
             "--val_interval",
             type=int,
-            default=2,
+            default=5,
             help="Evaluate on validation set every this many epochs. Must be >= 1.",
         )
         self.parser.add_argument(

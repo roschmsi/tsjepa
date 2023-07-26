@@ -78,7 +78,7 @@ def check_config(config):
         dir += f"_nlevels={config.num_levels}"
 
     # check transformer parameters
-    if config.mae:
+    if config.mae or config.model_name == "tsjepa":
         dir += "_enc"
         if config.enc_num_layers is not None:
             dir += f"_nlayers={config.enc_num_layers}"

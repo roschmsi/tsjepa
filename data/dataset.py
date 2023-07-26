@@ -105,6 +105,39 @@ class ForecastingDataset(Dataset):
         return len(self.dataset)
 
 
+# class JEPADataset(Dataset):
+#     def __init__(self, dataset, num_channels=12):
+#         super(JEPADataset, self).__init__()
+#         self.dataset = dataset
+#         self.num_channels = num_channels
+
+#     def __getitem__(self, ind):
+#         n = ind // self.num_channels
+#         c = ind % self.num_channels
+#         X, _ = self.dataset.__getitem__(n)
+#         X = X[:, c]
+#         X = np.expand_dims(X, 1).astype(float)
+#         return X
+
+#     def __len__(self):
+#         return len(self.dataset) * self.num_channels
+
+
+class JEPADataset(Dataset):
+    def __init__(self, dataset, num_channels=12):
+        super(JEPADataset, self).__init__()
+        self.dataset = dataset
+        self.num_channels = num_channels
+
+    def __getitem__(self, ind):
+        X, y = self.dataset.__getitem__(ind)
+        X = X.astype(float)
+        return X, y
+
+    def __len__(self):
+        return len(self.dataset)
+
+
 class ClassificationPatchDataset(Dataset):
     def __init__(self, dataset, patch_len=16, stride=8):
         super(ClassificationPatchDataset, self).__init__()

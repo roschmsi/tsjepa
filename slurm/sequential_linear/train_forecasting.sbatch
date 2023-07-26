@@ -12,7 +12,7 @@ source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --model_name sequential_linear \
 --optimizer AdamW \
---lr 0.001 \
+--lr 0.0001 \
 --weight_decay 0.01 \
 --epochs 100 \
 --batch_size 64 \

@@ -69,8 +69,24 @@ def load_ecg_dataset(config):
             drop=True
         )
     elif config.dataset == "ecg5":
-        data_df = data_df[data_df[classes[0:5]].sum(axis=1) > 0].reset_index(drop=True)
-        data_df = data_df.drop(columns=classes[5:])
+        reduced_df = None
+        # 5 classes, 100 samples each
+        classes_5 = ["270492004", "164889003", "164890007", "426627000", "713427006"]
+        # choose 100 samples from each class, make sure that you only select samples that correspond to exactly one class
+
+        for cls in classes_5:
+            not_cls = [c for c in classes_5 if c != cls]
+            cls_df = data_df[(data_df[cls] == 1) & (data_df[not_cls].sum(axis=1) == 0)][
+                :1000
+            ]
+            if reduced_df is None:
+                reduced_df = cls_df
+            else:
+                reduced_df = reduced_df.append(cls_df)
+        for c in classes:
+            if c not in classes_5:
+                reduced_df = reduced_df.drop(columns=[c])
+        data_df = reduced_df.reset_index(drop=True)
         reduced_classes = True
     elif config.dataset == "ecg":
         pass
@@ -87,9 +103,9 @@ def load_ecg_dataset(config):
     test_df = test_df.reset_index(drop=True)
 
     if config.debug:
-        train_df = train_df[:1]
-        val_df = train_df[:1]
-        test_df = train_df[:1]
+        train_df = train_df[:10]
+        val_df = train_df[:10]
+        test_df = train_df[:10]
 
     train_dataset = ECGDataset(
         train_df,
@@ -170,7 +186,7 @@ class ECGDataset(Dataset):
 
         cls = classes
         if self.reduced_classes:
-            cls = cls[0:5]
+            cls = ["270492004", "164889003", "164890007", "426627000", "713427006"]
 
         lbl = row[cls].values.astype(np.float)
 
