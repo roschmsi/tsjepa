@@ -58,10 +58,10 @@ class RandomMaskCollator(object):
         collated_masks_pred, collated_masks_enc = [], []
         for _ in range(B):
             m = torch.randperm(self.num_patches)
-            collated_masks_enc.append([m[:num_keep].sort()[0]])
-            collated_masks_pred.append([m[num_keep:].sort()[0]])
+            collated_masks_enc.append([m[:num_keep]])
+            collated_masks_pred.append([m[num_keep:]])
 
-        collated_masks_pred = torch.utils.data.default_collate(collated_masks_pred)
         collated_masks_enc = torch.utils.data.default_collate(collated_masks_enc)
+        collated_masks_pred = torch.utils.data.default_collate(collated_masks_pred)
 
         return collated_X, collated_y, collated_masks_enc, collated_masks_pred

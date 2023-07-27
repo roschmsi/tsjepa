@@ -1,11 +1,12 @@
-import torch
 import logging
-import sys
 import os
+import sys
+
 import matplotlib.pyplot as plt
-from sklearn.manifold import TSNE
-import torch
 import numpy as np
+import torch
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger()
@@ -77,7 +78,29 @@ def load_checkpoint(
     return encoder, predictor, target_encoder, optimizer, epoch
 
 
-def plot_tsne(encoder, data_loader, device, config, fname):
+def pca(X):
+    pca = PCA(n_components=2)
+    X_2d = pca.fit_transform(X)
+    return X_2d
+
+
+def tsne(X):
+    tsne = TSNE(n_components=2, perplexity=1)  # TODO: tune perplexity
+    X_2d = tsne.fit_transform(X)
+    return X_2d
+
+
+def plot_2d(
+    method,
+    encoder,
+    data_loader,
+    device,
+    config,
+    fname,
+    tb_writer=None,
+    mode=None,
+    epoch=None,
+):
     encoder = encoder.eval()
     X_rep = []
     y_rep = []
@@ -93,18 +116,27 @@ def plot_tsne(encoder, data_loader, device, config, fname):
         X_rep = torch.cat(X_rep, dim=0).cpu().detach().numpy()
         y_rep = torch.cat(y_rep, dim=0).numpy()
 
-    tsne = TSNE(n_components=2, perplexity=2)
-    X_2d = tsne.fit_transform(X_rep)
+    if method == "pca":
+        X_2d = pca(X_rep)
+    elif method == "tsne":
+        X_2d = tsne(X_rep)
+    else:
+        raise NotImplementedError
 
     # plot per label
-    # for label in labels:
-    #     indices = np.argwhere(y_train == label)
-    #     plt.scatter(x_train[indices, 0], x_train[indices, 1], marker='o', s=25,
-    #                 c=map_color(label), label=label, edgecolor='k')
+    for cls in range(5):
+        idx = np.argwhere(y_rep == cls)
+        plt.scatter(
+            X_2d[idx, 0],
+            X_2d[idx, 1],
+            label=cls,
+        )
 
-    plt.scatter(X_2d[:, 0], X_2d[:, 1], label=np.unique(y_rep), c=y_rep)
     plt.legend()
     plt.savefig(os.path.join(config["output_dir"], fname))
-    plt.close()
 
+    if tb_writer is not None:
+        tb_writer.add_figure(f"{method}/{mode}", plt.gcf(), epoch)
+
+    plt.close()
     encoder = encoder.train()

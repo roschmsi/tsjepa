@@ -10,19 +10,14 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from data.dataset import JEPADataset, load_dataset
 
+from data.dataset import JEPADataset, load_dataset
 from models.ts_jepa.mask import RandomMaskCollator
 from models.ts_jepa.setup import init_model, init_opt
-from models.ts_jepa.utils import load_checkpoint, plot_tsne, save_checkpoint
+from models.ts_jepa.utils import load_checkpoint, plot_2d, save_checkpoint
 from options import Options
 from runner.tsjepa import JEPARunner
-from utils import (
-    log_training,
-    readable_time,
-    seed_everything,
-    setup,
-)
+from utils import log_training, readable_time, seed_everything, setup
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO
@@ -45,7 +40,7 @@ def main(config):
 
     # config for debugging on single sample
     if config.debug:
-        config.batch_size = 1
+        config.batch_size = 2
         config.val_interval = 5
         config.augment = False
         config.dropout = 0
@@ -258,12 +253,52 @@ def main(config):
                 better=better,
             )
 
-            plot_tsne(
-                encoder=trainer.encoder,
+            plot_2d(
+                method="tsne",
+                encoder=encoder,
                 data_loader=train_loader,
                 device=device,
                 config=config,
                 fname="tsne_train.png",
+                tb_writer=tb_writer,
+                mode="train",
+                epoch=epoch,
+            )
+
+            plot_2d(
+                method="pca",
+                encoder=encoder,
+                data_loader=train_loader,
+                device=device,
+                config=config,
+                fname="pca_train.png",
+                tb_writer=tb_writer,
+                mode="train",
+                epoch=epoch,
+            )
+
+            plot_2d(
+                method="tsne",
+                encoder=encoder,
+                data_loader=val_loader,
+                device=device,
+                config=config,
+                fname="tsne_val.png",
+                tb_writer=tb_writer,
+                mode="val",
+                epoch=epoch,
+            )
+
+            plot_2d(
+                method="pca",
+                encoder=encoder,
+                data_loader=val_loader,
+                device=device,
+                config=config,
+                fname="pca_val.png",
+                tb_writer=tb_writer,
+                mode="val",
+                epoch=epoch,
             )
 
         if patience_count > config.patience:
@@ -274,7 +309,7 @@ def main(config):
 
     if not config.debug:
         path = os.path.join(config["output_dir"], "checkpoints", "model_best.pth")
-        encoder, predictor, target_encoder, optimizer, epoch = load_checkpoint(
+        encoder, predictor, target_encoder, optimizer, _ = load_checkpoint(
             path,
             encoder=encoder,
             predictor=predictor,
@@ -282,12 +317,22 @@ def main(config):
             optimizer=optimizer,
         )
 
-        plot_tsne(
+        plot_2d(
+            method="tsne",
             encoder=encoder,
             data_loader=test_loader,
             device=device,
             config=config,
             fname="tsne_test.png",
+        )
+
+        plot_2d(
+            method="pca",
+            encoder=encoder,
+            data_loader=test_loader,
+            device=device,
+            config=config,
+            fname="pca_test.png",
         )
 
     total_runtime = time.time() - total_start_time

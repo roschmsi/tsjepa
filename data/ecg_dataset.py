@@ -76,9 +76,7 @@ def load_ecg_dataset(config):
 
         for cls in classes_5:
             not_cls = [c for c in classes_5 if c != cls]
-            cls_df = data_df[(data_df[cls] == 1) & (data_df[not_cls].sum(axis=1) == 0)][
-                :1000
-            ]
+            cls_df = data_df[(data_df[cls] == 1) & (data_df[not_cls].sum(axis=1) == 0)]
             if reduced_df is None:
                 reduced_df = cls_df
             else:

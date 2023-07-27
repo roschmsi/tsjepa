@@ -14,7 +14,7 @@ def forward_target(target_encoder, X, masks_pred):
         h = target_encoder(X)
         h = F.layer_norm(h, (h.size(-1),))
         h = apply_masks(h, masks_pred)
-        return h  # 4 x 5 x D
+        return h
 
 
 def forward_context(encoder, predictor, X, masks_enc, masks_pred):

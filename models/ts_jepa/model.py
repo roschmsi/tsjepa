@@ -6,13 +6,13 @@
 #
 
 import math
-import numpy as np
 
+import numpy as np
 import torch
 import torch.nn as nn
 
-from models.ts_jepa.tensors import trunc_normal_, repeat_interleave_batch
 from models.ts_jepa.mask import apply_masks
+from models.ts_jepa.tensors import trunc_normal_
 
 
 def get_1d_sincos_pos_embed(embed_dim, grid_size, cls_token=False):
@@ -323,13 +323,10 @@ class TSTPredictor(nn.Module):
         # add positionl embedding to mask tokens
         pos_embs = self.predictor_pos_embed.repeat(B, 1, 1)
         pos_embs = apply_masks(pos_embs, masks)
-        # pos_embs: [bs x pred_num_patches x feature_dim]
-        pos_embs = repeat_interleave_batch(pos_embs, B, repeat=len(masks_x))
 
         # add positionl em
         pred_tokens = self.mask_token.repeat(pos_embs.size(0), pos_embs.size(1), 1)
         pred_tokens += pos_embs
-        x = x.repeat(len(masks), 1, 1)
 
         # TODO correct unshuffling not necessary, check this for other models, verify mae
         # we can directly apply the Transformer, order already injected in tokens via positional embedding, no need to unshuffle

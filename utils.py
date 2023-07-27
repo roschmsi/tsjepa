@@ -123,6 +123,10 @@ def check_config(config):
     if config.cls_token:
         dir += "_clstoken"
 
+    # check tsjepa parameters
+    if config.model_name == "tsjepa":
+        dir += f"_emastart={config.ema_start}"
+
     # check fedformer parameters
     if config.version is not None:
         dir += f"_vers={config.version}"
