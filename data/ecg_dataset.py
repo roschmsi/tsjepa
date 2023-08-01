@@ -55,7 +55,6 @@ def load_ecg_dataset(config):
     ).reset_index(drop=True)
 
     # filter for ptb-xl data
-    reduced_classes = False
     if config.dataset == "ptb-xl":
         data_df = data_df[data_df["Patient"].str.contains("HR")].reset_index(drop=True)
     elif config.dataset == "ptb-xl-5000":
@@ -80,13 +79,12 @@ def load_ecg_dataset(config):
             if reduced_df is None:
                 reduced_df = cls_df
             else:
-                reduced_df = reduced_df.append(cls_df)
+                reduced_df = pd.concat([reduced_df, cls_df], ignore_index=True)
         for c in classes:
             if c not in classes_5:
                 reduced_df = reduced_df.drop(columns=[c])
         data_df = reduced_df.reset_index(drop=True)
-        reduced_classes = True
-    elif config.dataset == "ecg":
+    elif config.dataset == "ecg" or config.dataset == "ecg_gender":
         pass
     else:
         raise ValueError("Subset not specified")
@@ -101,9 +99,9 @@ def load_ecg_dataset(config):
     test_df = test_df.reset_index(drop=True)
 
     if config.debug:
-        train_df = train_df[:10]
-        val_df = train_df[:10]
-        test_df = train_df[:10]
+        train_df = train_df[:100]
+        val_df = train_df[:100]
+        test_df = train_df[:100]
 
     train_dataset = ECGDataset(
         train_df,
@@ -113,7 +111,8 @@ def load_ecg_dataset(config):
         fs=config.fs,
         aug=config.augment,
         rand_ecg=config.rand_ecg,
-        reduced_classes=reduced_classes,
+        reduced_classes=True if config.dataset == "ecg5" else False,
+        gender=True if config.dataset == "ecg_gender" else False,
     )
     val_dataset = ECGDataset(
         val_df,
@@ -123,7 +122,8 @@ def load_ecg_dataset(config):
         fs=config.fs,
         aug=False,
         rand_ecg="",
-        reduced_classes=reduced_classes,
+        reduced_classes=True if config.dataset == "ecg5" else False,
+        gender=True if config.dataset == "ecg_gender" else False,
     )
     test_dataset = ECGDataset(
         test_df,
@@ -133,7 +133,8 @@ def load_ecg_dataset(config):
         fs=config.fs,
         aug=False,
         rand_ecg="",
-        reduced_classes=reduced_classes,
+        reduced_classes=True if config.dataset == "ecg5" else False,
+        gender=True if config.dataset == "ecg_gender" else False,
     )
 
     return train_dataset, val_dataset, test_dataset
@@ -150,6 +151,7 @@ class ECGDataset(Dataset):
         aug,
         rand_ecg,
         reduced_classes=False,
+        gender=False,
     ):
         """Return randome window length segments from ecg signal, pad if window is too large
         df: trn_df, val_df or tst_df
@@ -165,6 +167,7 @@ class ECGDataset(Dataset):
         self.augmentation_prob = 0.5
         self.rand_ecg = rand_ecg
         self.reduced_classes = reduced_classes
+        self.gender = gender
 
     def __len__(self):
         return len(self.df)
@@ -175,6 +178,8 @@ class ECGDataset(Dataset):
         filename = str(self.src_path / (row.Patient + ".hea"))
         data, hdr = load_challenge_data(filename, fs=self.fs)
         seq_len = data.shape[-1]  # get the length of the ecg sequence
+
+        male = row["Gender_Male"]
 
         # Apply band pass filter
         if self.filter_bandwidth:
@@ -217,6 +222,9 @@ class ECGDataset(Dataset):
             data = np.expand_dims(data.transpose(), 0)
             data = randaug(data, self.rand_ecg)
             data = data.squeeze().transpose()
+
+        if self.gender:
+            lbl = male
 
         return data.transpose(), lbl
 
