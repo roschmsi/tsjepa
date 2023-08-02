@@ -73,6 +73,12 @@ def check_config(config):
     if config.freeze:
         dir += f"_fr={config.freeze_epochs}"
 
+    # vic regularization loss weights
+    if config.vic_reg:
+        dir += f"_pred={config.pred_weight}"
+        dir += f"_std={config.std_weight}"
+        dir += f"_cov={config.cov_weight}"
+
     # hierarchical
     if config.num_levels is not None:
         dir += f"_nlevels={config.num_levels}"

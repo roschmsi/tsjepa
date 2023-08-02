@@ -42,6 +42,13 @@ class Options(object):
         # tsjepa
         self.parser.add_argument("--ema_start", type=float)
         self.parser.add_argument("--ema_end", type=float)
+        self.parser.add_argument("--load_classifier", type=str)
+
+        # vic regularization
+        self.parser.add_argument("--vic_reg", action="store_true")
+        self.parser.add_argument("--pred_weight", type=float)
+        self.parser.add_argument("--std_weight", type=float)
+        self.parser.add_argument("--cov_weight", type=float)
 
         # patch and mask
         self.parser.add_argument("--use_patch", action="store_true")
