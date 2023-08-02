@@ -1,11 +1,11 @@
 from functools import partial
 from models.ts_jepa.tensors import trunc_normal_
-from models.ts_jepa.model import TSTEncoder, TSTPredictor
+from models.ts_jepa.model import TSTClassifier, TSTEncoder, TSTPredictor
 import torch
 import torch.nn as nn
 
 
-def init_model(
+def init_model_pretraining(
     device,
     seq_len,
     patch_size,
@@ -67,6 +67,50 @@ def init_model(
     return encoder, predictor
 
 
+def init_model_finetuning(
+    device,
+    seq_len,
+    patch_size,
+    in_chans,
+    enc_embed_dim,
+    enc_depth,
+    enc_num_heads,
+    enc_mlp_ratio,
+    n_classes,
+    head_dropout,
+    drop_rate=0,
+    attn_drop_rate=0,
+):
+    classifier = TSTClassifier(
+        seq_len=seq_len,
+        patch_size=patch_size,
+        in_chans=in_chans,
+        enc_embed_dim=enc_embed_dim,
+        enc_depth=enc_depth,
+        enc_num_heads=enc_num_heads,
+        enc_mlp_ratio=enc_mlp_ratio,
+        drop_rate=drop_rate,
+        attn_drop_rate=attn_drop_rate,
+        n_classes=n_classes,
+        head_dropout=head_dropout,
+    )
+
+    def init_weights(m):
+        if isinstance(m, torch.nn.Linear):
+            trunc_normal_(m.weight, std=0.02)
+            if m.bias is not None:
+                torch.nn.init.constant_(m.bias, 0)
+        elif isinstance(m, torch.nn.LayerNorm):
+            torch.nn.init.constant_(m.bias, 0)
+            torch.nn.init.constant_(m.weight, 1.0)
+
+    for m in classifier.modules():
+        init_weights(m)
+
+    classifier.to(device)
+    return classifier
+
+
 def init_opt(
     encoder,
     predictor,
@@ -116,6 +160,7 @@ def init_opt(
         },
     ]
 
+    # TODO consider learning rate
     optimizer = torch.optim.AdamW(param_groups)
     # scheduler = WarmupCosineSchedule(
     #     optimizer,
