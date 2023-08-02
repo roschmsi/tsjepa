@@ -13,8 +13,14 @@ from tqdm import tqdm
 
 from data.dataset import JEPADataset, load_dataset
 from models.ts_jepa.mask import RandomMaskCollator
-from models.ts_jepa.setup import init_model, init_opt
-from models.ts_jepa.utils import load_checkpoint, plot_2d, save_checkpoint
+from models.ts_jepa.setup import init_model_finetuning, init_model_pretraining, init_opt
+from models.ts_jepa.utils import (
+    load_checkpoint,
+    load_encoder_from_classifier,
+    plot_2d,
+    plot_classwise_distribution,
+    save_checkpoint,
+)
 from options import Options
 from runner.tsjepa import JEPARunner
 from utils import log_training, readable_time, seed_everything, setup
@@ -54,7 +60,7 @@ def main(config):
         max_seq_len = config.window * config.fs
 
     # create model
-    encoder, predictor = init_model(
+    encoder, predictor = init_model_pretraining(
         device=device,
         seq_len=max_seq_len,
         in_chans=config.feat_dim,  # 1
@@ -145,6 +151,23 @@ def main(config):
         if config.resume:
             start_epoch = epoch
 
+    if config.load_classifier is not None:
+        path = os.path.join(config.load_classifier, "checkpoints", "model_best.pth")
+        classifier = init_model_finetuning(
+            device=device,
+            seq_len=max_seq_len,
+            in_chans=config.feat_dim,
+            patch_size=config.patch_len,
+            enc_embed_dim=config.enc_d_model,
+            enc_depth=config.enc_num_layers,
+            enc_num_heads=config.enc_num_heads,
+            enc_mlp_ratio=config.enc_mlp_ratio,
+            drop_rate=config.dropout,
+            n_classes=config.num_classes,
+            head_dropout=config.head_dropout,
+        )
+        _, target_encoder = load_encoder_from_classifier(path, classifier)
+
     trainer = runner_class(
         encoder=encoder,
         predictor=predictor,
@@ -158,6 +181,10 @@ def main(config):
         console=config["console"],
         multilabel=config.multilabel,
         scheduler=scheduler,
+        vic_reg=config.vic_reg,
+        pred_weight=config.pred_weight,
+        std_weight=config.std_weight,
+        cov_weight=config.cov_weight,
     )
 
     val_evaluator = runner_class(
@@ -170,6 +197,10 @@ def main(config):
         print_interval=config["print_interval"],
         console=config["console"],
         multilabel=config.multilabel,
+        vic_reg=config.vic_reg,
+        pred_weight=config.pred_weight,
+        std_weight=config.std_weight,
+        cov_weight=config.cov_weight,
     )
 
     test_evaluator = runner_class(
@@ -182,6 +213,10 @@ def main(config):
         print_interval=config["print_interval"],
         console=config["console"],
         multilabel=config.multilabel,
+        vic_reg=config.vic_reg,
+        pred_weight=config.pred_weight,
+        std_weight=config.std_weight,
+        cov_weight=config.cov_weight,
     )
 
     if config.test:
@@ -254,18 +289,6 @@ def main(config):
             )
 
             plot_2d(
-                method="tsne",
-                encoder=encoder,
-                data_loader=train_loader,
-                device=device,
-                config=config,
-                fname="tsne_train.png",
-                tb_writer=tb_writer,
-                mode="train",
-                epoch=epoch,
-            )
-
-            plot_2d(
                 method="pca",
                 encoder=encoder,
                 data_loader=train_loader,
@@ -275,20 +298,18 @@ def main(config):
                 tb_writer=tb_writer,
                 mode="train",
                 epoch=epoch,
+                num_classes=config.num_classes,
             )
-
-            plot_2d(
-                method="tsne",
+            plot_classwise_distribution(
                 encoder=encoder,
-                data_loader=val_loader,
+                data_loader=train_loader,
                 device=device,
-                config=config,
-                fname="tsne_val.png",
+                d_model=config.enc_d_model,
+                num_classes=config.num_classes,
                 tb_writer=tb_writer,
-                mode="val",
+                mode="train",
                 epoch=epoch,
             )
-
             plot_2d(
                 method="pca",
                 encoder=encoder,
@@ -299,13 +320,24 @@ def main(config):
                 tb_writer=tb_writer,
                 mode="val",
                 epoch=epoch,
+                num_classes=config.num_classes,
+            )
+            plot_classwise_distribution(
+                encoder=encoder,
+                data_loader=val_loader,
+                device=device,
+                d_model=config.enc_d_model,
+                num_classes=config.num_classes,
+                tb_writer=tb_writer,
+                mode="val",
+                epoch=epoch,
             )
 
         if patience_count > config.patience:
             break
 
     # load best model, iterate over test loader, get representations
-    # mean over time axis, then plot with tsne
+    # mean over time axis, apply pca, then plot
 
     if not config.debug:
         path = os.path.join(config["output_dir"], "checkpoints", "model_best.pth")
@@ -318,21 +350,13 @@ def main(config):
         )
 
         plot_2d(
-            method="tsne",
-            encoder=encoder,
-            data_loader=test_loader,
-            device=device,
-            config=config,
-            fname="tsne_test.png",
-        )
-
-        plot_2d(
             method="pca",
             encoder=encoder,
             data_loader=test_loader,
             device=device,
             config=config,
             fname="pca_test.png",
+            num_classes=config.num_classes,
         )
 
     total_runtime = time.time() - total_start_time
