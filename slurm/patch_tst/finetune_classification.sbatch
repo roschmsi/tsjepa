@@ -27,14 +27,14 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --ch_token \
 --cls_token \
 --optimizer AdamW \
---lr 0.01 \
+--lr 0.001 \
 --scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
 --epochs 100 \
 --batch_size 64 \
 --num_workers 4 \
 --patience 20 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg_gender.yaml \
 --task classification \
 --finetuning \
 --freeze \

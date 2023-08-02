@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="pretrain tsjepa"
+#SBATCH --job-name="finetune tsjepa"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -9,35 +9,26 @@
 #SBATCH --output=/storage/slurm/logs/slurm-%j.out
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
-srun python3 /usr/stud/roschman/ECGAnalysis/pretrain_tsjepa.py \
+srun python3 /usr/stud/roschman/ECGAnalysis/finetune_tsjepa.py \
 --model_name tsjepa \
 --enc_num_layers 8 \
 --enc_num_heads 8 \
 --enc_d_model 64 \
 --enc_mlp_ratio 2 \
---dec_num_layers 2 \
---dec_num_heads 8 \
---dec_d_model 64 \
---dec_mlp_ratio 2 \
 --dropout 0.1 \
---ema_start 0.996 \
---ema_end 1.0 \
---masking_ratio 0.5 \
+--masking_ratio 0 \
 --use_patch \
 --patch_len 16 \
 --stride 16 \
 --optimizer AdamW \
---lr 0.0001 \
+--lr 0.001 \
 --weight_decay 0.01 \
---epochs 10000 \
+--epochs 100 \
 --batch_size 64 \
 --num_workers 4 \
---patience 5000 \
+--patience 50 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg_gender.yaml \
---task pretraining \
+--task classification \
+--load_model /home/stud/roschman/ECGAnalysis/output/tsjepa/pretraining/dataset=ecg_gender_patch=16_stride=16_mratio=0.5_bs=64_opt=AdamW_lr=0.001_wd=0.01_pred=25.0_std=25.0_cov=1.0_enc_nlayers=8_nheads=8_dmodel=64_dec_nlayers=2_nheads=8_dmodel=64_drop=0.1_emastart=0.996_vic_reg \
 --head_dropout 0 \
---vic_reg \
---pred_weight 25.0 \
---std_weight 25.0 \
---cov_weight 1.0 \
---description "vic_reg"
+--description "finetune_without_freezing"
