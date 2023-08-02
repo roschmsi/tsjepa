@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+from functools import partial
 import math
 
 import numpy as np
@@ -561,4 +562,67 @@ class TSTForecaster(nn.Module):
 
         x = self.head(x)
 
+        return x
+
+
+class ClassificationHead(nn.Module):
+    def __init__(self, seq_len, d_model, n_classes, head_dropout):
+        super().__init__()
+        self.flatten = nn.Flatten(start_dim=1)
+        self.dropout = nn.Dropout(head_dropout)
+        self.linear = nn.Linear(d_model, n_classes)
+
+    def forward(self, x):
+        """
+        x: [bs x nvars x d_model x num_patch]
+        output: [bs x n_classes]
+        """
+        # extract class token
+        x = x.mean(dim=1)
+        # x: bs x nvars * d_model
+        # x = self.dropout(x)
+        y = self.linear(x)
+        # y: bs x n_classes
+        return y
+
+
+class TSTClassifier(nn.Module):
+    def __init__(
+        self,
+        seq_len,
+        patch_size,
+        in_chans,
+        enc_embed_dim,
+        enc_depth,
+        enc_num_heads,
+        enc_mlp_ratio,
+        drop_rate,
+        attn_drop_rate,
+        n_classes,
+        head_dropout,
+    ):
+        super().__init__()
+        self.encoder = TSTEncoder(
+            seq_len=seq_len,
+            patch_size=patch_size,
+            in_chans=in_chans,
+            embed_dim=enc_embed_dim,
+            depth=enc_depth,
+            num_heads=enc_num_heads,
+            mlp_ratio=enc_mlp_ratio,
+            qkv_bias=True,
+            norm_layer=partial(nn.LayerNorm, eps=1e-6),
+            drop_rate=drop_rate,
+            attn_drop_rate=attn_drop_rate,
+        )
+        self.head = ClassificationHead(
+            seq_len=seq_len,
+            d_model=enc_embed_dim,
+            n_classes=n_classes,
+            head_dropout=head_dropout,
+        )
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.head(x)
         return x
