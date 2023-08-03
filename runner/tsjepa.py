@@ -1,6 +1,8 @@
 from collections import OrderedDict
 import logging
+import numpy as np
 import torch
+from evaluation.evaluate_12ECG_score import compute_auc
 from models.ts_jepa.logging import AverageMeter
 from models.ts_jepa.tensors import apply_masks
 from runner.base import BaseRunner
@@ -293,13 +295,16 @@ class JEPAClassifier(BaseRunner):
         classifier,
         dataloader,
         device,
+        multilabel,
+        criterion,
         optimizer=None,
     ):
         self.classifier = classifier
         self.dataloader = dataloader
         self.device = device
+        self.multilabel = multilabel
+        self.criterion = criterion
         self.optimizer = optimizer
-        self.criterion = nn.CrossEntropyLoss()
 
         self.epoch_metrics = OrderedDict()
 
@@ -308,6 +313,9 @@ class JEPAClassifier(BaseRunner):
 
         loss_meter = AverageMeter()
         acc_meter = AverageMeter()
+
+        lbls = []
+        probs = []
 
         for batch in self.dataloader:
             X, y, masks_enc, masks_pred = batch
@@ -325,12 +333,24 @@ class JEPAClassifier(BaseRunner):
 
             loss_meter.update(loss.item())
 
-            acc = (y_pred.argmax(dim=1) == y).sum() / y.shape[0]
-            acc_meter.update(acc.item())
+            if self.multilabel:
+                prob = y_pred.sigmoid().data.cpu().numpy()
+                probs.append(prob)
+                lbls.append(y.data.cpu().numpy())
+            else:
+                acc = (y_pred.argmax(dim=1) == y).sum() / y.shape[0]
+                acc_meter.update(acc.item())
 
         # average loss per sample for whole epoch
         self.epoch_metrics["loss"] = loss_meter.avg
-        self.epoch_metrics["acc"] = acc_meter.avg
+
+        if self.multilabel:
+            lbls = np.concatenate(lbls)
+            probs = np.concatenate(probs)
+            auroc, _ = compute_auc(lbls, probs)
+            self.epoch_metrics["auroc"] = auroc
+        else:
+            self.epoch_metrics["acc"] = acc_meter.avg
 
         return self.epoch_metrics
 
@@ -339,6 +359,9 @@ class JEPAClassifier(BaseRunner):
 
         loss_meter = AverageMeter()
         acc_meter = AverageMeter()
+
+        lbls = []
+        probs = []
 
         for batch in self.dataloader:
             X, y, masks_enc, masks_pred = batch
@@ -350,11 +373,23 @@ class JEPAClassifier(BaseRunner):
             loss = self.criterion(y_pred, y)
             loss_meter.update(loss.item())
 
-            acc = (y_pred.argmax(dim=1) == y).sum() / y.shape[0]
-            acc_meter.update(acc.item())
+            if self.multilabel:
+                prob = y_pred.sigmoid().data.cpu().numpy()
+                probs.append(prob)
+                lbls.append(y.data.cpu().numpy())
+            else:
+                acc = (y_pred.argmax(dim=1) == y).sum() / y.shape[0]
+                acc_meter.update(acc.item())
 
         # average loss per sample for whole epoch
         self.epoch_metrics["loss"] = loss_meter.avg
-        self.epoch_metrics["acc"] = acc_meter.avg
+
+        if self.multilabel:
+            lbls = np.concatenate(lbls)
+            probs = np.concatenate(probs)
+            auroc, _ = compute_auc(lbls, probs)
+            self.epoch_metrics["auroc"] = auroc
+        else:
+            self.epoch_metrics["acc"] = acc_meter.avg
 
         return self.epoch_metrics

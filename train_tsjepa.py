@@ -7,6 +7,8 @@ import sys
 import time
 
 import torch
+import torch.nn as nn
+from torch.nn import BCEWithLogitsLoss
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -116,7 +118,7 @@ def main(config):
     optimizer = optimizer = torch.optim.AdamW(
         classifier.parameters(), lr=config.lr, weight_decay=config.weight_decay
     )
-    scheduler = None
+    # scheduler = None
 
     start_epoch = 0
 
@@ -138,10 +140,17 @@ def main(config):
         if config.resume:
             start_epoch = epoch
 
+    if config.multilabel:
+        criterion = BCEWithLogitsLoss(reduction="mean")
+    else:
+        criterion = nn.CrossEntropyLoss(reduction="mean")
+
     trainer = runner_class(
         classifier=classifier,
         dataloader=train_loader,
         device=device,
+        multilabel=config.multilabel,
+        criterion=criterion,
         optimizer=optimizer,
     )
 
@@ -149,12 +158,16 @@ def main(config):
         classifier=classifier,
         dataloader=val_loader,
         device=device,
+        multilabel=config.multilabel,
+        criterion=criterion,
     )
 
     test_evaluator = runner_class(
         classifier=classifier,
         dataloader=test_loader,
         device=device,
+        multilabel=config.multilabel,
+        criterion=criterion,
     )
 
     if config.test:

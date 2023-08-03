@@ -7,6 +7,8 @@ import sys
 import time
 
 import torch
+import torch.nn as nn
+from torch.nn import BCEWithLogitsLoss
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -130,10 +132,17 @@ def main(config):
         for _, param in classifier.encoder.named_parameters():
             param.requires_grad = False
 
+    if config.multilabel:
+        criterion = BCEWithLogitsLoss(reduction="mean")
+    else:
+        criterion = nn.CrossEntropyLoss(reduction="mean")
+
     trainer = runner_class(
         classifier=classifier,
         dataloader=train_loader,
         device=device,
+        multilabel=config.multilabel,
+        criterion=criterion,
         optimizer=optimizer,
     )
 
@@ -141,12 +150,16 @@ def main(config):
         classifier=classifier,
         dataloader=val_loader,
         device=device,
+        multilabel=config.multilabel,
+        criterion=criterion,
     )
 
     test_evaluator = runner_class(
         classifier=classifier,
         dataloader=test_loader,
         device=device,
+        multilabel=config.multilabel,
+        criterion=criterion,
     )
 
     if config.test:
