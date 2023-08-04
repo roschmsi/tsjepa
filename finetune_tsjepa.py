@@ -1,6 +1,7 @@
 # Reference: https://github.com/gzerveas/mvts_transformer
 
 import copy
+from functools import partial
 import logging
 import os
 import sys
@@ -15,7 +16,7 @@ from tqdm import tqdm
 
 from data.dataset import JEPADataset, load_dataset
 from models.ts_jepa.mask import RandomMaskCollator
-from models.ts_jepa.setup import init_model_finetuning
+from models.ts_jepa.setup import init_classifier, init_forecaster
 from models.ts_jepa.utils import (
     load_classifier_checkpoint,
     load_encoder_from_tsjepa,
@@ -23,7 +24,7 @@ from models.ts_jepa.utils import (
     save_classifier_checkpoint,
 )
 from options import Options
-from runner.tsjepa import JEPAClassifier
+from runner.tsjepa import JEPAClassifier, JEPAForecaster
 from utils import log_training, readable_time, seed_everything, setup
 
 logging.basicConfig(
@@ -54,37 +55,65 @@ def main(config):
 
     # build data
     train_dataset, val_dataset, test_dataset = load_dataset(config)
+    # if config.channel_independence:
+    #     config.feat_dim = 1
 
     if config.seq_len is not None:
         max_seq_len = config.seq_len
     else:
         max_seq_len = config.window * config.fs
 
+    if config.use_patch:
+        num_patch = (max_seq_len - config.patch_len) // config.stride + 1
+
     # create model
-    classifier = init_model_finetuning(
-        device=device,
-        seq_len=max_seq_len,
-        in_chans=config.feat_dim,  # 1
-        patch_size=config.patch_len,
-        enc_embed_dim=config.enc_d_model,
-        enc_depth=config.enc_num_layers,
-        enc_num_heads=config.enc_num_heads,
-        enc_mlp_ratio=config.enc_mlp_ratio,
-        drop_rate=config.dropout,
-        n_classes=config.num_classes,
-        head_dropout=config.head_dropout,
-    )
+    if config.task == "classification":
+        model = init_classifier(
+            device=device,
+            seq_len=max_seq_len,
+            in_chans=config.feat_dim,  # 1
+            patch_size=config.patch_len,
+            enc_embed_dim=config.enc_d_model,
+            enc_depth=config.enc_num_layers,
+            enc_num_heads=config.enc_num_heads,
+            enc_mlp_ratio=config.enc_mlp_ratio,
+            drop_rate=config.dropout,
+            n_classes=config.num_classes,
+            head_dropout=config.head_dropout,
+        )
+    elif config.task == "forecasting":
+        model = init_forecaster(
+            device=device,
+            seq_len=max_seq_len,
+            in_chans=1 if config.channel_independence else config.feat_dim,
+            patch_size=config.patch_len,
+            enc_embed_dim=config.enc_d_model,
+            enc_depth=config.enc_num_layers,
+            enc_num_heads=config.enc_num_heads,
+            enc_mlp_ratio=config.enc_mlp_ratio,
+            drop_rate=config.dropout,
+            head_dropout=config.head_dropout,
+            num_patch=num_patch,
+            forecast_len=config.pred_len,
+        )
 
     # -- make data transforms
     mask_collator = RandomMaskCollator(
         ratio=config.masking_ratio,
         input_size=max_seq_len,
         patch_size=config.patch_len,
+        channel_independence=False,  # config.channel_independence,
     )
 
     # initialize data generator and runner
     dataset_class = JEPADataset
-    runner_class = JEPAClassifier
+
+    if config.task == "classification":
+        runner_class = partial(JEPAClassifier, multi_label=config.multilabel)
+    elif config.task == "forecasting":
+        runner_class = JEPAForecaster
+    else:
+        raise ValueError(f"Task {config.task} not recognized.")
 
     # start model training
     train_dataset = dataset_class(train_dataset)
@@ -117,48 +146,50 @@ def main(config):
 
     # create optimizer and scheduler
     optimizer = torch.optim.AdamW(
-        classifier.parameters(), lr=config.lr, weight_decay=config.weight_decay
+        model.parameters(), lr=config.lr, weight_decay=config.weight_decay
     )
 
     start_epoch = 0
 
     # load pretrained weights
     path = os.path.join(config.load_model, "checkpoints", "model_best.pth")
-    encoder = load_encoder_from_tsjepa(path=path, encoder=classifier.encoder)
+    encoder = load_encoder_from_tsjepa(path=path, encoder=model.encoder)
 
-    classifier.encoder = encoder
+    model.encoder = encoder
 
     if config.freeze:
-        for _, param in classifier.encoder.named_parameters():
+        for _, param in model.encoder.named_parameters():
             param.requires_grad = False
 
-    if config.multilabel:
-        criterion = BCEWithLogitsLoss(reduction="mean")
+    if config.task == "classification":
+        if config.multilabel:
+            criterion = BCEWithLogitsLoss(reduction="mean")
+        else:
+            criterion = nn.CrossEntropyLoss(reduction="mean")
+    elif config.task == "forecasting":
+        criterion = nn.MSELoss(reduction="mean")
     else:
-        criterion = nn.CrossEntropyLoss(reduction="mean")
+        raise ValueError(f"Task {config.task} not recognized.")
 
     trainer = runner_class(
-        classifier=classifier,
+        model=model,
         dataloader=train_loader,
         device=device,
-        multilabel=config.multilabel,
         criterion=criterion,
         optimizer=optimizer,
     )
 
     val_evaluator = runner_class(
-        classifier=classifier,
+        model=model,
         dataloader=val_loader,
         device=device,
-        multilabel=config.multilabel,
         criterion=criterion,
     )
 
     test_evaluator = runner_class(
-        classifier=classifier,
+        model=model,
         dataloader=test_loader,
         device=device,
-        multilabel=config.multilabel,
         criterion=criterion,
     )
 
@@ -223,37 +254,11 @@ def main(config):
 
             save_classifier_checkpoint(
                 epoch=epoch,
-                classifier=trainer.classifier,
+                classifier=trainer.model,
                 optimizer=trainer.optimizer,
                 path=config["checkpoint_dir"],
                 better=better,
             )
-
-            # if epoch % 10 == 0:
-            #     plot_2d(
-            #         method="pca",
-            #         encoder=trainer.classifier.encoder,
-            #         data_loader=train_loader,
-            #         device=device,
-            #         config=config,
-            #         fname="pca_train.png",
-            #         tb_writer=tb_writer,
-            #         mode="train",
-            #         epoch=epoch,
-            #         num_classes=config.num_classes,
-            #     )
-            #     plot_2d(
-            #         method="pca",
-            #         encoder=trainer.classifier.encoder,
-            #         data_loader=val_loader,
-            #         device=device,
-            #         config=config,
-            #         fname="pca_val.png",
-            #         tb_writer=tb_writer,
-            #         mode="val",
-            #         epoch=epoch,
-            #         num_classes=config.num_classes,
-            #     )
 
         if patience_count > config.patience:
             break
@@ -261,22 +266,21 @@ def main(config):
     # load best model, iterate over test loader, get representations
     # mean over time axis, then plot with tsne
 
-    if not config.debug:
-        path = os.path.join(config["output_dir"], "checkpoints", "model_best.pth")
-        classifier, _ = load_classifier_checkpoint(
-            path,
-            classifier=classifier,
-        )
+    # if not config.debug:
+    path = os.path.join(config["output_dir"], "checkpoints", "model_best.pth")
+    model, _, epoch = load_classifier_checkpoint(
+        path,
+        classifier=model,
+    )
 
-        # plot_2d(
-        #     method="pca",
-        #     encoder=classifier.encoder,
-        #     data_loader=test_loader,
-        #     device=device,
-        #     config=config,
-        #     fname="pca_test.png",
-        #     num_classes=config.num_classes,
-        # )
+    # TODO load best model, evaluate on test set
+    with torch.no_grad():
+        test_evaluator.model = model
+        aggr_metrics_test = test_evaluator.evaluate(epoch_num=epoch)
+
+    logger.info("Best test performance:")
+    for k, v in aggr_metrics_test.items():
+        logger.info(f"{k}: {v}")
 
     total_runtime = time.time() - total_start_time
     logger.info(

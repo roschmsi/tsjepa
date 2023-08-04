@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from data.dataset import JEPADataset, load_dataset
 from models.ts_jepa.mask import RandomMaskCollator
-from models.ts_jepa.setup import init_model_finetuning
+from models.ts_jepa.setup import init_classifier
 from models.ts_jepa.utils import (
     load_classifier_checkpoint,
     plot_2d,
@@ -53,6 +53,8 @@ def main(config):
 
     # build data
     train_dataset, val_dataset, test_dataset = load_dataset(config)
+    if config.channel_independence:
+        config.feat_dim = 1
 
     if config.seq_len is not None:
         max_seq_len = config.seq_len
@@ -60,7 +62,7 @@ def main(config):
         max_seq_len = config.window * config.fs
 
     # create model
-    classifier = init_model_finetuning(
+    classifier = init_classifier(
         device=device,
         seq_len=max_seq_len,
         in_chans=config.feat_dim,  # 1
@@ -79,6 +81,7 @@ def main(config):
         ratio=config.masking_ratio,
         input_size=max_seq_len,
         patch_size=config.patch_len,
+        channel_independence=config.channel_independence,
     )
 
     # initialize data generator and runner
@@ -146,7 +149,7 @@ def main(config):
         criterion = nn.CrossEntropyLoss(reduction="mean")
 
     trainer = runner_class(
-        classifier=classifier,
+        model=classifier,
         dataloader=train_loader,
         device=device,
         multilabel=config.multilabel,
@@ -155,7 +158,7 @@ def main(config):
     )
 
     val_evaluator = runner_class(
-        classifier=classifier,
+        model=classifier,
         dataloader=val_loader,
         device=device,
         multilabel=config.multilabel,
@@ -163,7 +166,7 @@ def main(config):
     )
 
     test_evaluator = runner_class(
-        classifier=classifier,
+        model=classifier,
         dataloader=test_loader,
         device=device,
         multilabel=config.multilabel,
@@ -231,7 +234,7 @@ def main(config):
 
             save_classifier_checkpoint(
                 epoch=epoch,
-                classifier=trainer.classifier,
+                classifier=trainer.model,
                 optimizer=trainer.optimizer,
                 path=config["checkpoint_dir"],
                 better=better,
@@ -240,7 +243,7 @@ def main(config):
             if epoch % 10 == 0:
                 plot_2d(
                     method="pca",
-                    encoder=trainer.classifier.encoder,
+                    encoder=trainer.model.encoder,
                     data_loader=train_loader,
                     device=device,
                     config=config,
@@ -248,11 +251,13 @@ def main(config):
                     tb_writer=tb_writer,
                     mode="train",
                     epoch=epoch,
-                    num_classes=config.num_classes,
+                    num_classes=config.num_classes
+                    if "num_classes" in config.keys()
+                    else 1,
                 )
                 plot_2d(
                     method="pca",
-                    encoder=trainer.classifier.encoder,
+                    encoder=trainer.model.encoder,
                     data_loader=val_loader,
                     device=device,
                     config=config,
@@ -260,7 +265,9 @@ def main(config):
                     tb_writer=tb_writer,
                     mode="val",
                     epoch=epoch,
-                    num_classes=config.num_classes,
+                    num_classes=config.num_classes
+                    if "num_classes" in config.keys()
+                    else 1,
                 )
 
         if patience_count > config.patience:
@@ -274,6 +281,7 @@ def main(config):
         classifier, _ = load_classifier_checkpoint(
             path,
             classifier=classifier,
+            optimizer=None,
         )
         plot_2d(
             method="pca",
@@ -282,7 +290,7 @@ def main(config):
             device=device,
             config=config,
             fname="pca_test.png",
-            num_classes=config.num_classes,
+            num_classes=config.num_classes if "num_classes" in config.keys() else 1,
         )
 
     total_runtime = time.time() - total_start_time

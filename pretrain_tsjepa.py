@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from data.dataset import JEPADataset, load_dataset
 from models.ts_jepa.mask import RandomMaskCollator
-from models.ts_jepa.setup import init_model_finetuning, init_model_pretraining, init_opt
+from models.ts_jepa.setup import init_classifier, init_model_pretraining, init_opt
 from models.ts_jepa.utils import (
     load_checkpoint,
     load_encoder_from_classifier,
@@ -53,6 +53,8 @@ def main(config):
 
     # build data
     train_dataset, val_dataset, test_dataset = load_dataset(config)
+    if config.channel_independence:
+        config.feat_dim = 1
 
     if config.seq_len is not None:
         max_seq_len = config.seq_len
@@ -85,6 +87,7 @@ def main(config):
         ratio=config.masking_ratio,
         input_size=max_seq_len,
         patch_size=config.patch_len,
+        channel_independence=config.channel_independence,
     )
 
     # initialize data generator and runner
@@ -153,7 +156,7 @@ def main(config):
 
     if config.load_classifier is not None:
         path = os.path.join(config.load_classifier, "checkpoints", "model_best.pth")
-        classifier = init_model_finetuning(
+        classifier = init_classifier(
             device=device,
             seq_len=max_seq_len,
             in_chans=config.feat_dim,
@@ -298,14 +301,14 @@ def main(config):
                 tb_writer=tb_writer,
                 mode="train",
                 epoch=epoch,
-                num_classes=config.num_classes,
+                num_classes=config.num_classes if "num_classes" in config.keys() else 1,
             )
             plot_classwise_distribution(
                 encoder=encoder,
                 data_loader=train_loader,
                 device=device,
                 d_model=config.enc_d_model,
-                num_classes=config.num_classes,
+                num_classes=config.num_classes if "num_classes" in config.keys() else 1,
                 tb_writer=tb_writer,
                 mode="train",
                 epoch=epoch,
@@ -320,14 +323,14 @@ def main(config):
                 tb_writer=tb_writer,
                 mode="val",
                 epoch=epoch,
-                num_classes=config.num_classes,
+                num_classes=config.num_classes if "num_classes" in config.keys() else 1,
             )
             plot_classwise_distribution(
                 encoder=encoder,
                 data_loader=val_loader,
                 device=device,
                 d_model=config.enc_d_model,
-                num_classes=config.num_classes,
+                num_classes=config.num_classes if "num_classes" in config.keys() else 1,
                 tb_writer=tb_writer,
                 mode="val",
                 epoch=epoch,
@@ -356,7 +359,7 @@ def main(config):
             device=device,
             config=config,
             fname="pca_test.png",
-            num_classes=config.num_classes,
+            num_classes=config.num_classes if "num_classes" in config.keys() else 1,
         )
 
     total_runtime = time.time() - total_start_time
