@@ -85,7 +85,7 @@ def load_checkpoint(
 def load_classifier_checkpoint(
     path,
     classifier,
-    optimizer,
+    optimizer=None,
 ):
     try:
         checkpoint = torch.load(path, map_location=torch.device("cpu"))
@@ -97,7 +97,8 @@ def load_classifier_checkpoint(
         logger.info(f"loaded pretrained classifier from epoch {epoch} with msg: {msg}")
 
         # -- loading optimizer
-        optimizer.load_state_dict(checkpoint["opt"])
+        if optimizer is not None:
+            optimizer.load_state_dict(checkpoint["opt"])
 
     except Exception as e:
         logger.info(f"Encountered exception when loading checkpoint {e}")
@@ -205,7 +206,11 @@ def plot_2d(
                 X = X.float().to(device)
                 X_enc = encoder(X, masks=None)
                 X_rep.append(X_enc.mean(dim=1))
-                y_rep.append(y)
+
+                if num_classes == 1:
+                    y_rep.append(torch.zeros(X_enc.shape[0]))
+                else:
+                    y_rep.append(y)
                 # y_rep.append(torch.where(y == 1)[1])
 
         X_rep = torch.cat(X_rep, dim=0).cpu().detach().numpy()
@@ -271,7 +276,13 @@ def plot_classwise_distribution(
                 X_enc = X_enc.mean(dim=1)
 
                 df_z = pd.DataFrame(X_enc.cpu()).astype("float")
-                df_y = pd.DataFrame(y.cpu(), columns=["y"]).astype("int")
+
+                if num_classes == 1:
+                    df_y = pd.DataFrame(torch.zeros(y.shape[0]), columns=["y"]).astype(
+                        "int"
+                    )
+                else:
+                    df_y = pd.DataFrame(y.cpu(), columns=["y"]).astype("int")
 
                 df_batch = pd.concat([df_y, df_z], axis=1)
                 df = pd.concat([df, df_batch], axis=0)
