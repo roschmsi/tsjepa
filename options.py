@@ -76,6 +76,7 @@ class Options(object):
         self.parser.add_argument("--augment", action="store_true")
         self.parser.add_argument("--mixup", type=float)
         self.parser.add_argument("--rand_ecg", type=str, default="")
+        self.parser.add_argument("--channel_independence", action="store_true")
 
         # forecasting
         self.parser.add_argument("--seq_len", type=int)

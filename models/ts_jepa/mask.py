@@ -31,12 +31,14 @@ class RandomMaskCollator(object):
         ratio=0.5,
         input_size=1000,
         patch_size=16,
+        channel_independence=False,
     ):
         super(RandomMaskCollator, self).__init__()
         self.input_size = input_size
         self.patch_size = patch_size
         self.num_patches = input_size // patch_size
         self.ratio = ratio
+        self.channel_independence = channel_independence
 
     def __call__(self, batch):
         """
@@ -47,11 +49,24 @@ class RandomMaskCollator(object):
         # 4. sample several pred block locations for each image (w/o seed)
         # 5. return enc mask and pred mask
         """
-        B = len(batch)
 
         collated_batch = torch.utils.data.default_collate(batch)
         collated_X = collated_batch[0]
         collated_y = collated_batch[1]
+
+        # TODO actually just for the forecasting datasets, otherwise collated y has to be handled differently
+        if self.channel_independence:
+            bs, num_patches, feat_dim = collated_X.shape
+            collated_X = (
+                collated_X.transpose(1, 2)
+                .reshape(bs * feat_dim, num_patches)
+                .unsqueeze(-1)
+            )
+            collated_y = (
+                collated_y.transpose(1, 2).reshape(bs * feat_dim, -1).unsqueeze(-1)
+            )
+
+        B = collated_X.shape[0]
 
         num_keep = int(self.num_patches * (1.0 - self.ratio))
 
