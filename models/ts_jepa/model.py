@@ -538,27 +538,52 @@ class TSTForecaster(nn.Module):
 
     def __init__(
         self,
-        encoder,
-        n_vars,
-        d_model,
+        seq_len,
+        patch_size,
+        in_chans,
+        enc_embed_dim,
+        enc_depth,
+        enc_num_heads,
+        enc_mlp_ratio,
+        drop_rate,
+        attn_drop_rate,
+        head_dropout,
         num_patch,
         forecast_len,
     ):
         super().__init__()
-        self.encoder = encoder
-        self.n_vars = n_vars
+        self.encoder = TSTEncoder(
+            seq_len=seq_len,
+            patch_size=patch_size,
+            in_chans=in_chans,
+            embed_dim=enc_embed_dim,
+            depth=enc_depth,
+            num_heads=enc_num_heads,
+            mlp_ratio=enc_mlp_ratio,
+            qkv_bias=True,
+            norm_layer=partial(nn.LayerNorm, eps=1e-6),
+            drop_rate=drop_rate,
+            attn_drop_rate=attn_drop_rate,
+        )
         self.head = PredictionHead(
             individual=False,
-            n_vars=n_vars,
-            d_model=d_model,
+            n_vars=in_chans,
+            d_model=enc_embed_dim,
             num_patch=num_patch,
             forecast_len=forecast_len,
+            head_dropout=head_dropout,
         )
 
     def forward(self, x, masks=None):
+        bs, seq_len, n_vars = x.shape
+        x = x.transpose(1, 2)
+        x = x.reshape(bs * n_vars, seq_len).unsqueeze(-1)
+        # x: [bs * n_vars x seq_len x 1] for channel independence
         x = self.encoder(x)
+        # x: [bs * n_vars x num_patch x d_model]
         _, num_patch, d_model = x.shape
-        x = x.reshape(-1, self.n_vars, num_patch, d_model).transpose(2, 3)
+        x = x.reshape(bs, n_vars, num_patch, d_model)
+        x = x.transpose(2, 3)
 
         x = self.head(x)
 
