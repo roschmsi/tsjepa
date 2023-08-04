@@ -1,6 +1,6 @@
 from functools import partial
 from models.ts_jepa.tensors import trunc_normal_
-from models.ts_jepa.model import TSTClassifier, TSTEncoder, TSTPredictor
+from models.ts_jepa.model import TSTClassifier, TSTEncoder, TSTForecaster, TSTPredictor
 import torch
 import torch.nn as nn
 
@@ -67,7 +67,7 @@ def init_model_pretraining(
     return encoder, predictor
 
 
-def init_model_finetuning(
+def init_classifier(
     device,
     seq_len,
     patch_size,
@@ -109,6 +109,52 @@ def init_model_finetuning(
 
     classifier.to(device)
     return classifier
+
+
+def init_forecaster(
+    device,
+    seq_len,
+    patch_size,
+    in_chans,
+    enc_embed_dim,
+    enc_depth,
+    enc_num_heads,
+    enc_mlp_ratio,
+    head_dropout,
+    num_patch,
+    forecast_len,
+    drop_rate=0,
+    attn_drop_rate=0,
+):
+    forecaster = TSTForecaster(
+        seq_len=seq_len,
+        patch_size=patch_size,
+        in_chans=in_chans,
+        enc_embed_dim=enc_embed_dim,
+        enc_depth=enc_depth,
+        enc_num_heads=enc_num_heads,
+        enc_mlp_ratio=enc_mlp_ratio,
+        drop_rate=drop_rate,
+        attn_drop_rate=attn_drop_rate,
+        head_dropout=head_dropout,
+        num_patch=num_patch,
+        forecast_len=forecast_len,
+    )
+
+    def init_weights(m):
+        if isinstance(m, torch.nn.Linear):
+            trunc_normal_(m.weight, std=0.02)
+            if m.bias is not None:
+                torch.nn.init.constant_(m.bias, 0)
+        elif isinstance(m, torch.nn.LayerNorm):
+            torch.nn.init.constant_(m.bias, 0)
+            torch.nn.init.constant_(m.weight, 1.0)
+
+    for m in forecaster.modules():
+        init_weights(m)
+
+    forecaster.to(device)
+    return forecaster
 
 
 def init_opt(
