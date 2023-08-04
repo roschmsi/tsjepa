@@ -7,7 +7,6 @@ from models.ts_jepa.logging import AverageMeter
 from models.ts_jepa.tensors import apply_masks
 from runner.base import BaseRunner
 import torch.nn.functional as F
-import torch.nn as nn
 
 logger = logging.getLogger("__main__")
 
@@ -292,14 +291,14 @@ class JEPARunner(BaseRunner):
 class JEPAClassifier(BaseRunner):
     def __init__(
         self,
-        classifier,
+        model,
         dataloader,
         device,
         multilabel,
         criterion,
         optimizer=None,
     ):
-        self.classifier = classifier
+        self.model = model
         self.dataloader = dataloader
         self.device = device
         self.multilabel = multilabel
@@ -309,7 +308,7 @@ class JEPAClassifier(BaseRunner):
         self.epoch_metrics = OrderedDict()
 
     def train_epoch(self, epoch_num=None):
-        self.classifier = self.classifier.train()
+        self.model = self.model.train()
 
         loss_meter = AverageMeter()
         acc_meter = AverageMeter()
@@ -323,7 +322,7 @@ class JEPAClassifier(BaseRunner):
             y = y.to(self.device)
             # y = torch.where(y == 1)[1]
 
-            y_pred = self.classifier(X)
+            y_pred = self.model(X)
             loss = self.criterion(y_pred, y)
 
             #  Step 2. Backward & step
@@ -355,7 +354,7 @@ class JEPAClassifier(BaseRunner):
         return self.epoch_metrics
 
     def evaluate(self, epoch_num=None):
-        self.classifier = self.classifier.eval()
+        self.model = self.model.eval()
 
         loss_meter = AverageMeter()
         acc_meter = AverageMeter()
@@ -369,7 +368,7 @@ class JEPAClassifier(BaseRunner):
             y = y.to(self.device)
             # y = torch.where(y == 1)[1]
 
-            y_pred = self.classifier(X)
+            y_pred = self.model(X)
             loss = self.criterion(y_pred, y)
             loss_meter.update(loss.item())
 
@@ -391,5 +390,87 @@ class JEPAClassifier(BaseRunner):
             self.epoch_metrics["auroc"] = auroc
         else:
             self.epoch_metrics["acc"] = acc_meter.avg
+
+        return self.epoch_metrics
+
+
+class JEPAForecaster(BaseRunner):
+    def __init__(
+        self,
+        model,
+        dataloader,
+        device,
+        criterion,
+        optimizer=None,
+    ):
+        self.model = model
+        self.dataloader = dataloader
+        self.device = device
+        self.criterion = criterion
+        self.optimizer = optimizer
+
+        self.l1_loss = torch.nn.L1Loss(reduction="mean")
+        self.l2_loss = torch.nn.MSELoss(reduction="mean")
+
+        self.epoch_metrics = OrderedDict()
+
+    def train_epoch(self, epoch_num=None):
+        self.model = self.model.train()
+
+        loss_meter = AverageMeter()
+        mse_meter = AverageMeter()
+        mae_meter = AverageMeter()
+
+        for batch in self.dataloader:
+            X, y, masks_enc, masks_pred = batch
+            X = X.to(self.device).float()
+            y = y.to(self.device)
+
+            y_pred = self.model(X)
+            loss = self.criterion(y_pred, y)
+
+            #  Step 2. Backward & step
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+            loss_meter.update(loss.item())
+            mse = self.l2_loss(y_pred, y)
+            mse_meter.update(mse.item())
+            mae = self.l1_loss(y_pred, y)
+            mae_meter.update(mae.item())
+
+        # average loss per sample for whole epoch
+        self.epoch_metrics["loss"] = loss_meter.avg
+        self.epoch_metrics["mse"] = mse_meter.avg
+        self.epoch_metrics["mae"] = mae_meter.avg
+
+        return self.epoch_metrics
+
+    def evaluate(self, epoch_num=None):
+        self.model = self.model.eval()
+
+        loss_meter = AverageMeter()
+        mse_meter = AverageMeter()
+        mae_meter = AverageMeter()
+
+        for batch in self.dataloader:
+            X, y, masks_enc, masks_pred = batch
+            X = X.to(self.device).float()
+            y = y.to(self.device)
+
+            y_pred = self.model(X)
+            loss = self.criterion(y_pred, y)
+
+            loss_meter.update(loss.item())
+            mse = self.l2_loss(y_pred, y)
+            mse_meter.update(mse.item())
+            mae = self.l1_loss(y_pred, y)
+            mae_meter.update(mae.item())
+
+        # average loss per sample for whole epoch
+        self.epoch_metrics["loss"] = loss_meter.avg
+        self.epoch_metrics["mse"] = mse_meter.avg
+        self.epoch_metrics["mae"] = mae_meter.avg
 
         return self.epoch_metrics
