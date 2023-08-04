@@ -1,0 +1,9 @@
+dataset: "sleep_edf"
+data_dir: "/storage/user/roschman/datasets/sleep_edf"
+# fs: 100  # Hz
+eeg_channel: "Fpz-Cz"
+seq_len: 3000
+target_idx: -1
+num_classes: 5
+feat_dim: 1
+multilabel: False

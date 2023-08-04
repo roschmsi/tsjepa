@@ -7,6 +7,7 @@ from torch.utils.data import Dataset
 import torch
 
 from data.ecg_dataset import load_ecg_dataset
+from data.eeg_dataset import load_eeg_dataset
 from data.fc_dataset import load_fc_dataset
 
 
@@ -24,6 +25,8 @@ def load_dataset(config):
         "electricity",
     ]:
         return load_fc_dataset(config)
+    elif config.dataset in ["sleep_edf"]:
+        return load_eeg_dataset(config)
     else:
         raise ValueError("Dataset type is not specified")
 
@@ -131,7 +134,8 @@ class JEPADataset(Dataset):
 
     def __getitem__(self, ind):
         X, y = self.dataset.__getitem__(ind)
-        X = X.astype(float)
+        # TODO fix this for ECG dataset
+        # X = X.astype(float)
         return X, y
 
     def __len__(self):
@@ -149,7 +153,8 @@ class ClassificationPatchDataset(Dataset):
         X, y = self.dataset.__getitem__(ind)
         X = torch.from_numpy(X).unsqueeze(0)
         X = create_patch(X, self.patch_len, self.stride)
-        return X.squeeze(), torch.from_numpy(y)
+        # TODO consistency of class labels coming from datasets, either plain value or np.array
+        return X.squeeze(), torch.tensor(y).to(torch.int64)
 
     def __len__(self):
         return len(self.dataset)
@@ -213,7 +218,8 @@ def collate_superv(data, max_len=None):
         torch.tensor(lengths, dtype=torch.int32), max_len=max_len
     )  # (batch_size, padded_length) boolean tensor, "1" means keep
 
-    return X, targets.float(), padding_masks
+    # TODO be careful with transforming targets to float
+    return X, targets, padding_masks
 
 
 def collate_patch_superv(
@@ -261,7 +267,8 @@ def collate_patch_superv(
         torch.tensor(lengths, dtype=torch.int32), max_len=max_len
     )  # (batch_size, padded_length) boolean tensor, "1" means keep
 
-    return X, targets.float(), padding_masks
+    # TODO be careful with transforming targets to float
+    return X, targets, padding_masks
 
 
 def compensate_masking(X, mask):
