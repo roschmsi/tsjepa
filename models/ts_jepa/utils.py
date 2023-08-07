@@ -40,6 +40,9 @@ def save_checkpoint(
     if better:
         torch.save(save_dict, os.path.join(path, "model_best.pth"))
 
+    if epoch % 50 == 0:
+        torch.save(save_dict, os.path.join(path, f"model_{epoch}.pth"))
+
 
 def load_checkpoint(
     path,
