@@ -53,9 +53,17 @@ def vicreg_fn(z_enc, z_pred):
 
     cov_enc = (z_enc.T @ z_enc) / (z_enc.shape[0] - 1)
     cov_pred = (z_pred.T @ z_pred) / (z_pred.shape[0] - 1)
-    cov_loss = off_diagonal(cov_enc).pow_(2).sum().div(num_features) + off_diagonal(
+    cov_loss = (z_enc.shape[0] / (z_enc.shape[0] + z_pred.shape[0])) * off_diagonal(
+        cov_enc
+    ).pow_(2).sum().div(num_features) + (
+        z_pred.shape[0] / (z_enc.shape[0] + z_pred.shape[0])
+    ) * off_diagonal(
         cov_pred
-    ).pow_(2).sum().div(num_features)
+    ).pow_(
+        2
+    ).sum().div(
+        num_features
+    )
 
     return std_loss, cov_loss, cov_enc, cov_pred
 
