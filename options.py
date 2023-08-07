@@ -59,6 +59,8 @@ class Options(object):
         self.parser.add_argument("--cls_token", action="store_true")
         self.parser.add_argument("--ch_token", action="store_true")
 
+        self.parser.add_argument("--masking", type=str)
+
         # hierarchical
         self.parser.add_argument("--hierarchical", action="store_true")
         self.parser.add_argument("--num_levels", type=int)
