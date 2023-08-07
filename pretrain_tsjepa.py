@@ -12,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from data.dataset import JEPADataset, load_dataset
-from models.ts_jepa.mask import RandomMaskCollator
+from models.ts_jepa.mask import RandomMaskCollator, BlockMaskCollator
 from models.ts_jepa.setup import init_classifier, init_model_pretraining, init_opt
 from models.ts_jepa.utils import (
     load_checkpoint,
@@ -83,12 +83,23 @@ def main(config):
         p.requires_grad = False
 
     # -- make data transforms
-    mask_collator = RandomMaskCollator(
-        ratio=config.masking_ratio,
-        input_size=max_seq_len,
-        patch_size=config.patch_len,
-        channel_independence=config.channel_independence,
-    )
+    if config.masking == "random":
+        mask_collator = RandomMaskCollator(
+            ratio=config.masking_ratio,
+            input_size=max_seq_len,
+            patch_size=config.patch_len,
+            channel_independence=config.channel_independence,
+        )
+    elif config.masking == "block":
+        mask_collator = BlockMaskCollator(
+            input_size=max_seq_len,
+            patch_size=config.patch_len,
+            enc_mask_scale=(1.0, 1.0),
+            pred_mask_scale=(0.1, 0.2),
+            channel_independence=config.channel_independence,
+        )
+    else:
+        raise ValueError("Unknown masking type")
 
     # initialize data generator and runner
     dataset_class = JEPADataset
@@ -124,7 +135,9 @@ def main(config):
     )
 
     # create optimizer and scheduler
-    optimizer = init_opt(encoder, predictor)
+    optimizer = init_opt(
+        encoder, predictor, lr=config.lr, weight_decay=config.weight_decay
+    )
     scheduler = None
 
     ipe = len(train_loader)
@@ -154,22 +167,22 @@ def main(config):
         if config.resume:
             start_epoch = epoch
 
-    if config.load_classifier is not None:
-        path = os.path.join(config.load_classifier, "checkpoints", "model_best.pth")
-        classifier = init_classifier(
-            device=device,
-            seq_len=max_seq_len,
-            in_chans=config.feat_dim,
-            patch_size=config.patch_len,
-            enc_embed_dim=config.enc_d_model,
-            enc_depth=config.enc_num_layers,
-            enc_num_heads=config.enc_num_heads,
-            enc_mlp_ratio=config.enc_mlp_ratio,
-            drop_rate=config.dropout,
-            n_classes=config.num_classes,
-            head_dropout=config.head_dropout,
-        )
-        _, target_encoder = load_encoder_from_classifier(path, classifier)
+    # if config.load_classifier is not None:
+    #     path = os.path.join(config.load_classifier, "checkpoints", "model_best.pth")
+    #     classifier = init_classifier(
+    #         device=device,
+    #         seq_len=max_seq_len,
+    #         in_chans=config.feat_dim,
+    #         patch_size=config.patch_len,
+    #         enc_embed_dim=config.enc_d_model,
+    #         enc_depth=config.enc_num_layers,
+    #         enc_num_heads=config.enc_num_heads,
+    #         enc_mlp_ratio=config.enc_mlp_ratio,
+    #         drop_rate=config.dropout,
+    #         n_classes=config.num_classes,
+    #         head_dropout=config.head_dropout,
+    #     )
+    #     _, target_encoder = load_encoder_from_classifier(path, classifier)
 
     trainer = runner_class(
         encoder=encoder,
@@ -301,14 +314,18 @@ def main(config):
                 tb_writer=tb_writer,
                 mode="train",
                 epoch=epoch,
-                num_classes=config.num_classes if "num_classes" in config.keys() else 1,
+                num_classes=config.num_classes
+                if "num_classes" in config.keys() and config.multilabel is False
+                else 1,
             )
             plot_classwise_distribution(
                 encoder=encoder,
                 data_loader=train_loader,
                 device=device,
                 d_model=config.enc_d_model,
-                num_classes=config.num_classes if "num_classes" in config.keys() else 1,
+                num_classes=config.num_classes
+                if "num_classes" in config.keys() and config.multilabel is False
+                else 1,
                 tb_writer=tb_writer,
                 mode="train",
                 epoch=epoch,
@@ -323,14 +340,18 @@ def main(config):
                 tb_writer=tb_writer,
                 mode="val",
                 epoch=epoch,
-                num_classes=config.num_classes if "num_classes" in config.keys() else 1,
+                num_classes=config.num_classes
+                if "num_classes" in config.keys() and config.multilabel is False
+                else 1,
             )
             plot_classwise_distribution(
                 encoder=encoder,
                 data_loader=val_loader,
                 device=device,
                 d_model=config.enc_d_model,
-                num_classes=config.num_classes if "num_classes" in config.keys() else 1,
+                num_classes=config.num_classes
+                if "num_classes" in config.keys() and config.multilabel is False
+                else 1,
                 tb_writer=tb_writer,
                 mode="val",
                 epoch=epoch,
@@ -359,7 +380,9 @@ def main(config):
             device=device,
             config=config,
             fname="pca_test.png",
-            num_classes=config.num_classes if "num_classes" in config.keys() else 1,
+            num_classes=config.num_classes
+            if "num_classes" in config.keys() and config.multilabel is False
+            else 1,
         )
 
     total_runtime = time.time() - total_start_time

@@ -21,6 +21,7 @@ def init_model_pretraining(
     drop_rate=0,
     attn_drop_rate=0,
 ):
+    # TODO choose correct layer norm and activation fn
     encoder = TSTEncoder(
         seq_len=seq_len,
         patch_size=patch_size,
@@ -160,6 +161,8 @@ def init_forecaster(
 def init_opt(
     encoder,
     predictor,
+    lr,
+    weight_decay,
     # iterations_per_epoch,
     # start_lr,
     # ref_lr,
@@ -207,7 +210,7 @@ def init_opt(
     ]
 
     # TODO consider learning rate
-    optimizer = torch.optim.AdamW(param_groups)
+    optimizer = torch.optim.AdamW(param_groups, lr=lr, weight_decay=weight_decay)
     # scheduler = WarmupCosineSchedule(
     #     optimizer,
     #     warmup_steps=int(warmup * iterations_per_epoch),
