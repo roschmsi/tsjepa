@@ -1,8 +1,10 @@
 # Reference: https://github.com/gzerveas/mvts_transformer
 
 import logging
+
 import torch
 
+from models.ts_jepa.vic_reg import enc_vicreg_fn
 from runner.base import BaseRunner
 
 logger = logging.getLogger("__main__")
@@ -83,6 +85,9 @@ class UnsupervisedPatchRunner(BaseRunner):
         self.model = self.model.train()
 
         epoch_loss = 0
+        epoch_loss_pred = 0
+        epoch_loss_std = 0
+        epoch_loss_cov = 0
 
         for batch in self.dataloader:
             (
@@ -106,38 +111,58 @@ class UnsupervisedPatchRunner(BaseRunner):
                 padding_masks_kept = padding_masks_kept.to(self.device)
                 ids_restore = ids_restore.to(self.device)
 
-                predictions = self.model(
+                predictions, x_enc = self.model(
                     X_kept,
                     padding_masks,
                     padding_masks_kept,
                     ids_restore,
                     target_masks,
+                    return_encoding=True,
                 )
             else:
                 X = X.to(self.device)
 
-                predictions = self.model(
+                predictions, x_enc = self.model(
                     X,
-                    padding_masks,
+                    padding_mask=padding_masks,
+                    return_encoding=True,
                 )
 
             # Cascade noise masks (batch_size, padded_length, feat_dim) and padding masks (batch_size, padded_length)
             target_masks = target_masks * padding_masks.unsqueeze(-1)
 
             # (num_active,) individual loss (square error per element) for each active value in batch
-            batch_loss = self.criterion(predictions, targets, target_masks)
+            loss = self.criterion(predictions, targets, target_masks)
+
+            # TODO implement new vic regularization for single input or combine
+            pred_loss = loss
+            std_loss, cov_loss = enc_vicreg_fn(z_enc=x_enc)
+
+            # std_loss, cov_loss = pred_vicreg_fn(z_pred=z_pred)
+            if self.vic_reg:
+                loss = (
+                    self.rec_weight * loss
+                    + self.std_weight * std_loss
+                    + self.cov_weight * cov_loss
+                )
 
             self.optimizer.zero_grad()
-            batch_loss.backward()
+            loss.backward()
             # torch.nn.utils.clip_grad_value_(self.model.parameters(), clip_value=1.0)
             # torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=4.0)
             self.optimizer.step()
 
-            epoch_loss += batch_loss.item()
+            epoch_loss += loss.item()
+            epoch_loss_pred += pred_loss.item()
+            epoch_loss_std += std_loss.item()
+            epoch_loss_cov += cov_loss.item()
 
         # average loss per element for whole epoch
         self.epoch_metrics["epoch"] = epoch_num
         self.epoch_metrics["loss"] = epoch_loss / len(self.dataloader)
+        self.epoch_metrics["pred loss"] = epoch_loss_pred / len(self.dataloader)
+        self.epoch_metrics["std loss"] = epoch_loss_std / len(self.dataloader)
+        self.epoch_metrics["cov loss"] = epoch_loss_cov / len(self.dataloader)
 
         return self.epoch_metrics
 
@@ -145,6 +170,9 @@ class UnsupervisedPatchRunner(BaseRunner):
         self.model = self.model.eval()
 
         epoch_loss = 0  # total loss of epoch
+        epoch_loss_pred = 0
+        epoch_loss_std = 0
+        epoch_loss_cov = 0
 
         for batch in self.dataloader:
             (
@@ -168,27 +196,49 @@ class UnsupervisedPatchRunner(BaseRunner):
                 padding_masks_kept = padding_masks_kept.to(self.device)
                 ids_restore = ids_restore.to(self.device)
 
-                predictions = self.model(
-                    X_kept, padding_masks, padding_masks_kept, ids_restore, target_masks
+                predictions, x_enc = self.model(
+                    X_kept,
+                    padding_masks,
+                    padding_masks_kept,
+                    ids_restore,
+                    target_masks,
+                    return_encoding=True,
                 )
             else:
                 X = X.to(self.device)
 
-                predictions = self.model(
-                    X,
-                    padding_masks,
+                predictions, x_enc = self.model(
+                    X, padding_mask=padding_masks, return_encoding=True
                 )
 
             # Cascade noise masks (batch_size, padded_length, feat_dim) and padding masks (batch_size, padded_length)
             target_masks = target_masks * padding_masks.unsqueeze(-1)
 
             # (num_active,) individual loss (square error per element) for each active value in batch
-            batch_loss = self.criterion(predictions, targets, target_masks)
+            loss = self.criterion(predictions, targets, target_masks)
 
-            epoch_loss += batch_loss.item()
+            # TODO implement new vic regularization for single input or combine
+            pred_loss = loss
+            std_loss, cov_loss = enc_vicreg_fn(z_enc=x_enc)
+
+            # std_loss, cov_loss = pred_vicreg_fn(z_pred=z_pred)
+            if self.vic_reg:
+                loss = (
+                    self.rec_weight * loss
+                    + self.std_weight * std_loss
+                    + self.cov_weight * cov_loss
+                )
+
+            epoch_loss += loss.item()
+            epoch_loss_pred += pred_loss.item()
+            epoch_loss_std += std_loss.item()
+            epoch_loss_cov += cov_loss.item()
 
         # average loss per element for whole epoch
         self.epoch_metrics["epoch"] = epoch_num
         self.epoch_metrics["loss"] = epoch_loss / len(self.dataloader)
+        self.epoch_metrics["pred loss"] = epoch_loss_pred / len(self.dataloader)
+        self.epoch_metrics["std loss"] = epoch_loss_std / len(self.dataloader)
+        self.epoch_metrics["cov loss"] = epoch_loss_cov / len(self.dataloader)
 
         return self.epoch_metrics
