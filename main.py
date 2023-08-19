@@ -20,6 +20,7 @@ from factory import (
     setup_scheduler,
 )
 from loss import get_criterion
+from models.ts_jepa.utils import plot_2d, plot_classwise_distribution
 from options import Options
 from evaluation.evaluate_12ECG_score import (
     compute_challenge_metric,
@@ -55,7 +56,7 @@ def main(config):
     logger.info("Running:\n{}\n".format(" ".join(sys.argv)))
 
     if config.debug:
-        config.batch_size = 1
+        config.batch_size = 5
         config.val_interval = 5
         config.augment = False
         config.dropout = 0
@@ -128,6 +129,7 @@ def main(config):
         num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=lambda x: collate_fn(x, max_len=max_len),
+        # discard_last=True,
     )
 
     scheduler = setup_scheduler(config, optimizer, iters_per_epoch=len(train_loader))
@@ -152,6 +154,7 @@ def main(config):
         num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=lambda x: collate_fn(x, max_len=max_len),
+        # discard_last=True,
     )
     val_evaluator = runner_class(
         model,
@@ -172,6 +175,7 @@ def main(config):
         num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=lambda x: collate_fn(x, max_len=max_len),
+        # discard_last=True,
     )
     test_evaluator = runner_class(
         model,
@@ -248,6 +252,59 @@ def main(config):
             else:
                 patience_count += config["val_interval"]
 
+            plot_2d(
+                method="pca",
+                encoder=model.backbone,
+                data_loader=train_loader,
+                device=device,
+                config=config,
+                fname="pca_train.png",
+                tb_writer=tb_writer,
+                mode="train",
+                epoch=epoch,
+                num_classes=1,
+                supervised=True,
+                model=config.model_name,
+            )
+            plot_classwise_distribution(
+                encoder=model.backbone,
+                data_loader=train_loader,
+                device=device,
+                d_model=config.d_model,
+                num_classes=1,
+                tb_writer=tb_writer,
+                mode="train",
+                epoch=epoch,
+                supervised=True,
+                model=config.model_name,
+            )
+            plot_2d(
+                method="pca",
+                encoder=model.backbone,
+                data_loader=val_loader,
+                device=device,
+                config=config,
+                fname="pca_val.png",
+                tb_writer=tb_writer,
+                mode="val",
+                epoch=epoch,
+                num_classes=1,
+                supervised=True,
+                model=config.model_name,
+            )
+            plot_classwise_distribution(
+                encoder=model.backbone,
+                data_loader=val_loader,
+                device=device,
+                d_model=config.d_model,
+                num_classes=1,
+                tb_writer=tb_writer,
+                mode="val",
+                epoch=epoch,
+                supervised=True,
+                model=config.model_name,
+            )
+
         # save model every n epochs
         if epoch % 50 == 0:
             save_model(
@@ -287,7 +344,7 @@ def main(config):
         logger.info(f"{k}: {v}")
 
     # load best model, compute physionet challenge metric
-    if config.task == "classification":
+    if config.dataset == "ecg" and config.task == "classification":
         logger.info("Compute PhysioNet 2020 challenge metric")
         step = 0.02
         scores = []
