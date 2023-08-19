@@ -3,12 +3,14 @@
 # https://github.com/yuqinie98/PatchTST
 
 import numpy as np
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, ConcatDataset
 import torch
 
 from data.ecg_dataset import load_ecg_dataset
 from data.eeg_dataset import load_eeg_dataset
 from data.fc_dataset import load_fc_dataset
+from copy import deepcopy
+from utils import load_config_yaml
 
 
 def load_dataset(config):
@@ -27,8 +29,45 @@ def load_dataset(config):
         return load_fc_dataset(config)
     elif config.dataset in ["sleep_edf"]:
         return load_eeg_dataset(config)
+    elif config.dataset == "forecasting_all":
+        train_datasets = []
+        val_datasets = []
+        test_datasets = []
+
+        for dataset in [
+            "etth1",
+            "etth2",
+            "ettm1",
+            "ettm2",
+            "illness",
+            "traffic",
+            "weather",
+            "electricity",
+        ]:
+            config_single_dataset = deepcopy(config)
+            config_dataset_path = (
+                f"/home/stud/roschman/ECGAnalysis/data/configs/{dataset}.yaml"
+            )
+            data_config = load_config_yaml(config_dataset_path)
+            config_single_dataset.update(data_config)
+            train_ds, val_ds, test_ds = load_fc_dataset(config_single_dataset)
+
+            train_ds = CIDataset(train_ds, num_channels=config_single_dataset.feat_dim)
+            val_ds = CIDataset(val_ds, num_channels=config_single_dataset.feat_dim)
+            test_ds = CIDataset(test_ds, num_channels=config_single_dataset.feat_dim)
+
+            train_datasets.append(train_ds)
+            val_datasets.append(val_ds)
+            test_datasets.append(test_ds)
+
+        return train_datasets, val_datasets, test_datasets
     else:
         raise ValueError("Dataset type is not specified")
+
+
+class ConcatenatedDataset(ConcatDataset):
+    def __init__(self, datasets):
+        super(ConcatenatedDataset, self).__init__(datasets)
 
 
 class PretrainingDataset(Dataset):
@@ -140,6 +179,26 @@ class JEPADataset(Dataset):
 
     def __len__(self):
         return len(self.dataset)
+
+
+class CIDataset(Dataset):
+    def __init__(self, dataset, num_channels):
+        super(CIDataset, self).__init__()
+        self.dataset = dataset
+        self.num_channels = num_channels
+
+    def __getitem__(self, ind):
+        series_ind = ind // self.num_channels
+        channel_ind = ind % self.num_channels
+        X, y = self.dataset.__getitem__(series_ind)
+        # TODO fix this for ECG dataset
+        # X = X.astype(float)
+        X = X[:, channel_ind].unsqueeze(-1)
+        y = y[:, channel_ind].unsqueeze(-1)
+        return X, y
+
+    def __len__(self):
+        return len(self.dataset) * self.num_channels
 
 
 class ClassificationPatchDataset(Dataset):
