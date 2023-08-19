@@ -63,6 +63,7 @@ class BaseRunner(object):
         self.epoch_metrics = OrderedDict()
         self.mixup = mixup
         self.mae = mae
+        self.vic_reg = False
 
     def train_epoch(self, epoch_num=None):
         raise NotImplementedError("Please override in child class")

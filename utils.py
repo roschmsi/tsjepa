@@ -79,6 +79,10 @@ def check_config(config):
         dir += f"_std={config.std_weight}"
         dir += f"_cov={config.cov_weight}"
 
+    # reverse instance normalization
+    if config.revin:
+        dir += "_revin"
+
     # hierarchical
     if config.num_levels is not None:
         dir += f"_nlevels={config.num_levels}"

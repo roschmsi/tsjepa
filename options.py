@@ -43,12 +43,16 @@ class Options(object):
         self.parser.add_argument("--ema_start", type=float)
         self.parser.add_argument("--ema_end", type=float)
         self.parser.add_argument("--load_classifier", type=str)
+        # self.parser.add_argument("--no_momentum", action="store_true")
 
         # vic regularization
         self.parser.add_argument("--vic_reg", action="store_true")
         self.parser.add_argument("--pred_weight", type=float)
         self.parser.add_argument("--std_weight", type=float)
         self.parser.add_argument("--cov_weight", type=float)
+
+        # revserse instance normalization
+        self.parser.add_argument("--revin", action="store_true")
 
         # patch and mask
         self.parser.add_argument("--use_patch", action="store_true")

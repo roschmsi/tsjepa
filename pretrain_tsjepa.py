@@ -11,12 +11,11 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from data.dataset import JEPADataset, load_dataset
+from data.dataset import JEPADataset, load_dataset, ConcatenatedDataset
 from models.ts_jepa.mask import RandomMaskCollator, BlockMaskCollator
-from models.ts_jepa.setup import init_classifier, init_model_pretraining, init_opt
+from models.ts_jepa.setup import init_model_pretraining, init_opt
 from models.ts_jepa.utils import (
     load_checkpoint,
-    load_encoder_from_classifier,
     plot_2d,
     plot_classwise_distribution,
     save_checkpoint,
@@ -24,6 +23,8 @@ from models.ts_jepa.utils import (
 from options import Options
 from runner.tsjepa import JEPARunner
 from utils import log_training, readable_time, seed_everything, setup
+from factory import setup_scheduler
+from models.patch_tst.layers.revin import RevIN
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO
@@ -102,7 +103,11 @@ def main(config):
         raise ValueError("Unknown masking type")
 
     # initialize data generator and runner
-    dataset_class = JEPADataset
+    if config.dataset == "forecasting_all":
+        dataset_class = ConcatenatedDataset
+    else:
+        dataset_class = JEPADataset
+
     runner_class = JEPARunner
 
     # start model training
@@ -114,6 +119,7 @@ def main(config):
         num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=mask_collator,
+        # discard_last=True,
     )
     val_dataset = dataset_class(val_dataset)
     val_loader = DataLoader(
@@ -123,6 +129,7 @@ def main(config):
         num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=mask_collator,
+        # discard_last=True,
     )
     test_dataset = dataset_class(test_dataset)
     test_loader = DataLoader(
@@ -132,13 +139,16 @@ def main(config):
         num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=mask_collator,
+        # discard_last=True,
     )
 
     # create optimizer and scheduler
     optimizer = init_opt(
         encoder, predictor, lr=config.lr, weight_decay=config.weight_decay
     )
-    scheduler = None
+    scheduler = setup_scheduler(
+        config=config, optimizer=optimizer, iters_per_epoch=len(train_loader)
+    )
 
     ipe = len(train_loader)
     ipe_scale = 1.0
@@ -184,10 +194,20 @@ def main(config):
     #     )
     #     _, target_encoder = load_encoder_from_classifier(path, classifier)
 
+    if config.revin:
+        revin = RevIN(
+            num_features=config.feat_dim,
+            affine=False,
+            subtract_last=False,
+        )
+    else:
+        revin = None
+
     trainer = runner_class(
         encoder=encoder,
         predictor=predictor,
         target_encoder=target_encoder,
+        revin=revin,
         dataloader=train_loader,
         device=device,
         optimizer=optimizer,
@@ -207,6 +227,7 @@ def main(config):
         encoder=encoder,
         predictor=predictor,
         target_encoder=target_encoder,
+        revin=revin,
         dataloader=val_loader,
         device=device,
         mixup=config.mixup,
@@ -223,6 +244,7 @@ def main(config):
         encoder=encoder,
         predictor=predictor,
         target_encoder=target_encoder,
+        revin=revin,
         dataloader=test_loader,
         device=device,
         mixup=config.mixup,

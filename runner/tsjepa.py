@@ -7,6 +7,7 @@ from models.ts_jepa.logging import AverageMeter
 from models.ts_jepa.tensors import apply_masks
 from runner.base import BaseRunner
 import torch.nn.functional as F
+from models.ts_jepa.vic_reg import vicreg_fn
 
 logger = logging.getLogger("__main__")
 
@@ -23,64 +24,6 @@ def forward_context(encoder, predictor, X, masks_enc, masks_pred):
     z_enc = encoder(X, masks_enc)
     z_pred = predictor(z_enc, masks_enc, masks_pred)
     return z_enc, z_pred
-
-
-def off_diagonal(x):
-    n, m = x.shape
-    assert n == m
-    return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
-
-
-def vicreg_fn(z_enc, z_pred):
-    num_features = z_enc.shape[-1]
-
-    z_enc = z_enc.reshape(-1, num_features)
-    z_pred = z_pred.reshape(-1, num_features)
-
-    z_enc = z_enc - z_enc.mean(dim=0)
-    z_pred = z_pred - z_pred.mean(dim=0)
-
-    # TODO fine for 50 % masking, but actually problematic if different
-    # should be better to concatenate the two and then compute the std
-    std_enc = torch.sqrt(z_enc.var(dim=0) + 0.0001)
-    std_pred = torch.sqrt(z_pred.var(dim=0) + 0.0001)
-
-    std_loss = (z_enc.shape[0] / (z_enc.shape[0] + z_pred.shape[0])) * torch.mean(
-        F.relu(1 - std_enc)
-    ) + (z_pred.shape[0] / (z_enc.shape[0] + z_pred.shape[0])) * torch.mean(
-        F.relu(1 - std_pred)
-    )
-
-    cov_enc = (z_enc.T @ z_enc) / (z_enc.shape[0] - 1)
-    cov_pred = (z_pred.T @ z_pred) / (z_pred.shape[0] - 1)
-    cov_loss = (z_enc.shape[0] / (z_enc.shape[0] + z_pred.shape[0])) * off_diagonal(
-        cov_enc
-    ).pow_(2).sum().div(num_features) + (
-        z_pred.shape[0] / (z_enc.shape[0] + z_pred.shape[0])
-    ) * off_diagonal(
-        cov_pred
-    ).pow_(
-        2
-    ).sum().div(
-        num_features
-    )
-
-    return std_loss, cov_loss, cov_enc, cov_pred
-
-
-def pred_vicreg_fn(z_pred):
-    num_features = z_pred.shape[-1]
-
-    z_pred = z_pred.reshape(-1, num_features)
-    z_pred = z_pred - z_pred.mean(dim=0)
-
-    std_pred = torch.sqrt(z_pred.var(dim=0) + 0.0001)
-    std_loss = torch.mean(F.relu(1 - std_pred))
-
-    cov_pred = (z_pred.T @ z_pred) / (z_pred.shape[0] - 1)
-    cov_loss = off_diagonal(cov_pred).pow_(2).sum().div(num_features)
-
-    return std_loss, cov_loss
 
 
 def loss_fn(z, h):
@@ -103,6 +46,7 @@ class JEPARunner(BaseRunner):
         encoder,
         predictor,
         target_encoder,
+        revin,
         dataloader,
         device,
         optimizer=None,
@@ -120,6 +64,7 @@ class JEPARunner(BaseRunner):
         self.encoder = encoder
         self.predictor = predictor
         self.target_encoder = target_encoder
+        self.revin = revin
         self.dataloader = dataloader
         self.device = device
         self.optimizer = optimizer
@@ -156,6 +101,10 @@ class JEPARunner(BaseRunner):
                 X, masks_enc, masks_pred, self.device
             )
 
+            # X: (bs x seq_len x n_vars)
+            if self.revin is not None:
+                X = self.revin(X, "norm")
+
             h = forward_target(
                 target_encoder=self.target_encoder, X=X, masks_pred=masks_pred
             )
@@ -168,12 +117,12 @@ class JEPARunner(BaseRunner):
             )
             loss = loss_fn(z=z_pred, h=h)
 
+            pred_loss = loss
+            std_loss, cov_loss, cov_enc, cov_pred = vicreg_fn(
+                z_enc=z_enc, z_pred=z_pred
+            )
+            # std_loss, cov_loss = pred_vicreg_fn(z_pred=z_pred)
             if self.vic_reg:
-                pred_loss = loss
-                std_loss, cov_loss, cov_enc, cov_pred = vicreg_fn(
-                    z_enc=z_enc, z_pred=z_pred
-                )
-                # std_loss, cov_loss = pred_vicreg_fn(z_pred=z_pred)
                 loss = (
                     self.rec_weight * loss
                     + self.std_weight * std_loss
@@ -184,6 +133,9 @@ class JEPARunner(BaseRunner):
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
+
+            if self.scheduler is not None:
+                self.scheduler.step()
 
             # Step 3. momentum update of target encoder
             with torch.no_grad():
@@ -201,11 +153,9 @@ class JEPARunner(BaseRunner):
             var_pred = torch.sqrt(z_pred.var(dim=0) + 1e-6).mean()
 
             loss_meter.update(loss.item())
-
-            if self.vic_reg:
-                loss_pred_meter.update(pred_loss.item())
-                loss_std_meter.update(std_loss.item())
-                loss_cov_meter.update(cov_loss.item())
+            loss_pred_meter.update(pred_loss.item())
+            loss_std_meter.update(std_loss.item())
+            loss_cov_meter.update(cov_loss.item())
 
             var_enc_meter.update(var_enc.item())
             var_pred_meter.update(var_pred.item())
@@ -242,6 +192,10 @@ class JEPARunner(BaseRunner):
                 X, masks_enc, masks_pred, self.device
             )
 
+            # X: (bs x n_vars x seq_len)
+            if self.revin is not None:
+                X = self.revin(X, "norm")
+
             h = forward_target(
                 target_encoder=self.target_encoder, X=X, masks_pred=masks_pred
             )
@@ -254,17 +208,18 @@ class JEPARunner(BaseRunner):
             )
             loss = loss_fn(z=z_pred, h=h)
 
+            pred_loss = loss
+            std_loss, cov_loss, cov_enc, cov_pred = vicreg_fn(
+                z_enc=z_enc, z_pred=z_pred
+            )
+            # std_loss, cov_loss = pred_vicreg_fn(z_pred=z_pred)
             if self.vic_reg:
-                pred_loss = loss
-                std_loss, cov_loss, cov_enc, cov_pred = vicreg_fn(
-                    z_enc=z_enc, z_pred=z_pred
-                )
-                # std_loss, cov_loss = pred_vicreg_fn(z_pred=z_pred)
                 loss = (
                     self.rec_weight * loss
                     + self.std_weight * std_loss
                     + self.cov_weight * cov_loss
                 )
+
             # track variance of prediction
             z_enc = z_enc.reshape(-1, z_enc.shape[-1])
             var_enc = torch.sqrt(z_enc.var(dim=0) + 1e-6).mean()
@@ -273,11 +228,9 @@ class JEPARunner(BaseRunner):
             var_pred = torch.sqrt(z_pred.var(dim=0) + 1e-6).mean()
 
             loss_meter.update(loss.item())
-
-            if self.vic_reg:
-                loss_pred_meter.update(pred_loss.item())
-                loss_std_meter.update(std_loss.item())
-                loss_cov_meter.update(cov_loss.item())
+            loss_pred_meter.update(pred_loss.item())
+            loss_std_meter.update(std_loss.item())
+            loss_cov_meter.update(cov_loss.item())
 
             var_enc_meter.update(var_enc.item())
             var_pred_meter.update(var_pred.item())
@@ -300,6 +253,7 @@ class JEPAClassifier(BaseRunner):
     def __init__(
         self,
         model,
+        revin,
         dataloader,
         device,
         multilabel,
@@ -307,6 +261,7 @@ class JEPAClassifier(BaseRunner):
         optimizer=None,
     ):
         self.model = model
+        self.revin = revin
         self.dataloader = dataloader
         self.device = device
         self.multilabel = multilabel
@@ -329,6 +284,10 @@ class JEPAClassifier(BaseRunner):
             X = X.to(self.device).float()
             y = y.to(self.device)
             # y = torch.where(y == 1)[1]
+
+            # X: (bs x n_vars x seq_len)
+            if self.revin is not None:
+                X = self.revin(X, "norm")
 
             y_pred = self.model(X)
             loss = self.criterion(y_pred, y)
@@ -376,6 +335,10 @@ class JEPAClassifier(BaseRunner):
             y = y.to(self.device)
             # y = torch.where(y == 1)[1]
 
+            # X: (bs x n_vars x seq_len)
+            if self.revin is not None:
+                X = self.revin(X, "norm")
+
             y_pred = self.model(X)
             loss = self.criterion(y_pred, y)
             loss_meter.update(loss.item())
@@ -406,12 +369,14 @@ class JEPAForecaster(BaseRunner):
     def __init__(
         self,
         model,
+        revin,
         dataloader,
         device,
         criterion,
         optimizer=None,
     ):
         self.model = model
+        self.revin = revin
         self.dataloader = dataloader
         self.device = device
         self.criterion = criterion
@@ -434,7 +399,15 @@ class JEPAForecaster(BaseRunner):
             X = X.to(self.device).float()
             y = y.to(self.device)
 
+            # X: (bs x n_vars x seq_len)
+            if self.revin is not None:
+                X = self.revin(X, "norm")
+
             y_pred = self.model(X)
+
+            if self.revin is not None:
+                y_pred = self.revin(y_pred, "denorm")
+
             loss = self.criterion(y_pred, y)
 
             #  Step 2. Backward & step
@@ -467,7 +440,15 @@ class JEPAForecaster(BaseRunner):
             X = X.to(self.device).float()
             y = y.to(self.device)
 
+            # X: (bs x n_vars x seq_len)
+            if self.revin is not None:
+                X = self.revin(X, "norm")
+
             y_pred = self.model(X)
+
+            if self.revin is not None:
+                y_pred = self.revin(y_pred, "denorm")
+
             loss = self.criterion(y_pred, y)
 
             loss_meter.update(loss.item())
