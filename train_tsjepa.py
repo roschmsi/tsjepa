@@ -1,6 +1,5 @@
 # Reference: https://github.com/gzerveas/mvts_transformer
 
-import copy
 import logging
 import os
 import sys
@@ -278,7 +277,7 @@ def main(config):
 
     if not config.debug:
         path = os.path.join(config["output_dir"], "checkpoints", "model_best.pth")
-        classifier, _ = load_classifier_checkpoint(
+        classifier, _, _ = load_classifier_checkpoint(
             path,
             classifier=classifier,
             optimizer=None,
