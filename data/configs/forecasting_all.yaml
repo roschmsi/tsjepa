@@ -1,0 +1,3 @@
+dataset: "forecasting_all"
+feat_dim: 1
+multilabel: false
