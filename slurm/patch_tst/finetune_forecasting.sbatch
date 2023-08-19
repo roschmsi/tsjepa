@@ -17,9 +17,9 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --d_ff 256 \
 --dropout 0.2 \
 --shared_embedding \
---norm BatchNorm \
+--norm LayerNorm \
 --activation gelu \
---head_dropout 0.1 \
+--head_dropout 0 \
 --masking_ratio 0 \
 --use_patch \
 --patch_len 8 \
@@ -35,10 +35,10 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --patience 20 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
 --task forecasting \
---seq_len 336 \
+--seq_len 512 \
 --label_len 0 \
---pred_len 192 \
+--pred_len 96 \
 --finetuning \
 --freeze \
 --freeze_epochs 100 \
---load_model /home/stud/roschman/ECGAnalysis/output/patch_tst/pretraining/dataset=ettm1_sl=336_pl=0_patch=8_stride=8_mratio=0.5_bs=64_opt=AdamW_sch=CosineAnnealingLR_lr=1e-05_wd=0.01_dmodel=128_dff=256_nlayers=3_nheads=16_drop=0.2_norm=BatchNorm_act=gelu_chtoken
+--load_model /home/stud/roschman/ECGAnalysis/output/patch_tst/pretraining/dataset=ettm1_sl=512_pl=0_patch=8_stride=8_mratio=0.5_bs=64_opt=AdamW_sch=CosineAnnealingLR_lr=1e-05_wd=0.01_dmodel=128_dff=256_nlayers=3_nheads=16_drop=0.2_norm=LayerNorm_act=gelu_chtoken

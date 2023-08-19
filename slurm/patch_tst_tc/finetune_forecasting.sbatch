@@ -15,11 +15,11 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --num_heads 16 \
 --d_model 128 \
 --d_ff 256 \
---dropout 0.1 \
+--dropout 0.2 \
 --shared_embedding \
 --norm BatchNorm \
 --activation gelu \
---head_dropout 0.1 \
+--head_dropout 0 \
 --masking_ratio 0 \
 --use_patch \
 --patch_len 8 \
@@ -39,4 +39,5 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --label_len 0 \
 --pred_len 96 \
 --finetuning \
---load_model
+--val_interval 2 \
+--load_model /home/stud/roschman/ECGAnalysis/output/patch_tst_tc/pretraining/dataset=ettm1_sl=512_pl=0_patch=8_stride=8_mratio=0.5_bs=64_opt=AdamW_sch=CosineAnnealingLR_lr=0.0001_wd=0.01_dmodel=128_dff=256_nlayers=3_nheads=16_drop=0.2_norm=BatchNorm_act=gelu_chtoken

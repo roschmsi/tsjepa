@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="finetune tsjepa"
+#SBATCH --job-name="finetune tsjepa classification"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -13,9 +13,10 @@ srun python3 /usr/stud/roschman/ECGAnalysis/finetune_tsjepa.py \
 --model_name tsjepa \
 --enc_num_layers 8 \
 --enc_num_heads 8 \
---enc_d_model 64 \
+--enc_d_model 256 \
 --enc_mlp_ratio 2 \
 --dropout 0.1 \
+--head_dropout 0 \
 --masking_ratio 0 \
 --use_patch \
 --patch_len 16 \
@@ -26,9 +27,9 @@ srun python3 /usr/stud/roschman/ECGAnalysis/finetune_tsjepa.py \
 --epochs 100 \
 --batch_size 64 \
 --num_workers 4 \
---patience 50 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg_gender.yaml \
+--patience 20 \
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
 --task classification \
---load_model /home/stud/roschman/ECGAnalysis/output/tsjepa/pretraining/dataset=ecg_gender_patch=16_stride=16_mratio=0.5_bs=64_opt=AdamW_lr=0.001_wd=0.01_pred=25.0_std=25.0_cov=1.0_enc_nlayers=8_nheads=8_dmodel=64_dec_nlayers=2_nheads=8_dmodel=64_drop=0.1_emastart=0.996_vic_reg \
---head_dropout 0 \
---description "finetune_without_freezing"
+--freeze \
+--load_model output/tsjepa/pretraining/dataset=ecg_patch=16_stride=16_mratio=0.5_bs=64_opt=AdamW_lr=0.0001_wd=0.01_pred=25.0_std=25.0_cov=1.0_enc_nlayers=8_nheads=8_dmodel=256_dec_nlayers=2_nheads=8_dmodel=256_drop=0.1_emastart=0.996 \
+--description "finetune_with_freezing"

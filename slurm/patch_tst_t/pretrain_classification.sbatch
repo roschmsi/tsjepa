@@ -13,18 +13,17 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --model_name patch_tst_t \
 --num_layers 8 \
 --num_heads 8 \
---d_model 256 \
---d_ff 512 \
+--d_model 64 \
+--d_ff 128 \
 --dropout 0.1 \
 --shared_embedding \
 --norm BatchNorm \
 --activation gelu \
---head_dropout 0.1 \
---masking_ratio 0.9 \
+--head_dropout 0.0 \
+--masking_ratio 0.5 \
 --use_patch \
---patch_len 8 \
---stride 8 \
---cls_token \
+--patch_len 16 \
+--stride 16 \
 --optimizer AdamW \
 --lr 0.0001 \
 --scheduler CosineAnnealingLR \

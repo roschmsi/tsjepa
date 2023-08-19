@@ -13,18 +13,18 @@ srun python3 /usr/stud/roschman/ECGAnalysis/train_tsjepa.py \
 --model_name tsjepa \
 --enc_num_layers 8 \
 --enc_num_heads 8 \
---enc_d_model 128 \
+--enc_d_model 64 \
 --enc_mlp_ratio 2 \
 --dropout 0.1 \
 --head_dropout 0.0 \
---patch_len 16 \
---stride 16 \
+--patch_len 8 \
+--stride 8 \
 --optimizer AdamW \
 --lr 0.001 \
 --weight_decay 0.01 \
 --epochs 100 \
---batch_size 128 \
+--batch_size 64 \
 --num_workers 4 \
---patience 50 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg_gender.yaml \
+--patience 20 \
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/sleep_edf.yaml \
 --task classification
