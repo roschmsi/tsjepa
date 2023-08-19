@@ -1,11 +1,10 @@
 # Reference: https://github.com/gzerveas/mvts_transformer
 
-import copy
-from functools import partial
 import logging
 import os
 import sys
 import time
+from functools import partial
 
 import torch
 import torch.nn as nn
@@ -20,7 +19,6 @@ from models.ts_jepa.setup import init_classifier, init_forecaster
 from models.ts_jepa.utils import (
     load_classifier_checkpoint,
     load_encoder_from_tsjepa,
-    plot_2d,
     save_classifier_checkpoint,
 )
 from options import Options
@@ -109,7 +107,7 @@ def main(config):
     dataset_class = JEPADataset
 
     if config.task == "classification":
-        runner_class = partial(JEPAClassifier, multi_label=config.multilabel)
+        runner_class = partial(JEPAClassifier, multilabel=config.multilabel)
     elif config.task == "forecasting":
         runner_class = JEPAForecaster
     else:
