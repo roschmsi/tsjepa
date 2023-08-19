@@ -178,6 +178,7 @@ def tsne(X):
     return X_2d
 
 
+# TODO improve mode for patch_tst, tsjepa supervised, tsjepa unsupervised
 def plot_2d(
     method,
     encoder,
@@ -190,22 +191,43 @@ def plot_2d(
     mode=None,
     epoch=None,
     supervised=False,
+    model=None,
 ):
     encoder = encoder.eval()
     X_rep = []
     y_rep = []
 
+    num_samples = 0
+
     with torch.no_grad():
         # change dataset class, mean across time axis and
-        if supervised:
+        if supervised and model == "patch_tst":
+            for X, _, _, _, _, _, _ in data_loader:
+                num_samples += X.shape[0]
+                if num_samples > 100000:
+                    break
+
+                X = X.float().to(device)
+                X_enc = encoder(X)
+                X_rep.append(X_enc.mean(dim=1).mean(dim=2))
+                y_rep.append(torch.zeros(X_enc.shape[0]))
+        elif supervised:
             for X, y, _ in data_loader:
                 # TODO discuss: first mean across channels, then mean across time
+                num_samples += X.shape[0]
+                if num_samples > 100000:
+                    break
+
                 X = X.float().to(device)
                 X_enc = encoder(X)
                 X_rep.append(X_enc.mean(dim=1).mean(dim=2))
                 y_rep.append(y)
         else:
             for X, y, masks_enc, masks_pred in data_loader:
+                num_samples += X.shape[0]
+                if num_samples > 100000:
+                    break
+
                 X = X.float().to(device)
                 X_enc = encoder(X, masks=None)
                 X_rep.append(X_enc.mean(dim=1))
@@ -236,7 +258,7 @@ def plot_2d(
         )
 
     plt.legend()
-    plt.savefig(os.path.join(config["output_dir"], fname))
+    # plt.savefig(os.path.join(config["output_dir"], fname))
 
     if tb_writer is not None:
         tb_writer.add_figure(f"{method}/{mode}", plt.gcf(), epoch)
@@ -255,25 +277,58 @@ def plot_classwise_distribution(
     mode=None,
     epoch=None,
     supervised=False,
+    model=None,
 ):
     encoder = encoder.eval()
     df = None
 
     with torch.no_grad():
         # change dataset class, mean across time axis and
-        if supervised:
-            for X, y, _ in data_loader:
+        if supervised and model == "patch_tst":
+            for X, _, _, _, _, _, _ in data_loader:
+                if df is not None and df.shape[0] > 100000:
+                    break
+
                 X = X.float().to(device)
                 X_enc = encoder(X)
                 X_enc = X_enc.mean(dim=1).mean(dim=2)
 
                 df_z = pd.DataFrame(X_enc.cpu()).astype("float")
-                df_y = pd.DataFrame(y.cpu(), columns=["y"]).astype("int")
+
+                if num_classes == 1:
+                    df_y = pd.DataFrame(
+                        torch.zeros(X_enc.shape[0]), columns=["y"]
+                    ).astype("int")
+                else:
+                    df_y = pd.DataFrame(y.cpu(), columns=["y"]).astype("int")
+
+                df_batch = pd.concat([df_y, df_z], axis=1)
+                df = pd.concat([df, df_batch], axis=0)
+        elif supervised:
+            for X, y, _ in data_loader:
+                if df is not None and df.shape[0] > 100000:
+                    break
+
+                X = X.float().to(device)
+                X_enc = encoder(X)
+                X_enc = X_enc.mean(dim=1).mean(dim=2)
+
+                df_z = pd.DataFrame(X_enc.cpu()).astype("float")
+
+                if num_classes == 1:
+                    df_y = pd.DataFrame(torch.zeros(y.shape[0]), columns=["y"]).astype(
+                        "int"
+                    )
+                else:
+                    df_y = pd.DataFrame(y.cpu(), columns=["y"]).astype("int")
 
                 df_batch = pd.concat([df_y, df_z], axis=1)
                 df = pd.concat([df, df_batch], axis=0)
         else:
             for X, y, masks_enc, masks_pred in data_loader:
+                if df is not None and df.shape[0] > 100000:
+                    break
+
                 X = X.float().to(device)
                 X_enc = encoder(X, masks=None)
                 X_enc = X_enc.mean(dim=1)
@@ -304,6 +359,7 @@ def plot_classwise_distribution(
             fig.set(xlabel=None)
             fig.set(ylabel=None)
 
+        plt.xlim([-1.5, 1.5])
         plt.legend()
         # plt.savefig(path / f"kde_dim={dim}.jpg", bbox_inches="tight")
         plt.tight_layout()
