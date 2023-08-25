@@ -379,6 +379,17 @@ def main(config):
                 epoch=epoch,
             )
 
+        else:
+            save_checkpoint(
+                epoch=epoch,
+                encoder=trainer.encoder,
+                predictor=trainer.predictor,
+                target_encoder=trainer.target_encoder,
+                optimizer=trainer.optimizer,
+                path=config["checkpoint_dir"],
+                better=False,
+            )
+
         if patience_count > config.patience:
             break
 
