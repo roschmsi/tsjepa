@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from data.dataset import JEPADataset, load_dataset
+from data.dataset import JEPADataset, load_dataset, ConcatenatedDataset
 from models.ts_jepa.mask import RandomMaskCollator
 from models.ts_jepa.setup import init_classifier, init_forecaster
 from models.ts_jepa.utils import (
@@ -24,6 +24,7 @@ from models.ts_jepa.utils import (
 from options import Options
 from runner.tsjepa import JEPAClassifier, JEPAForecaster
 from utils import log_training, readable_time, seed_everything, setup
+from models.patch_tst.layers.revin import RevIN
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO
@@ -104,7 +105,10 @@ def main(config):
     )
 
     # initialize data generator and runner
-    dataset_class = JEPADataset
+    if config.dataset == "forecasting_all":
+        dataset_class = ConcatenatedDataset
+    else:
+        dataset_class = JEPADataset
 
     if config.task == "classification":
         runner_class = partial(JEPAClassifier, multilabel=config.multilabel)
@@ -169,8 +173,18 @@ def main(config):
     else:
         raise ValueError(f"Task {config.task} not recognized.")
 
+    if config.revin:
+        revin = RevIN(
+            num_features=config.feat_dim,
+            affine=False,
+            subtract_last=False,
+        )
+    else:
+        revin = None
+
     trainer = runner_class(
         model=model,
+        revin=revin,
         dataloader=train_loader,
         device=device,
         criterion=criterion,
@@ -179,6 +193,7 @@ def main(config):
 
     val_evaluator = runner_class(
         model=model,
+        revin=revin,
         dataloader=val_loader,
         device=device,
         criterion=criterion,
@@ -186,6 +201,7 @@ def main(config):
 
     test_evaluator = runner_class(
         model=model,
+        revin=revin,
         dataloader=test_loader,
         device=device,
         criterion=criterion,
