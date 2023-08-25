@@ -267,6 +267,7 @@ def setup_model(config):
             d_model=config.d_model,
             d_ff=config.d_ff,
             dropout=config.dropout,
+            revin=config.revin,
             shared_embedding=config.shared_embedding,
             norm=config.norm,
             activation=config.activation,
@@ -289,6 +290,7 @@ def setup_model(config):
             num_heads=config.num_heads,
             d_model=config.d_model,
             d_ff=config.d_ff,
+            window_size=config.window_size,
             dropout=config.dropout,
             shared_embedding=config.shared_embedding,
             norm=config.norm,
@@ -584,6 +586,7 @@ def setup_optimizer(config, model):
     return optimizer
 
 
+# all schedulers update the learning rate every epoch
 def setup_scheduler(config, optimizer, iters_per_epoch):
     if config.scheduler == "StepLR":
         scheduler = torch.optim.lr_scheduler.StepLR(
@@ -591,7 +594,7 @@ def setup_scheduler(config, optimizer, iters_per_epoch):
         )
     elif config.scheduler == "CosineAnnealingLR":
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer=optimizer, T_max=config.epochs * iters_per_epoch
+            optimizer=optimizer, T_max=config.epochs  # * iters_per_epoch
         )
     elif config.scheduler == "CosineAnnealingWarmRestarts":
         scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(

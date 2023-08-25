@@ -3,8 +3,6 @@
 import logging
 import numpy as np
 import torch
-from sklearn.metrics import roc_auc_score
-
 from data.mixup import mixup_criterion, mixup_data
 from evaluation.evaluate_12ECG_score import compute_auc
 from runner.base import BaseRunner
@@ -66,7 +64,7 @@ class SupervisedRunner(BaseRunner):
         lbls = np.concatenate(lbls)
         probs = np.concatenate(probs)
 
-        if self.scheduler:
+        if self.scheduler is not None:
             self.scheduler.step()
 
         if self.multilabel:

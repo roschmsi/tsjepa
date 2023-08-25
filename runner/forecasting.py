@@ -46,7 +46,7 @@ class ForecastingRunner(BaseRunner):
             epoch_loss += loss.item()
 
             # hierarchical linear output
-            if len(predictions) == 2:
+            if type(predictions) is not torch.Tensor and len(predictions) == 2:
                 predictions = torch.stack(predictions[1]).sum(0)
                 predictions = predictions.permute(0, 2, 1)
 
@@ -60,7 +60,7 @@ class ForecastingRunner(BaseRunner):
         self.epoch_metrics["mae"] = epoch_mae / len(self.dataloader)
         self.epoch_metrics["mse"] = epoch_mse / len(self.dataloader)
 
-        if self.scheduler:
+        if self.scheduler is not None:
             self.scheduler.step()
 
         return self.epoch_metrics
@@ -84,7 +84,7 @@ class ForecastingRunner(BaseRunner):
             loss = self.criterion(predictions, targets)
 
             # hierarchical linear output
-            if len(predictions) == 2:
+            if type(predictions) is not torch.Tensor and len(predictions) == 2:
                 predictions = torch.stack(predictions[1]).sum(0)
                 predictions = predictions.permute(0, 2, 1)
 

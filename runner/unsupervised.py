@@ -43,9 +43,13 @@ class UnsupervisedRunner(BaseRunner):
 
             epoch_loss += batch_loss.item()
 
+        if self.scheduler is not None:
+            self.scheduler.step()
+
         # average loss per element for whole epoch
         self.epoch_metrics["epoch"] = epoch_num
         self.epoch_metrics["loss"] = batch_loss / len(self.dataloader)
+
         return self.epoch_metrics
 
     def evaluate(self, epoch_num=None):
@@ -156,6 +160,9 @@ class UnsupervisedPatchRunner(BaseRunner):
             epoch_loss_pred += pred_loss.item()
             epoch_loss_std += std_loss.item()
             epoch_loss_cov += cov_loss.item()
+
+        if self.scheduler is not None:
+            self.scheduler.step()
 
         # average loss per element for whole epoch
         self.epoch_metrics["epoch"] = epoch_num
