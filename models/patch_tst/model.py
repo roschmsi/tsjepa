@@ -10,6 +10,7 @@ from models.patch_tst.layers.heads import (
     PretrainHead,
 )
 from models.patch_tst.layers.pos_encoding import positional_encoding
+from models.patch_tst.layers.revin import RevIN
 
 
 class PatchTST(nn.Module):
@@ -32,6 +33,7 @@ class PatchTST(nn.Module):
         d_model: int,
         d_ff: int,
         dropout: float,
+        revin: bool = False,
         shared_embedding=True,
         norm: str = "BatchNorm",
         pre_norm: bool = False,
@@ -48,6 +50,10 @@ class PatchTST(nn.Module):
         individual=False,
     ):
         super().__init__()
+
+        self.revin = revin
+        if self.revin:
+            self.revin_layer = RevIN(c_in, affine=True, subtract_last=False)
 
         self.backbone = PatchTSTEncoder(
             c_in=c_in,
@@ -98,18 +104,35 @@ class PatchTST(nn.Module):
         else:
             raise ValueError(f"Task {task} not defined.")
 
-    def forward(self, z, padding_mask=None):
+    def forward(self, z, padding_mask=None, return_encoding=False):
         """
         z: tensor [bs x num_patch x n_vars x patch_len]
         """
+        # bs x nvars x seq_len
+        if self.revin:
+            z = z.permute(0, 2, 1)
+            z = self.revin_layer(z, "norm")
+            z = z.permute(0, 2, 1)
+
+        # TODO do not use float here, ensure datatype in datset class
         z = self.backbone(z.float())
         # z: [bs x nvars x d_model x num_patch]
-        z = self.head(z)
+
+        pred = self.head(z)
         # z: [bs x target_dim x nvars] for prediction
         #    [bs x target_dim] for regression
         #    [bs x target_dim] for classification
         #    [bs x num_patch x n_vars x patch_len] for pretrain
-        return z
+
+        if self.revin:
+            pred = pred.permute(0, 2, 1)
+            pred = self.revin_layer(pred, "denorm")
+            pred = pred.permute(0, 2, 1)
+
+        if return_encoding:
+            return pred, z
+        else:
+            return pred
 
 
 class PatchTSTEncoder(nn.Module):

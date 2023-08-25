@@ -3,12 +3,15 @@
 import math
 import torch
 from torch import Tensor, nn
+from models.hierarchical_patch_tst.mlp import DownsamplingMLP, UpsamplingMLP
 
 from models.patch_tst.layers.encoder import TSTEncoder
 from models.patch_tst.layers.heads import (
     ClassificationHead,
 )
 from models.patch_tst.layers.pos_encoding import positional_encoding
+from models.hierarchical_patch_tst.decoder import TSTDecoder
+from models.patch_tst.layers.revin import RevIN
 
 
 class PretrainHead(nn.Module):
@@ -229,72 +232,6 @@ class LowResPredictionHead(nn.Module):
         return y
 
 
-class DownsamplingMLP(nn.Module):
-    """
-    Segment Merging Layer.
-    The adjacent `win_size' segments in each dimension will be merged into one segment to
-    get representation of a coarser scale
-    we set win_size = 2 in our paper
-    """
-
-    def __init__(self, d_model, win_size, norm_layer=nn.LayerNorm):
-        super().__init__()
-        self.d_model = d_model
-        self.win_size = win_size
-        self.linear_trans = nn.Linear(win_size * d_model, d_model)
-        self.norm = norm_layer(win_size * d_model)
-        self.dropout = nn.Dropout(0.2)
-
-    def forward(self, x):
-        """
-        x: bs, num_patch, d_model
-        """
-        batch_size, num_patch, d_model = x.shape
-        pad_num = num_patch % self.win_size
-        if pad_num != 0:
-            pad_num = self.win_size - pad_num
-            x = torch.cat((x, x[:, -pad_num:, :]), dim=1)
-
-        seg_to_merge = []
-        for i in range(self.win_size):
-            seg_to_merge.append(x[:, i :: self.win_size, :])
-        x = torch.cat(seg_to_merge, -1)  # [B, ts_d, seg_num/win_size, win_size*d_model]
-
-        # x = self.norm(x)
-        x = self.linear_trans(x)
-
-        return x
-
-
-class UpsamplingMLP(nn.Module):
-    """
-    Segment Merging Layer.
-    The adjacent `win_size' segments in each dimension will be merged into one segment to
-    get representation of a coarser scale
-    we set win_size = 2 in our paper
-    """
-
-    def __init__(self, d_model, win_size, norm_layer=nn.LayerNorm):
-        super().__init__()
-        self.d_model = d_model
-        self.win_size = win_size
-        self.linear_trans = nn.Linear(d_model, win_size * d_model)
-        self.norm = norm_layer(win_size * d_model)
-        self.dropout = nn.Dropout(0.2)
-
-    def forward(self, x):
-        """
-        x: bs, num_patch, d_model
-        """
-        batch_size, num_patch, d_model = x.shape
-
-        x = self.linear_trans(x)
-        x = x.reshape(batch_size, -1)
-        x = x.reshape(batch_size, -1, d_model)
-
-        return x
-
-
 class HierarchicalPatchTST(nn.Module):
     """
     Output dimension:
@@ -315,6 +252,7 @@ class HierarchicalPatchTST(nn.Module):
         num_heads: int,
         d_model: int,
         d_ff: int,
+        window_size: int,
         dropout: float,
         shared_embedding=True,
         norm: str = "BatchNorm",
@@ -333,16 +271,19 @@ class HierarchicalPatchTST(nn.Module):
     ):
         super().__init__()
 
+        self.revin = RevIN(num_features=c_in, affine=True, subtract_last=False)
+
         self.backbone = HierarchicalPatchTSTEncoder(
             c_in=c_in,
             num_patch=num_patch,
             patch_len=patch_len,
             num_levels=num_levels,
-            num_layers=2 * num_layers,
+            num_layers=num_layers,
             num_heads=num_heads,
             d_model=d_model,
             d_ff=d_ff,
             dropout=dropout,
+            window_size=window_size,
             shared_embedding=shared_embedding,
             norm=norm,
             pre_norm=pre_norm,
@@ -376,6 +317,7 @@ class HierarchicalPatchTST(nn.Module):
                 d_model=d_model,
                 d_ff=d_ff,
                 dropout=dropout,
+                window_size=window_size,
                 shared_embedding=shared_embedding,
                 norm=norm,
                 pre_norm=pre_norm,
@@ -390,14 +332,14 @@ class HierarchicalPatchTST(nn.Module):
                 task=task,
             )
         elif task == "forecasting":
-            self.head = ResidualPredictionHead(
-                n_levels=num_levels,
-                n_vars=c_in,
-                d_model=d_model,
-                num_patch=num_patch,
-                forecast_len=c_out,
-                head_dropout=head_dropout,
-            )
+            # self.head = ResidualPredictionHead(
+            #     n_levels=num_levels,
+            #     n_vars=c_in,
+            #     d_model=d_model,
+            #     num_patch=num_patch,
+            #     forecast_len=c_out,
+            #     head_dropout=head_dropout,
+            # )
             # self.head = HierarchicalPatchTSTDecoderSupervised(
             #     c_in=c_in,
             #     num_patch=num_patch,
@@ -421,6 +363,31 @@ class HierarchicalPatchTST(nn.Module):
             #     store_attn=store_attn,
             #     task=task,
             # )
+
+            # decoder num patches
+            # devide c_out by patch_len and num_levels
+            # decoder_num_patch = math.ceil(c_out / (patch_len * (2 ** (num_levels - 1))))
+
+            num_patch = num_patch + math.ceil(c_out / patch_len)
+            decoder_patches = int(
+                math.ceil(c_out / patch_len) / (window_size ** (num_levels - 1))
+            )
+
+            self.head = HierarchicalPatchTSTDecoder(
+                c_in=c_in,
+                num_patch=num_patch,  # decoder_num_patch,
+                decoder_patches=decoder_patches,
+                patch_len=patch_len,
+                num_levels=num_levels,
+                num_layers=num_layers,
+                num_heads=num_heads,
+                d_model=d_model,
+                d_ff=d_ff,
+                window_size=window_size,
+                dropout=dropout,
+                pe="sincos",
+            )
+
         elif task == "classification":
             self.head = ClassificationHead(
                 n_vars=c_in,
@@ -436,9 +403,26 @@ class HierarchicalPatchTST(nn.Module):
         """
         z: tensor [bs x num_patch x n_vars x patch_len]
         """
+        bs, num_patch, n_vars, patch_len = z.shape
+
+        z = z.transpose(1, 2)
+        z = z.reshape(bs, n_vars, num_patch * patch_len)  # bs x n_vars x seq_len
+        z = z.transpose(1, 2)  # bs x seq_len x n_vars
+
+        z = self.revin(z, mode="norm")
+
+        z = z.transpose(1, 2)
+        z = z.reshape(bs, n_vars, num_patch, patch_len)
+        z = z.transpose(1, 2)
+
         z = self.backbone(z)
         # z: [bs x nvars x d_model x num_patch]
+
+        z = z[::-1]
         z = self.head(z)
+
+        z = self.revin(z, mode="denorm")
+
         # z: [bs x target_dim x nvars] for prediction
         #    [bs x target_dim] for regression
         #    [bs x target_dim] for classification
@@ -457,6 +441,7 @@ class HierarchicalPatchTSTEncoder(nn.Module):
         num_heads,
         d_model,
         d_ff,
+        window_size,
         dropout,
         shared_embedding=True,
         norm="BatchNorm",
@@ -506,13 +491,15 @@ class HierarchicalPatchTSTEncoder(nn.Module):
         # encoder
         enc_modules = []
 
+        d_layer = d_model
+
         for i in range(num_levels - 1):
             # encoder
             encoder = TSTEncoder(
                 num_layers=num_layers,
                 num_heads=num_heads,
-                d_model=d_model,
-                d_ff=d_ff,
+                d_model=d_layer,
+                d_ff=2 * d_layer,
                 dropout=dropout,
                 norm=norm,
                 pre_norm=pre_norm,
@@ -522,17 +509,21 @@ class HierarchicalPatchTSTEncoder(nn.Module):
                 store_attn=store_attn,
             )
             mlp = DownsamplingMLP(
-                d_model=d_model, win_size=2, norm_layer=nn.BatchNorm1d
+                c_in=d_layer,
+                c_out=2 * d_layer,
+                win_size=window_size,
             )
             enc_modules.append(nn.Sequential(encoder, mlp))
+
+            d_layer = d_layer * 2
 
         enc_modules.append(
             nn.Sequential(
                 TSTEncoder(
                     num_layers=num_layers,
                     num_heads=num_heads,
-                    d_model=d_model,
-                    d_ff=d_ff,
+                    d_model=d_layer,
+                    d_ff=2 * d_layer,
                     dropout=dropout,
                     norm=norm,
                     pre_norm=pre_norm,
@@ -580,7 +571,8 @@ class HierarchicalPatchTSTEncoder(nn.Module):
                 x = m_layer(x)
 
                 if type(m_layer) is TSTEncoder:
-                    x_enc.append(x.reshape(bs, n_vars, -1, self.d_model))
+                    _, num_patch, d_layer = x.shape
+                    x_enc.append(x.reshape(bs, n_vars, num_patch, d_layer))
 
         # z = z.reshape(bs, n_vars, -1, self.d_model)
         # # z: [bs x nvars x num_patch x d_model]
@@ -597,7 +589,7 @@ class HierarchicalPatchTSTEncoder(nn.Module):
         return x_enc
 
 
-class HierarchicalPatchTSTDecoderPretraining(nn.Module):
+class HierarchicalPatchTSTDecoder(nn.Module):
     def __init__(
         self,
         c_in,
@@ -608,7 +600,9 @@ class HierarchicalPatchTSTDecoderPretraining(nn.Module):
         num_heads,
         d_model,
         d_ff,
+        window_size,
         dropout,
+        decoder_patches,
         shared_embedding=True,
         norm="BatchNorm",
         pre_norm=False,
@@ -619,20 +613,26 @@ class HierarchicalPatchTSTDecoderPretraining(nn.Module):
         ch_token=False,
         attn_dropout=0.0,
         store_attn=False,
-        res_attention=True,
+        res_attention=False,
         task=None,
     ):
         super().__init__()
         self.d_model = d_model
         self.shared_embedding = shared_embedding
         self.task = task
+        self.num_patch = num_patch
+        self.decoder_patches = decoder_patches
 
-        # self.W_pos = []
-        # pos_enc_len = num_patch
+        # input encoding
+        if not shared_embedding:
+            self.W_P = nn.ModuleList()
+            for _ in range(c_in):
+                self.W_P.append(nn.Linear(patch_len, d_model))
+        else:
+            self.W_P = nn.Linear(patch_len, d_model)
 
-        # for i in range(num_levels):
-        #     self.W_pos.append(positional_encoding(pe, learn_pe, pos_enc_len, d_model))
-        #     pos_enc_len = math.ceil(pos_enc_len / 2)
+        # # positional encoding
+        self.W_pos = positional_encoding(pe, learn_pe, num_patch, d_model)
 
         # residual dropout
         self.dropout = nn.Dropout(dropout)
@@ -640,192 +640,366 @@ class HierarchicalPatchTSTDecoderPretraining(nn.Module):
         # encoder
         dec_modules = []
 
-        # encoder
-        encoder = TSTEncoder(
-            num_layers=num_layers,
-            num_heads=num_heads,
-            d_model=d_model,
-            d_ff=d_ff,
-            dropout=dropout,
-            norm=norm,
-            pre_norm=pre_norm,
-            activation=activation,
-            attn_dropout=attn_dropout,
-            res_attention=res_attention,
-            store_attn=store_attn,
-        )
-        dec_modules.append(nn.Sequential(encoder))
+        d_layer = d_model * (2 ** (num_levels - 1))
+
+        self.start_token = nn.Parameter(torch.zeros(1, 1, d_layer))
 
         for i in range(num_levels - 1):
-            dec_modules.append(
-                nn.Sequential(
-                    UpsamplingMLP(
-                        d_model=d_model, win_size=2, norm_layer=nn.BatchNorm1d
-                    ),
-                    nn.Linear(2 * d_model, d_model),
-                    TSTEncoder(
-                        num_layers=num_layers,
-                        num_heads=num_heads,
-                        d_model=d_model,
-                        d_ff=d_ff,
-                        dropout=dropout,
-                        norm=norm,
-                        pre_norm=pre_norm,
-                        activation=activation,
-                        attn_dropout=attn_dropout,
-                        res_attention=res_attention,
-                        store_attn=store_attn,
-                    ),
+            # encoder
+            decoder = TSTDecoder(
+                num_layers=num_layers,
+                num_heads=num_heads,
+                d_model=d_layer,
+                d_ff=2 * d_layer,
+                dropout=dropout,
+                norm=norm,
+                pre_norm=pre_norm,
+                activation=activation,
+                attn_dropout=attn_dropout,
+                res_attention=res_attention,
+                store_attn=store_attn,
+                num_patch=num_patch // (window_size ** (num_levels - i - 1)),
+            )
+            mlp = UpsamplingMLP(
+                c_in=d_layer,
+                c_out=d_layer // 2,
+                win_size=window_size,  # , norm_layer=nn.BatchNorm1d
+            )
+            dec_modules.append(nn.Sequential(decoder, mlp))
+
+            d_layer = d_layer // 2
+
+        dec_modules.append(
+            nn.Sequential(
+                TSTDecoder(
+                    num_layers=num_layers,
+                    num_heads=num_heads,
+                    d_model=d_layer,
+                    d_ff=2 * d_layer,
+                    dropout=dropout,
+                    norm=norm,
+                    pre_norm=pre_norm,
+                    activation=activation,
+                    attn_dropout=attn_dropout,
+                    res_attention=res_attention,
+                    store_attn=store_attn,
+                    num_patch=num_patch,
                 )
             )
+        )
 
         self.decoder = nn.Sequential(*dec_modules)
 
-        self.final_proj = nn.Linear(d_model, patch_len)
+        self.projection = nn.Linear(d_model, patch_len)
 
-    def forward(self, x_enc) -> Tensor:
-        y = x_enc[-1]
+    def forward(self, cross):
+        bs, n_vars, num_patch, d_model = cross[0].shape
 
-        y_dec = []
-
-        bs, n_vars, num_patch, patch_len = y.shape
-
-        # x: [bs x nvars x num_patch x d_model]
-        y = y.reshape(bs * n_vars, -1, self.d_model)
-        # x: [bs * nvars x num_patch x d_model]
-
-        for i, (name, module) in enumerate(self.decoder.named_children()):
-            for name, m_layer in module.named_children():
-                # concatenate encoder outputs
-                if type(m_layer) is nn.Linear:
-                    x = x_enc[-i - 1]
-                    x = x.reshape(bs * n_vars, -1, self.d_model)
-                    y = torch.cat([y, x], dim=2)
-
-                y = m_layer(y)
-
-                if type(m_layer) is TSTEncoder:
-                    y_dec.append(
-                        y.reshape(bs, n_vars, -1, self.d_model).transpose(1, 2)
-                    )
-
-        pred = self.final_proj(y_dec[-1])
-
-        return pred
-
-
-class HierarchicalPatchTSTDecoderSupervised(nn.Module):
-    def __init__(
-        self,
-        c_in,
-        num_patch,
-        patch_len,
-        num_levels,
-        num_layers,
-        num_heads,
-        d_model,
-        d_ff,
-        dropout,
-        shared_embedding=True,
-        norm="BatchNorm",
-        pre_norm=False,
-        activation="gelu",
-        pe="zeros",
-        learn_pe=False,
-        cls_token=False,
-        ch_token=False,
-        attn_dropout=0.0,
-        store_attn=False,
-        res_attention=True,
-        task=None,
-    ):
-        super().__init__()
-        self.d_model = d_model
-        self.shared_embedding = shared_embedding
-        self.task = task
-
-        # self.W_pos = []
-        # pos_enc_len = num_patch
-
-        # for i in range(num_levels):
-        #     self.W_pos.append(positional_encoding(pe, learn_pe, pos_enc_len, d_model))
-        #     pos_enc_len = math.ceil(pos_enc_len / 2)
-
-        # residual dropout
-        self.dropout = nn.Dropout(dropout)
-
-        # encoder
-        dec_modules = []
-
-        # encoder
-        encoder = TSTEncoder(
-            num_layers=num_layers,
-            num_heads=num_heads,
-            d_model=d_model,
-            d_ff=d_ff,
-            dropout=dropout,
-            norm=norm,
-            pre_norm=pre_norm,
-            activation=activation,
-            attn_dropout=attn_dropout,
-            res_attention=res_attention,
-            store_attn=store_attn,
+        x = torch.repeat_interleave(
+            self.start_token, dim=1, repeats=self.decoder_patches
         )
-        dec_modules.append(nn.Sequential(encoder))
+        x = torch.repeat_interleave(x, dim=0, repeats=bs * n_vars)
 
-        for i in range(num_levels - 1):
-            dec_modules.append(
-                nn.Sequential(
-                    UpsamplingMLP(
-                        d_model=d_model, win_size=2, norm_layer=nn.BatchNorm1d
-                    ),
-                    nn.Linear(2 * d_model, d_model),
-                    TSTEncoder(
-                        num_layers=num_layers,
-                        num_heads=num_heads,
-                        d_model=d_model,
-                        d_ff=d_ff,
-                        dropout=dropout,
-                        norm=norm,
-                        pre_norm=pre_norm,
-                        activation=activation,
-                        attn_dropout=attn_dropout,
-                        res_attention=res_attention,
-                        store_attn=store_attn,
-                    ),
-                )
-            )
+        # # input encoding
+        # if not self.shared_embedding:
+        #     x_out = []
+        #     for i in range(n_vars):
+        #         z = self.W_P[i](x[:, :, i, :])
+        #         x_out.append(z)
+        #     x = torch.stack(x_out, dim=2)
+        # else:
+        #     x = self.W_P(x)
 
-        self.decoder = nn.Sequential(*dec_modules)
+        # # x: [bs x num_patch x nvars x d_model]
+        # x = x.transpose(1, 2)
+        # # x: [bs x nvars x num_patch x d_model]
+        # x = x.reshape(bs * n_vars, num_patch, self.d_model)
+        # # x: [bs * nvars x num_patch x d_model]
 
-        self.final_proj = nn.Linear(d_model, patch_len)
+        # add positional encoding
+        # TODO positional encoding per layer
+        # x = self.dropout(x + self.W_pos)
+        # x = x.reshape(bs, n_vars, num_patch, self.d_model)
 
-    def forward(self, x_enc) -> Tensor:
-        y = x_enc[-1]
-
-        y_dec = []
-
-        bs, n_vars, num_patch, patch_len = y.shape
-
-        # x: [bs x nvars x num_patch x d_model]
-        y = y.reshape(bs * n_vars, -1, self.d_model)
-        # x: [bs * nvars x num_patch x d_model]
+        # apply transformer encoder
+        # z = self.encoder(x)
 
         for i, (name, module) in enumerate(self.decoder.named_children()):
             for name, m_layer in module.named_children():
-                # concatenate encoder outputs
-                if type(m_layer) is nn.Linear:
-                    x = x_enc[-i - 1]
-                    x = x.reshape(bs * n_vars, -1, self.d_model)
-                    y = torch.cat([y, x], dim=2)
+                # x = self.dropout(x + self.W_pos[i].cuda())
+                if type(m_layer) is TSTDecoder:
+                    bs, n_vars, num_patch_layer, d_layer = cross[i].shape
+                    cross_i = cross[i].reshape(bs * n_vars, num_patch_layer, d_layer)
 
-                y = m_layer(y)
+                    # TODO think about hierarchical positional encoding with different dimensionalities, maybe also learn simple downsampling, right now in the decoder
+                    # pos_enc = (
+                    #     torch.nn.functional.interpolate(
+                    #         self.W_pos.unsqueeze(0).transpose(1, 2),
+                    #         size=x.shape[1] + cross_i.shape[1],
+                    #     )
+                    #     .transpose(1, 2)
+                    #     .squeeze()
+                    # )
 
-                if type(m_layer) is TSTEncoder:
-                    y_dec.append(
-                        y.reshape(bs, n_vars, -1, self.d_model).transpose(1, 2)
-                    )
+                    # cross_i = cross_i + pos_enc[: cross_i.shape[1], :]
+                    # x = x + pos_enc[cross_i.shape[1] :, :]
 
-        pred = self.final_proj(y_dec[-1])
+                    x = m_layer(x=x, cross=cross_i)
 
-        return pred
+                if type(m_layer) is UpsamplingMLP:
+                    x = m_layer(x)
+
+                # if type(m_layer) is TSTEncoder:
+                #     x_enc.append(x.reshape(bs, n_vars, -1, self.d_model))
+
+        # z = z.reshape(bs, n_vars, -1, self.d_model)
+        # # z: [bs x nvars x num_patch x d_model]
+
+        # # prepare output, remove class and channel token
+        # if self.ch_token is not None:
+        #     z = z[:, :, :-1, :]
+        # if self.task != "classification" and self.cls_token is not None:
+        #     z = z[:, :, 1:, :]
+
+        # z = z.transpose(2, 3)
+        # # z: [bs x nvars x d_model x num_patch]
+
+        x = self.projection(x)
+        x = x.reshape(bs * n_vars, -1)
+        x = x.reshape(bs, n_vars, -1).transpose(1, 2)
+
+        return x
+
+
+# class HierarchicalPatchTSTDecoderPretraining(nn.Module):
+#     def __init__(
+#         self,
+#         c_in,
+#         num_patch,
+#         patch_len,
+#         num_levels,
+#         num_layers,
+#         num_heads,
+#         d_model,
+#         d_ff,
+#         dropout,
+#         shared_embedding=True,
+#         norm="BatchNorm",
+#         pre_norm=False,
+#         activation="gelu",
+#         pe="zeros",
+#         learn_pe=False,
+#         cls_token=False,
+#         ch_token=False,
+#         attn_dropout=0.0,
+#         store_attn=False,
+#         res_attention=True,
+#         task=None,
+#     ):
+#         super().__init__()
+#         self.d_model = d_model
+#         self.shared_embedding = shared_embedding
+#         self.task = task
+
+#         # self.W_pos = []
+#         # pos_enc_len = num_patch
+
+#         # for i in range(num_levels):
+#         #     self.W_pos.append(positional_encoding(pe, learn_pe, pos_enc_len, d_model))
+#         #     pos_enc_len = math.ceil(pos_enc_len / 2)
+
+#         # residual dropout
+#         self.dropout = nn.Dropout(dropout)
+
+#         # encoder
+#         dec_modules = []
+
+#         # encoder
+#         encoder = TSTEncoder(
+#             num_layers=num_layers,
+#             num_heads=num_heads,
+#             d_model=d_model,
+#             d_ff=d_ff,
+#             dropout=dropout,
+#             norm=norm,
+#             pre_norm=pre_norm,
+#             activation=activation,
+#             attn_dropout=attn_dropout,
+#             res_attention=res_attention,
+#             store_attn=store_attn,
+#         )
+#         dec_modules.append(nn.Sequential(encoder))
+
+#         for i in range(num_levels - 1):
+#             dec_modules.append(
+#                 nn.Sequential(
+#                     UpsamplingMLP(
+#                         d_model=d_model, win_size=2, norm_layer=nn.BatchNorm1d
+#                     ),
+#                     nn.Linear(2 * d_model, d_model),
+#                     TSTEncoder(
+#                         num_layers=num_layers,
+#                         num_heads=num_heads,
+#                         d_model=d_model,
+#                         d_ff=d_ff,
+#                         dropout=dropout,
+#                         norm=norm,
+#                         pre_norm=pre_norm,
+#                         activation=activation,
+#                         attn_dropout=attn_dropout,
+#                         res_attention=res_attention,
+#                         store_attn=store_attn,
+#                     ),
+#                 )
+#             )
+
+#         self.decoder = nn.Sequential(*dec_modules)
+
+#         self.final_proj = nn.Linear(d_model, patch_len)
+
+#     def forward(self, x_enc) -> Tensor:
+#         y = x_enc[-1]
+
+#         y_dec = []
+
+#         bs, n_vars, num_patch, patch_len = y.shape
+
+#         # x: [bs x nvars x num_patch x d_model]
+#         y = y.reshape(bs * n_vars, -1, self.d_model)
+#         # x: [bs * nvars x num_patch x d_model]
+
+#         for i, (name, module) in enumerate(self.decoder.named_children()):
+#             for name, m_layer in module.named_children():
+#                 # concatenate encoder outputs
+#                 if type(m_layer) is nn.Linear:
+#                     x = x_enc[-i - 1]
+#                     x = x.reshape(bs * n_vars, -1, self.d_model)
+#                     y = torch.cat([y, x], dim=2)
+
+#                 y = m_layer(y)
+
+#                 if type(m_layer) is TSTEncoder:
+#                     y_dec.append(
+#                         y.reshape(bs, n_vars, -1, self.d_model).transpose(1, 2)
+#                     )
+
+#         pred = self.final_proj(y_dec[-1])
+
+#         return pred
+
+
+# class HierarchicalPatchTSTDecoderSupervised(nn.Module):
+#     def __init__(
+#         self,
+#         c_in,
+#         num_patch,
+#         patch_len,
+#         num_levels,
+#         num_layers,
+#         num_heads,
+#         d_model,
+#         d_ff,
+#         dropout,
+#         shared_embedding=True,
+#         norm="BatchNorm",
+#         pre_norm=False,
+#         activation="gelu",
+#         pe="zeros",
+#         learn_pe=False,
+#         cls_token=False,
+#         ch_token=False,
+#         attn_dropout=0.0,
+#         store_attn=False,
+#         res_attention=True,
+#         task=None,
+#     ):
+#         super().__init__()
+#         self.d_model = d_model
+#         self.shared_embedding = shared_embedding
+#         self.task = task
+
+#         # self.W_pos = []
+#         # pos_enc_len = num_patch
+
+#         # for i in range(num_levels):
+#         #     self.W_pos.append(positional_encoding(pe, learn_pe, pos_enc_len, d_model))
+#         #     pos_enc_len = math.ceil(pos_enc_len / 2)
+
+#         # residual dropout
+#         self.dropout = nn.Dropout(dropout)
+
+#         # encoder
+#         dec_modules = []
+
+#         # encoder
+#         encoder = TSTEncoder(
+#             num_layers=num_layers,
+#             num_heads=num_heads,
+#             d_model=d_model,
+#             d_ff=d_ff,
+#             dropout=dropout,
+#             norm=norm,
+#             pre_norm=pre_norm,
+#             activation=activation,
+#             attn_dropout=attn_dropout,
+#             res_attention=res_attention,
+#             store_attn=store_attn,
+#         )
+#         dec_modules.append(nn.Sequential(encoder))
+
+#         for i in range(num_levels - 1):
+#             dec_modules.append(
+#                 nn.Sequential(
+#                     UpsamplingMLP(
+#                         d_model=d_model, win_size=2, norm_layer=nn.BatchNorm1d
+#                     ),
+#                     nn.Linear(2 * d_model, d_model),
+#                     TSTEncoder(
+#                         num_layers=num_layers,
+#                         num_heads=num_heads,
+#                         d_model=d_model,
+#                         d_ff=d_ff,
+#                         dropout=dropout,
+#                         norm=norm,
+#                         pre_norm=pre_norm,
+#                         activation=activation,
+#                         attn_dropout=attn_dropout,
+#                         res_attention=res_attention,
+#                         store_attn=store_attn,
+#                     ),
+#                 )
+#             )
+
+#         self.decoder = nn.Sequential(*dec_modules)
+
+#         self.final_proj = nn.Linear(d_model, patch_len)
+
+#     def forward(self, x_enc) -> Tensor:
+#         y = x_enc[-1]
+
+#         y_dec = []
+
+#         bs, n_vars, num_patch, patch_len = y.shape
+
+#         # x: [bs x nvars x num_patch x d_model]
+#         y = y.reshape(bs * n_vars, -1, self.d_model)
+#         # x: [bs * nvars x num_patch x d_model]
+
+#         for i, (name, module) in enumerate(self.decoder.named_children()):
+#             for name, m_layer in module.named_children():
+#                 # concatenate encoder outputs
+#                 if type(m_layer) is nn.Linear:
+#                     x = x_enc[-i - 1]
+#                     x = x.reshape(bs * n_vars, -1, self.d_model)
+#                     y = torch.cat([y, x], dim=2)
+
+#                 y = m_layer(y)
+
+#                 if type(m_layer) is TSTEncoder:
+#                     y_dec.append(
+#                         y.reshape(bs, n_vars, -1, self.d_model).transpose(1, 2)
+#                     )
+
+#         pred = self.final_proj(y_dec[-1])
+
+#         return pred

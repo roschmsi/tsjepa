@@ -87,6 +87,9 @@ def check_config(config):
     if config.num_levels is not None:
         dir += f"_nlevels={config.num_levels}"
 
+    if config.window_size is not None:
+        dir += f"_wsize={config.window_size}"
+
     # check transformer parameters
     if config.mae or config.model_name == "tsjepa":
         dir += "_enc"

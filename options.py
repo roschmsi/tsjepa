@@ -68,6 +68,7 @@ class Options(object):
         # hierarchical
         self.parser.add_argument("--hierarchical", action="store_true")
         self.parser.add_argument("--num_levels", type=int)
+        self.parser.add_argument("--window_size", type=int)
 
         # fedformer
         self.parser.add_argument("--version", type=str)
