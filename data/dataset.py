@@ -231,7 +231,7 @@ class ForecastingPatchDataset(Dataset):
         # X = torch.from_numpy(X).unsqueeze(0)
         X = X.unsqueeze(0)
         X = create_patch(X, self.patch_len, self.stride)
-        return X.squeeze(), y  # torch.from_numpy(y)
+        return X.squeeze(0), y  # torch.from_numpy(y)
 
     def __len__(self):
         return len(self.dataset)

@@ -252,58 +252,58 @@ def main(config):
             else:
                 patience_count += config["val_interval"]
 
-            plot_2d(
-                method="pca",
-                encoder=model.backbone,
-                data_loader=train_loader,
-                device=device,
-                config=config,
-                fname="pca_train.png",
-                tb_writer=tb_writer,
-                mode="train",
-                epoch=epoch,
-                num_classes=1,
-                supervised=True,
-                model=config.model_name,
-            )
-            plot_classwise_distribution(
-                encoder=model.backbone,
-                data_loader=train_loader,
-                device=device,
-                d_model=config.d_model,
-                num_classes=1,
-                tb_writer=tb_writer,
-                mode="train",
-                epoch=epoch,
-                supervised=True,
-                model=config.model_name,
-            )
-            plot_2d(
-                method="pca",
-                encoder=model.backbone,
-                data_loader=val_loader,
-                device=device,
-                config=config,
-                fname="pca_val.png",
-                tb_writer=tb_writer,
-                mode="val",
-                epoch=epoch,
-                num_classes=1,
-                supervised=True,
-                model=config.model_name,
-            )
-            plot_classwise_distribution(
-                encoder=model.backbone,
-                data_loader=val_loader,
-                device=device,
-                d_model=config.d_model,
-                num_classes=1,
-                tb_writer=tb_writer,
-                mode="val",
-                epoch=epoch,
-                supervised=True,
-                model=config.model_name,
-            )
+            # plot_2d(
+            #     method="pca",
+            #     encoder=model.backbone,
+            #     data_loader=train_loader,
+            #     device=device,
+            #     config=config,
+            #     fname="pca_train.png",
+            #     tb_writer=tb_writer,
+            #     mode="train",
+            #     epoch=epoch,
+            #     num_classes=1,
+            #     supervised=True,
+            #     model=config.model_name,
+            # )
+            # plot_classwise_distribution(
+            #     encoder=model.backbone,
+            #     data_loader=train_loader,
+            #     device=device,
+            #     d_model=config.d_model,
+            #     num_classes=1,
+            #     tb_writer=tb_writer,
+            #     mode="train",
+            #     epoch=epoch,
+            #     supervised=True,
+            #     model=config.model_name,
+            # )
+            # plot_2d(
+            #     method="pca",
+            #     encoder=model.backbone,
+            #     data_loader=val_loader,
+            #     device=device,
+            #     config=config,
+            #     fname="pca_val.png",
+            #     tb_writer=tb_writer,
+            #     mode="val",
+            #     epoch=epoch,
+            #     num_classes=1,
+            #     supervised=True,
+            #     model=config.model_name,
+            # )
+            # plot_classwise_distribution(
+            #     encoder=model.backbone,
+            #     data_loader=val_loader,
+            #     device=device,
+            #     d_model=config.d_model,
+            #     num_classes=1,
+            #     tb_writer=tb_writer,
+            #     mode="val",
+            #     epoch=epoch,
+            #     supervised=True,
+            #     model=config.model_name,
+            # )
 
         # save model every n epochs
         if epoch % 50 == 0:

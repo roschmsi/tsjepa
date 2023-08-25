@@ -368,7 +368,7 @@ class Dataset_ETT_minute(Dataset):
 
     def __len__(self):
         if self.debug:
-            return 1
+            return 2
         return len(self.data_x) - self.seq_len - self.pred_len + 1
 
     def inverse_transform(self, data):
@@ -499,7 +499,7 @@ class Dataset_Custom(Dataset):
 
     def __len__(self):
         if self.debug:
-            return 1
+            return 2
         return len(self.data_x) - self.seq_len - self.pred_len + 1
 
     def inverse_transform(self, data):

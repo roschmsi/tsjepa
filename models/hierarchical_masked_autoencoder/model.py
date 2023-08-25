@@ -4,7 +4,7 @@
 
 import torch
 import torch.nn as nn
-from models.hierarchical_patch_tst.model import DownsamplingMLP, UpsamplingMLP
+from models.hierarchical_patch_tst.mlp import DownsamplingMLP, UpsamplingMLP
 from models.patch_tst.layers.pos_encoding import positional_encoding
 from models.patch_tst.model import (
     ClassificationHead,
