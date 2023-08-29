@@ -121,6 +121,7 @@ def setup_pipeline(config):
                     patch_len=config.patch_len,
                     stride=config.stride,
                     masking_ratio=config.masking_ratio,
+                    use_time_features=config.use_time_features,
                 ),
                 SupervisedRunner,
             )
@@ -134,14 +135,19 @@ def setup_pipeline(config):
                     ForecastingPatchDataset,
                     patch_len=config.patch_len,
                     stride=config.stride,
+                    use_time_features=config.use_time_features,
                 ),
                 partial(
                     collate_patch_superv,
                     patch_len=config.patch_len,
                     stride=config.stride,
                     masking_ratio=config.masking_ratio,
+                    use_time_features=config.use_time_features,
                 ),
-                ForecastingRunner,
+                partial(
+                    ForecastingRunner,
+                    use_time_features=config.use_time_features,
+                ),
             )
         else:
             return ForecastingDataset, collate_superv, ForecastingRunner
@@ -283,6 +289,7 @@ def setup_model(config):
         return HierarchicalPatchTST(
             c_in=config.feat_dim,
             c_out=c_out,
+            ch_factor=config.ch_factor,
             num_patch=num_patch,
             patch_len=config.patch_len,
             num_levels=config.num_levels,
@@ -301,6 +308,7 @@ def setup_model(config):
             cls_token=config.cls_token,
             task=config.task,
             head_dropout=config.head_dropout,
+            use_time_features=config.use_time_features,
         )
     # patch tst with temporal encoding
     elif config.model_name == "patch_tst_t":

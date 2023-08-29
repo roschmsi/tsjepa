@@ -19,7 +19,15 @@ class ForecastingRunner(BaseRunner):
         epoch_loss = 0
 
         for batch in self.dataloader:
-            X, targets, padding_masks = batch
+            if self.use_time_features:
+                X, targets, padding_masks, X_time, y_time = batch
+                X_time = X_time.to(self.device)
+                y_time = y_time.to(self.device)
+            else:
+                X, targets, padding_masks = batch
+                X_time = None
+                y_time = None
+
             X = X.to(self.device)
             targets = targets.to(self.device)
             padding_masks = padding_masks.to(self.device)
@@ -29,7 +37,7 @@ class ForecastingRunner(BaseRunner):
                     X, targets, self.mixup, use_cuda=True
                 )
 
-            predictions = self.model(X, padding_masks)
+            predictions = self.model(X, padding_masks, X_time=X_time, y_time=y_time)
 
             if self.mixup is not None:
                 loss = mixup_criterion(
@@ -75,12 +83,20 @@ class ForecastingRunner(BaseRunner):
         epoch_mae = 0
 
         for batch in self.dataloader:
-            X, targets, padding_masks = batch
+            if self.use_time_features:
+                X, targets, padding_masks, X_time, y_time = batch
+                X_time = X_time.to(self.device)
+                y_time = y_time.to(self.device)
+            else:
+                X, targets, padding_masks = batch
+                X_time = None
+                y_time = None
+
             X = X.to(self.device)
             targets = targets.to(self.device)
             padding_masks = padding_masks.to(self.device)
 
-            predictions = self.model(X, padding_masks)
+            predictions = self.model(X, padding_masks, X_time=X_time, y_time=y_time)
             loss = self.criterion(predictions, targets)
 
             # hierarchical linear output

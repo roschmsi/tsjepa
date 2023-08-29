@@ -220,18 +220,27 @@ class ClassificationPatchDataset(Dataset):
 
 
 class ForecastingPatchDataset(Dataset):
-    def __init__(self, dataset, patch_len=16, stride=8):
+    def __init__(self, dataset, patch_len, stride, use_time_features=False):
         super(ForecastingPatchDataset, self).__init__()
         self.dataset = dataset
         self.patch_len = patch_len
         self.stride = stride
+        self.use_time_features = use_time_features
 
     def __getitem__(self, ind):
-        X, y = self.dataset.__getitem__(ind)
-        # X = torch.from_numpy(X).unsqueeze(0)
+        if self.use_time_features:
+            X, y, X_time, y_time = self.dataset.__getitem__(ind)
+        else:
+            X, y = self.dataset.__getitem__(ind)
+
         X = X.unsqueeze(0)
         X = create_patch(X, self.patch_len, self.stride)
-        return X.squeeze(0), y  # torch.from_numpy(y)
+        X = X.squeeze(0)
+
+        if self.use_time_features:
+            return X, y, X_time, y_time
+        else:
+            return X, y  # torch.from_numpy(y)
 
     def __len__(self):
         return len(self.dataset)
@@ -282,7 +291,12 @@ def collate_superv(data, max_len=None):
 
 
 def collate_patch_superv(
-    data, max_len=None, patch_len=None, stride=None, masking_ratio=0
+    data,
+    max_len=None,
+    patch_len=None,
+    stride=None,
+    masking_ratio=0,
+    use_time_features=False,
 ):
     """Build mini-batch tensors from a list of (X, mask) tuples. Mask input. Create
     Args:
@@ -301,7 +315,13 @@ def collate_patch_superv(
     """
 
     batch_size = len(data)
-    features, labels = zip(*data)
+
+    if use_time_features:
+        features, labels, X_time, y_time = zip(*data)
+        X_time = torch.stack(X_time, dim=0)
+        y_time = torch.stack(y_time, dim=0)
+    else:
+        features, labels = zip(*data)
 
     num_patch = (max(max_len, patch_len) - patch_len) // stride + 1
     num_patch = int((1 - masking_ratio) * num_patch)
@@ -327,7 +347,10 @@ def collate_patch_superv(
     )  # (batch_size, padded_length) boolean tensor, "1" means keep
 
     # TODO be careful with transforming targets to float
-    return X, targets, padding_masks
+    if use_time_features:
+        return X, targets, padding_masks, X_time, y_time
+    else:
+        return X, targets, padding_masks
 
 
 def compensate_masking(X, mask):

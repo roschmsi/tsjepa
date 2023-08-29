@@ -69,6 +69,11 @@ class Options(object):
         self.parser.add_argument("--hierarchical", action="store_true")
         self.parser.add_argument("--num_levels", type=int)
         self.parser.add_argument("--window_size", type=int)
+        self.parser.add_argument("--ch_factor", type=int)
+
+        # time covariates
+        self.parser.add_argument("--use_time_features", action="store_true")
+        self.parser.add_argument("--timeenc", type=int, default=0)
 
         # fedformer
         self.parser.add_argument("--version", type=str)

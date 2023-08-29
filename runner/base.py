@@ -49,6 +49,7 @@ class BaseRunner(object):
         scheduler=None,
         mixup=0,
         mae=False,
+        use_time_features=False,
     ):
         self.model = model
         self.dataloader = dataloader
@@ -59,6 +60,7 @@ class BaseRunner(object):
         self.printer = Printer(console=console)
         self.multilabel = multilabel
         self.scheduler = scheduler
+        self.use_time_features = use_time_features
 
         self.epoch_metrics = OrderedDict()
         self.mixup = mixup

@@ -649,6 +649,8 @@ def data_provider(config, split):
         size=[config.seq_len, config.label_len, config.pred_len],
         features=config.features,
         debug=config.debug,
+        use_time_features=config.use_time_features,
+        timeenc=config.timeenc,
     )
 
 
