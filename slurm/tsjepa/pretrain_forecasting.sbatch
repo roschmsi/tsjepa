@@ -29,13 +29,14 @@ srun python3 /usr/stud/roschman/ECGAnalysis/pretrain_tsjepa.py \
 --patch_len 8 \
 --stride 8 \
 --optimizer AdamW \
---lr 0.00001 \
+--lr 0.000001 \
 --weight_decay 0.01 \
 --epochs 2000 \
 --batch_size 512 \
 --num_workers 4 \
 --patience 2000 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/forecasting_all.yaml \
+--load_model /home/stud/roschman/ECGAnalysis/output/tsjepa/pretraining/dataset=forecasting_all_sl=512_pl=96_patch=8_stride=8_mratio=0.5_bs=512_opt=AdamW_lr=1e-05_wd=0.01_pred=1.0_std=1.0_cov=1.0_revin_enc_nlayers=8_nheads=16_dmodel=128_dec_nlayers=2_nheads=16_dmodel=128_drop=0.1_emastart=0.996_with_revin_correct \
 --seq_len 512 \
 --label_len 0 \
 --pred_len 96 \
@@ -45,4 +46,4 @@ srun python3 /usr/stud/roschman/ECGAnalysis/pretrain_tsjepa.py \
 --pred_weight 1.0 \
 --std_weight 1.0 \
 --cov_weight 1.0 \
---description with_revin
+--revin

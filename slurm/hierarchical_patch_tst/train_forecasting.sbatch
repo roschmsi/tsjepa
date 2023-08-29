@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="train patch tst"
+#SBATCH --job-name="train hierarchical patch tst"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -11,22 +11,23 @@
 source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --model_name hierarchical_patch_tst \
---num_levels 5 \
---num_layers 1 \
+--num_levels 1 \
+--num_layers 3 \
 --num_heads 16 \
---d_model 64 \
+--d_model 128 \
 --d_ff 128 \
---dropout 0.2 \
+--window_size 2 \
+--dropout 0.1 \
 --shared_embedding \
 --norm BatchNorm \
 --activation gelu \
 --head_dropout 0 \
 --masking_ratio 0 \
 --use_patch \
---patch_len 4 \
---stride 4 \
+--patch_len 48 \
+--stride 48 \
 --optimizer AdamW \
---lr 0.00001 \
+--lr 0.00005 \
 --scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
 --epochs 100 \
@@ -35,7 +36,10 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --patience 20 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
 --task forecasting \
---seq_len 512 \
+--seq_len 336 \
 --label_len 0 \
 --pred_len 96 \
---description low_res_pred
+--revin \
+--description no_time_features \
+--learn_pe \
+--val_interval 2

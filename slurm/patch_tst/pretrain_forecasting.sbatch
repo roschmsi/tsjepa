@@ -11,7 +11,7 @@
 source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --model_name patch_tst \
---num_layers 3 \
+--num_layers 8 \
 --num_heads 16 \
 --d_model 128 \
 --d_ff 256 \
