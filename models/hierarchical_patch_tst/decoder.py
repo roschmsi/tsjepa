@@ -54,9 +54,9 @@ class TSTDecoder(nn.Module):
         src: tensor [bs x q_len x d_model]
         """
         # add positional encoding to start token
-        cross_len = cross.shape[1]
-        cross = cross + self.W_pos[:cross_len, :]
-        x = x + self.W_pos[cross_len:, :]
+        # cross_len = cross.shape[1]
+        # cross = cross + self.W_pos[:cross_len, :]
+        # x = x + self.W_pos[cross_len:, :]
 
         # TODO residual attention optional
         for layer in self.layers:
