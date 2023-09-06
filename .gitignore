@@ -15,3 +15,6 @@ ecg_results_finetuning.png
 ettm1_results_finetuning.png
 .vscode/
 mae_decoder_layers.png
+pe_128.png
+pe_256_interpolated.png
+pe_256.png
