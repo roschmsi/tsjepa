@@ -24,7 +24,7 @@ class HierarchicalPatchTST(nn.Module):
         self,
         c_in: int,
         c_out: int,
-        ch_factor: int,
+        ch_factor,
         num_patch: int,
         patch_len: int,
         num_levels: int,
@@ -49,12 +49,19 @@ class HierarchicalPatchTST(nn.Module):
         head_dropout=0,
         individual=False,
         use_time_features=False,
+        layer_wise_prediction=False,
+        revin=False,
     ):
         super().__init__()
         self.use_time_features = use_time_features
         self.c_in = c_in
+        self.layer_wise_prediction = layer_wise_prediction
+        self.revin = revin
 
-        self.revin = RevIN(num_features=c_in, affine=True, subtract_last=False)
+        if self.revin:
+            self.revin_layer = RevIN(
+                num_features=c_in, affine=True, subtract_last=False
+            )
 
         enc_num_patch = num_patch
         self.enc_num_patches = [enc_num_patch]
@@ -88,7 +95,7 @@ class HierarchicalPatchTST(nn.Module):
 
         pe_conv_layers = []
         in_channels = d_model
-        out_channels = 2 * d_model
+        out_channels = int(ch_factor * d_model)
         for i in range(num_levels - 1):
             conv = nn.Conv1d(
                 in_channels=in_channels,
@@ -98,8 +105,8 @@ class HierarchicalPatchTST(nn.Module):
             )
             pe_conv_layers.append(conv)
 
-            in_channels *= ch_factor
-            out_channels *= ch_factor
+            in_channels = int(ch_factor * in_channels)
+            out_channels = int(ch_factor * out_channels)
         self.pe_conv_layers = nn.ModuleList(pe_conv_layers)
 
         self.backbone = HierarchicalPatchTSTEncoder(
@@ -145,6 +152,7 @@ class HierarchicalPatchTST(nn.Module):
                 pe="sincos",
                 norm=norm,
                 pred_len=c_out,
+                layer_wise_prediction=layer_wise_prediction,
             )
 
         elif task == "classification":
@@ -183,15 +191,16 @@ class HierarchicalPatchTST(nn.Module):
             pe_enc_dec = torch.cat([pe_enc, pe_dec], dim=1)
             pos_encodings.append(pe_enc_dec.transpose(0, 1))
 
-        z = z.transpose(1, 2)
-        z = z.reshape(bs, n_vars, num_patch * patch_len)  # bs x n_vars x seq_len
-        z = z.transpose(1, 2)  # bs x seq_len x n_vars
+        if self.revin:
+            z = z.transpose(1, 2)
+            z = z.reshape(bs, n_vars, num_patch * patch_len)  # bs x n_vars x seq_len
+            z = z.transpose(1, 2)  # bs x seq_len x n_vars
 
-        z = self.revin(z, mode="norm")
+            z = self.revin_layer(z, mode="norm")
 
-        z = z.transpose(1, 2)
-        z = z.reshape(bs, n_vars, num_patch, patch_len)
-        z = z.transpose(1, 2)
+            z = z.transpose(1, 2)
+            z = z.reshape(bs, n_vars, num_patch, patch_len)
+            z = z.transpose(1, 2)
 
         time_encodings = None
         z = self.backbone(z, pe=pos_encodings, te=time_encodings)
@@ -203,9 +212,32 @@ class HierarchicalPatchTST(nn.Module):
             te=time_encodings[::-1] if time_encodings is not None else None,
         )
 
-        z = self.revin(z, mode="denorm")
+        if self.layer_wise_prediction:
+            z_final = z[0]
 
-        return z
+            # TODO fix if there is no layer wise prediction
+
+            if self.revin:
+                z_final = self.revin_layer(z_final, mode="denorm")
+
+            #     z_dec = []
+
+            #     for z_layer in z[1]:
+            #         z_layer = self.revin_layer(z_layer, mode="denorm")
+            #         z_dec.append(z_layer)
+
+            # else:
+            z_dec = z[1]
+
+            return z_final, z_dec
+
+        else:
+            z_final = z
+
+            if self.revin:
+                z_final = self.revin_layer(z, mode="denorm")
+
+            return z_final
 
 
 class HierarchicalPatchTSTEncoder(nn.Module):
@@ -272,12 +304,12 @@ class HierarchicalPatchTSTEncoder(nn.Module):
             )
             mlp = DownsamplingMLP(
                 c_in=d_layer,
-                c_out=d_layer * ch_factor,
+                c_out=int(d_layer * ch_factor),
                 win_size=window_size,
             )
             enc_modules.append(nn.Sequential(encoder, mlp))
 
-            d_layer = d_layer * ch_factor
+            d_layer = int(d_layer * ch_factor)
 
         enc_modules.append(
             nn.Sequential(
@@ -369,6 +401,7 @@ class HierarchicalPatchTSTDecoder(nn.Module):
         store_attn=False,
         res_attention=False,
         task=None,
+        layer_wise_prediction=False,
     ):
         super().__init__()
         self.d_model = d_model
@@ -376,8 +409,11 @@ class HierarchicalPatchTSTDecoder(nn.Module):
         self.task = task
         self.dec_num_patches = dec_num_patches
         self.pred_len = pred_len
+        self.patch_len = patch_len
+        self.window_size = window_size
+        self.num_levels = num_levels
 
-        self.layer_wise_prediction = False
+        self.layer_wise_prediction = layer_wise_prediction
 
         # input encoding
         if not shared_embedding:
@@ -393,7 +429,10 @@ class HierarchicalPatchTSTDecoder(nn.Module):
         # encoder
         dec_modules = []
 
-        d_layer = d_model * (2 ** (num_levels - 1))
+        d_layer = int(d_model * (ch_factor ** (num_levels - 1)))
+        # p_layer = patch_len * (window_size ** (num_levels - 1))
+
+        projections = []
 
         # TODO learn start token for full sequence
         self.start_token = nn.Parameter(torch.zeros(1, 1, d_layer))
@@ -416,12 +455,15 @@ class HierarchicalPatchTSTDecoder(nn.Module):
             )
             mlp = UpsamplingMLP(
                 c_in=d_layer,
-                c_out=d_layer // ch_factor,
+                c_out=int(d_layer // ch_factor),
                 win_size=window_size,  # , norm_layer=nn.BatchNorm1d
             )
             dec_modules.append(nn.Sequential(decoder, mlp))
 
-            d_layer = d_layer // ch_factor
+            projections.append(nn.Linear(d_layer, 1))
+
+            d_layer = int(d_layer // ch_factor)
+            # p_layer = p_layer // window_size
 
         dec_modules.append(
             nn.Sequential(
@@ -443,8 +485,10 @@ class HierarchicalPatchTSTDecoder(nn.Module):
         )
 
         self.decoder = nn.Sequential(*dec_modules)
+        projections.append(nn.Linear(d_layer, patch_len))
 
-        self.projection = nn.Linear(d_layer, patch_len)
+        self.projections = nn.ModuleList(projections)
+        # self.projection = nn.Linear(d_layer, patch_len)
 
     def forward(self, cross, pe=None, te=None):
         bs, n_vars, num_patch, d_model = cross[0].shape
@@ -486,11 +530,29 @@ class HierarchicalPatchTSTDecoder(nn.Module):
                         x = x[:, : self.dec_num_patches[i + 1], :]
 
         if self.layer_wise_prediction:
-            pass
+            lbl_pred = []
+
+            p_layer = self.patch_len * (self.window_size ** (self.num_levels - 1))
+
+            for i, x_layer in enumerate(x_dec):
+                x_proj = self.projections[i](x_layer)
+                if i < len(x_dec) - 1:
+                    x_proj = torch.repeat_interleave(x_proj, dim=2, repeats=p_layer)
+                x_proj = x_proj.reshape(bs * n_vars, -1)
+                x_proj = x_proj.reshape(bs, n_vars, -1).transpose(1, 2)
+                x_proj = x_proj[:, : self.pred_len, :]
+                lbl_pred.append(x_proj)
+
+                p_layer = p_layer // self.window_size
+
+            x = torch.stack(lbl_pred, dim=0).sum(dim=0)
+
+            return x, lbl_pred
+
         else:
-            x = self.projection(x)
+            x = self.projections[-1](x)
             x = x.reshape(bs * n_vars, -1)
             x = x.reshape(bs, n_vars, -1).transpose(1, 2)
             x = x[:, : self.pred_len, :]
 
-        return x
+            return x

@@ -147,6 +147,8 @@ def setup_pipeline(config):
                 partial(
                     ForecastingRunner,
                     use_time_features=config.use_time_features,
+                    layer_wise_prediction=config.layer_wise_prediction,
+                    hierarchical_loss=config.hierarchical_loss,
                 ),
             )
         else:
@@ -309,6 +311,8 @@ def setup_model(config):
             task=config.task,
             head_dropout=config.head_dropout,
             use_time_features=config.use_time_features,
+            layer_wise_prediction=config.layer_wise_prediction,
+            revin=config.revin,
         )
     # patch tst with temporal encoding
     elif config.model_name == "patch_tst_t":

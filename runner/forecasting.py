@@ -10,7 +10,7 @@ logger = logging.getLogger("__main__")
 
 class ForecastingRunner(BaseRunner):
     def train_epoch(self, epoch_num=None):
-        self.model = self.model.train()
+        self.model.train()
         l1_loss = torch.nn.L1Loss(reduction="mean")
         l2_loss = torch.nn.MSELoss(reduction="mean")
 
@@ -39,12 +39,24 @@ class ForecastingRunner(BaseRunner):
 
             predictions = self.model(X, padding_masks, X_time=X_time, y_time=y_time)
 
-            if self.mixup is not None:
-                loss = mixup_criterion(
-                    self.criterion, predictions, targets_a, targets_b, lam
-                )
+            if self.layer_wise_prediction:
+                if self.hierarchical_loss:
+                    with torch.no_grad():
+                        targets_revin = self.model.revin_layer(targets, mode="norm_y")
+                    targets_revin = targets
+
+                    loss = self.criterion(predictions[1], targets_revin)
+                else:
+                    loss = self.criterion(predictions[0], targets)
             else:
                 loss = self.criterion(predictions, targets)
+
+            # if self.mixup is not None:
+            #     loss = mixup_criterion(
+            #         self.criterion, predictions, targets_a, targets_b, lam
+            #     )
+            # else:
+            #     loss = self.criterion(predictions, targets)
 
             self.optimizer.zero_grad()
             loss.backward()
@@ -53,10 +65,9 @@ class ForecastingRunner(BaseRunner):
             # loss, can be mse or hierarchical mse
             epoch_loss += loss.item()
 
-            # hierarchical linear output
-            if type(predictions) is not torch.Tensor and len(predictions) == 2:
-                predictions = torch.stack(predictions[1]).sum(0)
-                predictions = predictions.permute(0, 2, 1)
+            # hierarchical output
+            if self.layer_wise_prediction:
+                predictions = predictions[0]
 
             # mse and mae
             epoch_mse += l2_loss(predictions, targets).item()
@@ -74,7 +85,7 @@ class ForecastingRunner(BaseRunner):
         return self.epoch_metrics
 
     def evaluate(self, epoch_num=None):
-        self.model = self.model.eval()
+        self.model.eval()
         l1_loss = torch.nn.L1Loss(reduction="mean")
         l2_loss = torch.nn.MSELoss(reduction="mean")
 
@@ -97,14 +108,24 @@ class ForecastingRunner(BaseRunner):
             padding_masks = padding_masks.to(self.device)
 
             predictions = self.model(X, padding_masks, X_time=X_time, y_time=y_time)
-            loss = self.criterion(predictions, targets)
 
-            # hierarchical linear output
-            if type(predictions) is not torch.Tensor and len(predictions) == 2:
-                predictions = torch.stack(predictions[1]).sum(0)
-                predictions = predictions.permute(0, 2, 1)
+            if self.layer_wise_prediction:
+                if self.hierarchical_loss:
+                    with torch.no_grad():
+                        targets_revin = self.model.revin_layer(targets, mode="norm_y")
+                    targets_revin = targets
+
+                    loss = self.criterion(predictions[1], targets_revin)
+                else:
+                    loss = self.criterion(predictions[0], targets)
+            else:
+                loss = self.criterion(predictions, targets)
 
             epoch_loss += loss.item()
+
+            # hierarchical output
+            if self.layer_wise_prediction:
+                predictions = predictions[0]
 
             # mse and mae
             epoch_mse += l2_loss(predictions, targets).item()

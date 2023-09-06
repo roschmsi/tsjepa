@@ -86,6 +86,8 @@ def check_config(config):
     # hierarchical
     if config.num_levels is not None:
         dir += f"_nlevels={config.num_levels}"
+    if config.ch_factor is not None:
+        dir += f"_chf={config.ch_factor}"
 
     if config.window_size is not None:
         dir += f"_wsize={config.window_size}"

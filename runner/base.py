@@ -50,6 +50,8 @@ class BaseRunner(object):
         mixup=0,
         mae=False,
         use_time_features=False,
+        layer_wise_prediction=False,
+        hierarchical_loss=False,
     ):
         self.model = model
         self.dataloader = dataloader
@@ -61,11 +63,14 @@ class BaseRunner(object):
         self.multilabel = multilabel
         self.scheduler = scheduler
         self.use_time_features = use_time_features
+        self.layer_wise_prediction = layer_wise_prediction
+        self.hierarchical_loss = hierarchical_loss
 
         self.epoch_metrics = OrderedDict()
         self.mixup = mixup
         self.mae = mae
         self.vic_reg = False
+        self.vibc_reg = False
 
     def train_epoch(self, epoch_num=None):
         raise NotImplementedError("Please override in child class")

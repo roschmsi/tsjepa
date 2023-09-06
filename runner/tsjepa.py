@@ -7,7 +7,7 @@ from models.ts_jepa.logging import AverageMeter
 from models.ts_jepa.tensors import apply_masks
 from runner.base import BaseRunner
 import torch.nn.functional as F
-from models.ts_jepa.vic_reg import vicreg_fn
+from models.ts_jepa.vic_reg import vicreg_fn, vibcreg_fn
 
 logger = logging.getLogger("__main__")
 
@@ -57,6 +57,7 @@ class JEPARunner(BaseRunner):
         multilabel=False,
         scheduler=None,
         vic_reg=False,
+        vibc_reg=False,
         pred_weight=1.0,
         std_weight=1.0,
         cov_weight=1.0,
@@ -75,6 +76,7 @@ class JEPARunner(BaseRunner):
         self.multilabel = multilabel
         self.scheduler = scheduler
         self.vic_reg = vic_reg
+        self.vibc_reg = vibc_reg
 
         self.rec_weight = pred_weight
         self.std_weight = std_weight
@@ -118,11 +120,17 @@ class JEPARunner(BaseRunner):
             loss = loss_fn(z=z_pred, h=h)
 
             pred_loss = loss
-            std_loss, cov_loss, cov_enc, cov_pred = vicreg_fn(
-                z_enc=z_enc, z_pred=z_pred
-            )
-            # std_loss, cov_loss = pred_vicreg_fn(z_pred=z_pred)
+
             if self.vic_reg:
+                std_loss, cov_loss, cov_enc, cov_pred = vicreg_fn(
+                    z_enc=z_enc, z_pred=z_pred
+                )
+            elif self.vibc_reg:
+                std_loss, cov_loss, cov_enc, cov_pred = vibcreg_fn(
+                    z_enc=z_enc, z_pred=z_pred
+                )
+            # std_loss, cov_loss = pred_vicreg_fn(z_pred=z_pred)
+            if self.vic_reg or self.vibc_reg:
                 loss = (
                     self.rec_weight * loss
                     + self.std_weight * std_loss
@@ -163,7 +171,7 @@ class JEPARunner(BaseRunner):
         # average loss per sample for whole epoch
         self.epoch_metrics["loss"] = loss_meter.avg
 
-        if self.vic_reg:
+        if self.vic_reg or self.vibc_reg:
             self.epoch_metrics["loss pred"] = loss_pred_meter.avg
             self.epoch_metrics["loss std"] = loss_std_meter.avg
             self.epoch_metrics["loss cov"] = loss_cov_meter.avg
@@ -209,11 +217,17 @@ class JEPARunner(BaseRunner):
             loss = loss_fn(z=z_pred, h=h)
 
             pred_loss = loss
-            std_loss, cov_loss, cov_enc, cov_pred = vicreg_fn(
-                z_enc=z_enc, z_pred=z_pred
-            )
-            # std_loss, cov_loss = pred_vicreg_fn(z_pred=z_pred)
+
             if self.vic_reg:
+                std_loss, cov_loss, cov_enc, cov_pred = vicreg_fn(
+                    z_enc=z_enc, z_pred=z_pred
+                )
+            elif self.vibc_reg:
+                std_loss, cov_loss, cov_enc, cov_pred = vibcreg_fn(
+                    z_enc=z_enc, z_pred=z_pred
+                )
+            # std_loss, cov_loss = pred_vicreg_fn(z_pred=z_pred)
+            if self.vic_reg or self.vibc_reg:
                 loss = (
                     self.rec_weight * loss
                     + self.std_weight * std_loss
@@ -238,7 +252,7 @@ class JEPARunner(BaseRunner):
         # average loss per sample for whole epoch
         self.epoch_metrics["loss"] = loss_meter.avg
 
-        if self.vic_reg:
+        if self.vic_reg or self.vibc_reg:
             self.epoch_metrics["loss pred"] = loss_pred_meter.avg
             self.epoch_metrics["loss std"] = loss_std_meter.avg
             self.epoch_metrics["loss cov"] = loss_cov_meter.avg
@@ -271,7 +285,7 @@ class JEPAClassifier(BaseRunner):
         self.epoch_metrics = OrderedDict()
 
     def train_epoch(self, epoch_num=None):
-        self.model = self.model.train()
+        self.model.train()
 
         loss_meter = AverageMeter()
         acc_meter = AverageMeter()
@@ -321,7 +335,7 @@ class JEPAClassifier(BaseRunner):
         return self.epoch_metrics
 
     def evaluate(self, epoch_num=None):
-        self.model = self.model.eval()
+        self.model.eval()
 
         loss_meter = AverageMeter()
         acc_meter = AverageMeter()
@@ -388,7 +402,7 @@ class JEPAForecaster(BaseRunner):
         self.epoch_metrics = OrderedDict()
 
     def train_epoch(self, epoch_num=None):
-        self.model = self.model.train()
+        self.model.train()
 
         loss_meter = AverageMeter()
         mse_meter = AverageMeter()
@@ -429,7 +443,7 @@ class JEPAForecaster(BaseRunner):
         return self.epoch_metrics
 
     def evaluate(self, epoch_num=None):
-        self.model = self.model.eval()
+        self.model.eval()
 
         loss_meter = AverageMeter()
         mse_meter = AverageMeter()

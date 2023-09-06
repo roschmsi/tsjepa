@@ -12,7 +12,7 @@ logger = logging.getLogger("__main__")
 
 class SupervisedRunner(BaseRunner):
     def train_epoch(self, epoch_num=None):
-        self.model = self.model.train()
+        self.model.train()
 
         epoch_loss = 0  # total loss of epoch
         total_samples = 0  # total samples in epoch
@@ -80,7 +80,7 @@ class SupervisedRunner(BaseRunner):
         return self.epoch_metrics
 
     def evaluate(self, epoch_num=None):
-        self.model = self.model.eval()
+        self.model.eval()
 
         epoch_loss = 0  # total loss of epoch
         total_samples = 0  # total samples in epoch

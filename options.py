@@ -47,6 +47,7 @@ class Options(object):
 
         # vic regularization
         self.parser.add_argument("--vic_reg", action="store_true")
+        self.parser.add_argument("--vibc_reg", action="store_true")
         self.parser.add_argument("--pred_weight", type=float)
         self.parser.add_argument("--std_weight", type=float)
         self.parser.add_argument("--cov_weight", type=float)
@@ -67,9 +68,11 @@ class Options(object):
 
         # hierarchical
         self.parser.add_argument("--hierarchical", action="store_true")
+        self.parser.add_argument("--layer_wise_prediction", action="store_true")
         self.parser.add_argument("--num_levels", type=int)
         self.parser.add_argument("--window_size", type=int)
-        self.parser.add_argument("--ch_factor", type=int)
+        self.parser.add_argument("--ch_factor", type=float)
+        self.parser.add_argument("--hierarchical_loss", action="store_true")
 
         # time covariates
         self.parser.add_argument("--use_time_features", action="store_true")

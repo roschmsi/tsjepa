@@ -12,7 +12,7 @@ logger = logging.getLogger("__main__")
 
 class UnsupervisedRunner(BaseRunner):
     def train_epoch(self, epoch_num=None):
-        self.model = self.model.train()
+        self.model.train()
 
         epoch_loss = 0
 
@@ -53,7 +53,7 @@ class UnsupervisedRunner(BaseRunner):
         return self.epoch_metrics
 
     def evaluate(self, epoch_num=None):
-        self.model = self.model.eval()
+        self.model.eval()
 
         epoch_loss = 0  # total loss of epoch
 
@@ -86,7 +86,7 @@ class UnsupervisedRunner(BaseRunner):
 
 class UnsupervisedPatchRunner(BaseRunner):
     def train_epoch(self, epoch_num=None):
-        self.model = self.model.train()
+        self.model.train()
 
         epoch_loss = 0
         epoch_loss_pred = 0
@@ -174,7 +174,7 @@ class UnsupervisedPatchRunner(BaseRunner):
         return self.epoch_metrics
 
     def evaluate(self, epoch_num=None):
-        self.model = self.model.eval()
+        self.model.eval()
 
         epoch_loss = 0  # total loss of epoch
         epoch_loss_pred = 0

@@ -19,8 +19,13 @@ def get_criterion(config):
         else:  # one class per time series
             return NoFussCrossEntropyLoss(reduction="none")
     elif config.task == "forecasting":
-        if config.model_name == "hierarchical_linear":
-            return HierarchicalForecastingLoss(num_levels=config.num_levels, window=2)
+        if config.hierarchical_loss:
+            return HierarchicalForecastingLoss(
+                patch_len=config.patch_len,
+                num_levels=config.num_levels,
+                window_size=config.window_size,
+                pred_len=config.pred_len,
+            )
         return torch.nn.MSELoss(reduction="mean")
     else:
         raise ValueError(
@@ -92,43 +97,51 @@ class MaskedPatchLoss(nn.Module):
 
 
 class HierarchicalForecastingLoss(nn.Module):
-    def __init__(self, num_levels, window):
+    def __init__(self, patch_len, num_levels, window_size, pred_len):
         super().__init__()
 
+        self.patch_len = patch_len
         self.num_levels = num_levels
-        self.window = window
+        self.window_size = window_size
+        self.pred_len = pred_len
 
         enc_layers = []
 
-        pooling_kernel = 2 ** (self.num_levels - 1)
+        p_layer = patch_len * (window_size ** (num_levels - 1))
+
         for _ in range(self.num_levels):
             enc_layers.append(
-                nn.AvgPool1d(kernel_size=pooling_kernel, stride=pooling_kernel)
+                nn.AvgPool1d(kernel_size=p_layer, stride=p_layer, ceil_mode=True)
             )
-            pooling_kernel = pooling_kernel // self.window
+            p_layer = p_layer // self.window_size
 
-        self.enc_layers = nn.Sequential(*enc_layers)
+        self.enc_layers = nn.ModuleList(enc_layers)
 
         self.loss_fn = torch.nn.MSELoss(reduction="mean")
 
-    def forward(self, output, target):
-        preds = output[0]
-        preds_repeated = output[1]
+    def forward(self, output, targets_revin):
+        target = targets_revin.permute(0, 2, 1)
 
-        target = target.permute(0, 2, 1)
-        target_features = []
+        p_layer = self.patch_len * (self.window_size ** (self.num_levels - 1))
 
-        pooling_kernel = 2 ** (self.num_levels - 1)
-        x = target
-        for i in range(self.num_levels):
-            m = self.enc_layers[i](x)
-            target_features.append(m)
-            m = torch.repeat_interleave(m, repeats=pooling_kernel, dim=2)
-            pooling_kernel = pooling_kernel // self.window
-            x = x - m
+        lbl_targets = []
+
+        for i in range(self.num_levels - 1):
+            m = self.enc_layers[i](target)
+            if i < len(output) - 1:
+                m = torch.repeat_interleave(m, repeats=p_layer, dim=2)
+            # m = m.transpose(1, 2)
+            m = m[:, :, : self.pred_len]
+            lbl_targets.append(m.transpose(1, 2))
+
+            target = target - m
+
+            p_layer = p_layer // self.window_size
+
+        lbl_targets.append(target.transpose(1, 2))
 
         loss = 0
         for i in range(self.num_levels):
-            loss += self.loss_fn(preds[i], target_features[i])
+            loss += self.loss_fn(output[i], lbl_targets[i])
 
         return loss
