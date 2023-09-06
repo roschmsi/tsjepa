@@ -11,7 +11,7 @@
 source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/finetune_tsjepa.py \
 --model_name tsjepa \
---enc_num_layers 8 \
+--enc_num_layers 4 \
 --enc_num_heads 16 \
 --enc_d_model 128 \
 --enc_mlp_ratio 2 \
@@ -31,9 +31,9 @@ srun python3 /usr/stud/roschman/ECGAnalysis/finetune_tsjepa.py \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/weather.yaml \
 --seq_len 512 \
 --label_len 0 \
---pred_len 720 \
+--pred_len 96 \
 --channel_independence \
 --task forecasting \
 --revin \
---load_model /home/stud/roschman/ECGAnalysis/output/tsjepa/pretraining/dataset=forecasting_all_sl=512_pl=96_patch=8_stride=8_mratio=0.5_bs=512_opt=AdamW_lr=1e-05_wd=0.01_pred=1.0_std=1.0_cov=1.0_revin_enc_nlayers=8_nheads=16_dmodel=128_dec_nlayers=2_nheads=16_dmodel=128_drop=0.1_emastart=0.996_with_revin_correct \
---description pretrained_all_with_revin
+--load_model /home/stud/roschman/ECGAnalysis/output/tsjepa/pretraining/dataset=weather_sl=512_pl=96_patch=8_stride=8_mratio=0.5_bs=512_opt=AdamW_lr=0.0001_wd=0.01_pred=10.0_std=10.0_cov=1.0_revin_enc_nlayers=4_nheads=16_dmodel=128_dec_nlayers=2_nheads=16_dmodel=128_drop=0.1_emastart=0.996_best_hp_ecg \
+--description pretrained_10_10_1_no_freeze
