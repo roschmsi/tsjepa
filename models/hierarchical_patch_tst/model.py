@@ -28,10 +28,14 @@ class HierarchicalPatchTST(nn.Module):
         num_patch: int,
         patch_len: int,
         num_levels: int,
-        num_layers: int,
-        num_heads: int,
-        d_model: int,
-        d_ff: int,
+        enc_num_layers: int,
+        enc_num_heads: int,
+        enc_d_model: int,
+        enc_d_ff: int,
+        dec_num_layers: int,
+        dec_num_heads: int,
+        dec_d_model: int,
+        dec_d_ff: int,
         window_size: int,
         dropout: float,
         shared_embedding=True,
@@ -91,11 +95,11 @@ class HierarchicalPatchTST(nn.Module):
             (window_size) ** (num_levels - 1)
         )
 
-        self.W_pos = positional_encoding(pe, learn_pe, num_patch_enc_dec, d_model)
+        self.W_pos = positional_encoding(pe, learn_pe, num_patch_enc_dec, enc_d_model)
 
         pe_conv_layers = []
-        in_channels = d_model
-        out_channels = int(ch_factor * d_model)
+        in_channels = enc_d_model
+        out_channels = int(ch_factor * enc_d_model)
         for i in range(num_levels - 1):
             conv = nn.Conv1d(
                 in_channels=in_channels,
@@ -107,6 +111,7 @@ class HierarchicalPatchTST(nn.Module):
 
             in_channels = int(ch_factor * in_channels)
             out_channels = int(ch_factor * out_channels)
+
         self.pe_conv_layers = nn.ModuleList(pe_conv_layers)
 
         self.backbone = HierarchicalPatchTSTEncoder(
@@ -114,10 +119,10 @@ class HierarchicalPatchTST(nn.Module):
             ch_factor=ch_factor,
             patch_len=patch_len,
             num_levels=num_levels,
-            num_layers=num_layers,
-            num_heads=num_heads,
-            d_model=d_model,
-            d_ff=d_ff,
+            num_layers=enc_num_layers,
+            num_heads=enc_num_heads,
+            d_model=enc_d_model,
+            d_ff=enc_d_ff,
             dropout=dropout,
             window_size=window_size,
             shared_embedding=shared_embedding,
@@ -143,13 +148,13 @@ class HierarchicalPatchTST(nn.Module):
                 dec_num_patches=self.dec_num_patches[::-1],
                 patch_len=patch_len,
                 num_levels=num_levels,
-                num_layers=num_layers,
-                num_heads=num_heads,
-                d_model=d_model,
-                d_ff=d_ff,
+                num_layers=dec_num_layers,
+                num_heads=dec_num_heads,
+                d_model=dec_d_model,
+                d_ff=dec_d_ff,
                 window_size=window_size,
                 dropout=dropout,
-                pe="sincos",
+                pe=pe,
                 norm=norm,
                 pred_len=c_out,
                 layer_wise_prediction=layer_wise_prediction,

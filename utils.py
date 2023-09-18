@@ -93,7 +93,11 @@ def check_config(config):
         dir += f"_wsize={config.window_size}"
 
     # check transformer parameters
-    if config.mae or config.model_name == "tsjepa":
+    if (
+        config.mae
+        or config.model_name == "tsjepa"
+        or config.model_name == "hierarchical_patch_tst"
+    ):
         dir += "_enc"
         if config.enc_num_layers is not None:
             dir += f"_nlayers={config.enc_num_layers}"
