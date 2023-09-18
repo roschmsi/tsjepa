@@ -7,7 +7,7 @@ from models.ts_jepa.logging import AverageMeter
 from models.ts_jepa.tensors import apply_masks
 from runner.base import BaseRunner
 import torch.nn.functional as F
-from models.ts_jepa.vic_reg import vicreg_fn, vibcreg_fn
+from models.ts_jepa.vic_reg import vicreg_fn, vibcreg_fn, enc_vicreg_fn
 
 logger = logging.getLogger("__main__")
 
@@ -58,6 +58,7 @@ class JEPARunner(BaseRunner):
         scheduler=None,
         vic_reg=False,
         vibc_reg=False,
+        vic_reg_enc=False,
         pred_weight=1.0,
         std_weight=1.0,
         cov_weight=1.0,
@@ -77,6 +78,7 @@ class JEPARunner(BaseRunner):
         self.scheduler = scheduler
         self.vic_reg = vic_reg
         self.vibc_reg = vibc_reg
+        self.vic_reg_enc = vic_reg_enc
 
         self.rec_weight = pred_weight
         self.std_weight = std_weight
@@ -129,8 +131,10 @@ class JEPARunner(BaseRunner):
                 std_loss, cov_loss, cov_enc, cov_pred = vibcreg_fn(
                     z_enc=z_enc, z_pred=z_pred
                 )
-            # std_loss, cov_loss = pred_vicreg_fn(z_pred=z_pred)
-            if self.vic_reg or self.vibc_reg:
+            elif self.vic_reg_enc:
+                std_loss, cov_loss = enc_vicreg_fn(z_enc=z_enc)
+
+            if self.vic_reg or self.vibc_reg or self.vic_reg_enc:
                 loss = (
                     self.rec_weight * loss
                     + self.std_weight * std_loss
@@ -171,7 +175,7 @@ class JEPARunner(BaseRunner):
         # average loss per sample for whole epoch
         self.epoch_metrics["loss"] = loss_meter.avg
 
-        if self.vic_reg or self.vibc_reg:
+        if self.vic_reg or self.vibc_reg or self.vic_reg_enc:
             self.epoch_metrics["loss pred"] = loss_pred_meter.avg
             self.epoch_metrics["loss std"] = loss_std_meter.avg
             self.epoch_metrics["loss cov"] = loss_cov_meter.avg
@@ -226,8 +230,10 @@ class JEPARunner(BaseRunner):
                 std_loss, cov_loss, cov_enc, cov_pred = vibcreg_fn(
                     z_enc=z_enc, z_pred=z_pred
                 )
-            # std_loss, cov_loss = pred_vicreg_fn(z_pred=z_pred)
-            if self.vic_reg or self.vibc_reg:
+            elif self.vic_reg_enc:
+                std_loss, cov_loss = enc_vicreg_fn(z_enc=z_enc)
+
+            if self.vic_reg or self.vibc_reg or self.vic_reg_enc:
                 loss = (
                     self.rec_weight * loss
                     + self.std_weight * std_loss
@@ -252,7 +258,7 @@ class JEPARunner(BaseRunner):
         # average loss per sample for whole epoch
         self.epoch_metrics["loss"] = loss_meter.avg
 
-        if self.vic_reg or self.vibc_reg:
+        if self.vic_reg or self.vibc_reg or self.vic_reg_enc:
             self.epoch_metrics["loss pred"] = loss_pred_meter.avg
             self.epoch_metrics["loss std"] = loss_std_meter.avg
             self.epoch_metrics["loss cov"] = loss_cov_meter.avg
@@ -414,13 +420,29 @@ class JEPAForecaster(BaseRunner):
             y = y.to(self.device)
 
             # X: (bs x n_vars x seq_len)
+            # channel independence for the exact same setting
+            bs, seq_len, n_vars = X.shape
+
             if self.revin is not None:
+                X = X.transpose(1, 2)
+                X = X.reshape(bs * n_vars, seq_len)
+                X = X.unsqueeze(-1)
                 X = self.revin(X, "norm")
+                X = X.squeeze(-1)
+                X = X.reshape(bs, n_vars, seq_len)
+                X = X.transpose(1, 2)
 
             y_pred = self.model(X)
+            bs, pred_len, n_vars = y_pred.shape
 
             if self.revin is not None:
+                y_pred = y_pred.transpose(1, 2)
+                y_pred = y_pred.reshape(bs * n_vars, pred_len)
+                y_pred = y_pred.unsqueeze(-1)
                 y_pred = self.revin(y_pred, "denorm")
+                y_pred = y_pred.squeeze(-1)
+                y_pred = y_pred.reshape(bs, n_vars, pred_len)
+                y_pred = y_pred.transpose(1, 2)
 
             loss = self.criterion(y_pred, y)
 

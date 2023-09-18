@@ -5,13 +5,15 @@ import logging
 import os
 import sys
 import time
+from functools import partial
+
 
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from data.dataset import JEPADataset, load_dataset, ConcatenatedDataset
+from data.dataset import JEPADataset, load_dataset, ConcatenatedDataset, CIDataset
 from models.ts_jepa.mask import RandomMaskCollator, BlockMaskCollator
 from models.ts_jepa.setup import init_model_pretraining, init_opt
 from models.ts_jepa.utils import (
@@ -54,8 +56,6 @@ def main(config):
 
     # build data
     train_dataset, val_dataset, test_dataset = load_dataset(config)
-    if config.channel_independence:
-        config.feat_dim = 1
 
     if config.seq_len is not None:
         max_seq_len = config.seq_len
@@ -66,7 +66,7 @@ def main(config):
     encoder, predictor = init_model_pretraining(
         device=device,
         seq_len=max_seq_len,
-        in_chans=config.feat_dim,  # 1
+        in_chans=1 if config.channel_independence else config.feat_dim,
         patch_size=config.patch_len,
         enc_embed_dim=config.enc_d_model,
         enc_depth=config.enc_num_layers,
@@ -93,10 +93,9 @@ def main(config):
         )
     elif config.masking == "block":
         mask_collator = BlockMaskCollator(
+            ratio=config.masking_ratio,
             input_size=max_seq_len,
             patch_size=config.patch_len,
-            enc_mask_scale=(1.0, 1.0),
-            pred_mask_scale=(0.1, 0.2),
             channel_independence=config.channel_independence,
         )
     else:
@@ -105,6 +104,8 @@ def main(config):
     # initialize data generator and runner
     if config.dataset == "forecasting_all":
         dataset_class = ConcatenatedDataset
+    elif config.dataset != "forecasting_all" and config.channel_independence:
+        dataset_class = partial(CIDataset, num_channels=config.feat_dim)
     else:
         dataset_class = JEPADataset
 
@@ -196,7 +197,7 @@ def main(config):
 
     if config.revin:
         revin = RevIN(
-            num_features=config.feat_dim,
+            num_features=1 if config.channel_independence else config.feat_dim,
             affine=False,
             subtract_last=False,
         )
@@ -219,6 +220,7 @@ def main(config):
         scheduler=scheduler,
         vic_reg=config.vic_reg,
         vibc_reg=config.vibc_reg,
+        vic_reg_enc=config.vic_reg_enc,
         pred_weight=config.pred_weight,
         std_weight=config.std_weight,
         cov_weight=config.cov_weight,
@@ -237,6 +239,7 @@ def main(config):
         multilabel=config.multilabel,
         vic_reg=config.vic_reg,
         vibc_reg=config.vibc_reg,
+        vic_reg_enc=config.vic_reg_enc,
         pred_weight=config.pred_weight,
         std_weight=config.std_weight,
         cov_weight=config.cov_weight,
@@ -255,6 +258,7 @@ def main(config):
         multilabel=config.multilabel,
         vic_reg=config.vic_reg,
         vibc_reg=config.vibc_reg,
+        vic_reg_enc=config.vic_reg_enc,
         pred_weight=config.pred_weight,
         std_weight=config.std_weight,
         cov_weight=config.cov_weight,

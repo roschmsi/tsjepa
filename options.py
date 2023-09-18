@@ -48,9 +48,12 @@ class Options(object):
         # vic regularization
         self.parser.add_argument("--vic_reg", action="store_true")
         self.parser.add_argument("--vibc_reg", action="store_true")
+        self.parser.add_argument("--vic_reg_enc", action="store_true")
         self.parser.add_argument("--pred_weight", type=float)
         self.parser.add_argument("--std_weight", type=float)
         self.parser.add_argument("--cov_weight", type=float)
+
+        self.parser.add_argument("--checkpoint_last", action="store_true")
 
         # revserse instance normalization
         self.parser.add_argument("--revin", action="store_true")

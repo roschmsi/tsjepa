@@ -71,6 +71,7 @@ class BaseRunner(object):
         self.mae = mae
         self.vic_reg = False
         self.vibc_reg = False
+        self.vic_reg_enc = False
 
     def train_epoch(self, epoch_num=None):
         raise NotImplementedError("Please override in child class")

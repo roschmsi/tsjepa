@@ -154,7 +154,11 @@ def main(config):
     start_epoch = 0
 
     # load pretrained weights
-    path = os.path.join(config.load_model, "checkpoints", "model_best.pth")
+    if config.checkpoint_last:
+        path = os.path.join(config.load_model, "checkpoints", "model_last.pth")
+    else:
+        path = os.path.join(config.load_model, "checkpoints", "model_best.pth")
+
     encoder = load_encoder_from_tsjepa(path=path, encoder=model.encoder)
 
     model.encoder = encoder
@@ -175,7 +179,7 @@ def main(config):
 
     if config.revin:
         revin = RevIN(
-            num_features=config.feat_dim,
+            num_features=1,  # config.feat_dim,
             affine=False,
             subtract_last=False,
         )
