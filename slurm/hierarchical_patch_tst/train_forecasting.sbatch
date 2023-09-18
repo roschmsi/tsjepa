@@ -12,12 +12,16 @@ source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --model_name hierarchical_patch_tst \
 --num_levels 3 \
---num_layers 3 \
---num_heads 16 \
---d_model 128 \
---d_ff 64 \
+--enc_num_layers 3 \
+--enc_num_heads 16 \
+--enc_d_model 128 \
+--enc_d_ff 256 \
+--dec_num_layers 2 \
+--dec_num_heads 16 \
+--dec_d_model 128 \
+--dec_d_ff 256 \
 --ch_factor 0.5 \
---window_size 2 \
+--window_size 4 \
 --dropout 0.2 \
 --shared_embedding \
 --norm BatchNorm \
@@ -25,10 +29,10 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --head_dropout 0 \
 --masking_ratio 0 \
 --use_patch \
---patch_len 12 \
---stride 12 \
+--patch_len 6 \
+--stride 6 \
 --optimizer AdamW \
---lr 0.00005 \
+--lr 0.00001 \
 --scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
 --epochs 100 \
@@ -37,12 +41,11 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --patience 20 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
 --task forecasting \
---seq_len 336 \
+--seq_len 512 \
 --label_len 0 \
 --pred_len 96 \
---description chf=05_lbl_hierarchical_loss_revin_is_back \
 --learn_pe \
 --val_interval 2 \
 --layer_wise_prediction \
---hierarchical_loss \
---revin
+--revin \
+--description "restart"

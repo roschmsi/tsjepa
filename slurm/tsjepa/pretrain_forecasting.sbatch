@@ -13,11 +13,11 @@ srun python3 /usr/stud/roschman/ECGAnalysis/pretrain_tsjepa.py \
 --model_name tsjepa \
 --enc_num_layers 4 \
 --enc_num_heads 16 \
---enc_d_model 128 \
+--enc_d_model 64 \
 --enc_mlp_ratio 2 \
---dec_num_layers 2 \
+--dec_num_layers 1 \
 --dec_num_heads 16 \
---dec_d_model 128 \
+--dec_d_model 64 \
 --dec_mlp_ratio 2 \
 --dropout 0.1 \
 --head_dropout 0 \
@@ -29,21 +29,21 @@ srun python3 /usr/stud/roschman/ECGAnalysis/pretrain_tsjepa.py \
 --patch_len 8 \
 --stride 8 \
 --optimizer AdamW \
---lr 0.0001 \
+--lr 0.00001 \
 --weight_decay 0.01 \
---epochs 1000 \
---batch_size 336 \
+--epochs 3000 \
+--batch_size 512 \
 --num_workers 4 \
---patience 100 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/weather.yaml \ 
---seq_len 336 \
+--patience 3000 \
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/electricity.yaml \
+--seq_len 512 \
 --label_len 0 \
---pred_len 96 \
+--pred_len 0 \
 --channel_independence \
 --task pretraining \
 --vic_reg \
 --pred_weight 25.0 \
 --std_weight 25.0 \
---cov_weight 1.0 \
+--cov_weight 0.1 \
 --revin \
---description "best_hp_ecg"
+--description "different_loss_weights"

@@ -26,19 +26,19 @@ srun python3 /usr/stud/roschman/ECGAnalysis/pretrain_tsjepa.py \
 --masking random \
 --masking_ratio 0.5 \
 --use_patch \
---patch_len 8 \
---stride 8 \
+--patch_len 16 \
+--stride 16 \
 --optimizer AdamW \
---lr 0.0001 \
+--lr 0.00001 \
 --weight_decay 0.01 \
---epochs 1000 \
+--epochs 2000 \
 --batch_size 128 \
 --num_workers 4 \
---patience 1000 \
+--patience 2000 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
 --task pretraining \
 --vic_reg \
---pred_weight 25.0 \
---std_weight 25.0 \
+--pred_weight 50.0 \
+--std_weight 50.0 \
 --cov_weight 1.0 \
 --description "still_hpt"
