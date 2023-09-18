@@ -166,10 +166,9 @@ class ForecastingDataset(Dataset):
 
 
 class JEPADataset(Dataset):
-    def __init__(self, dataset, num_channels=12):
+    def __init__(self, dataset):
         super(JEPADataset, self).__init__()
         self.dataset = dataset
-        self.num_channels = num_channels
 
     def __getitem__(self, ind):
         X, y = self.dataset.__getitem__(ind)
