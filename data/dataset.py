@@ -9,6 +9,7 @@ import torch
 from data.ecg_dataset import load_ecg_dataset
 from data.eeg_dataset import load_eeg_dataset
 from data.fc_dataset import load_fc_dataset
+from data.synthetic import load_synthetic_dataset
 from copy import deepcopy
 from utils import load_config_yaml
 
@@ -61,6 +62,8 @@ def load_dataset(config):
             test_datasets.append(test_ds)
 
         return train_datasets, val_datasets, test_datasets
+    elif config.dataset == "synthetic":
+        return load_synthetic_dataset(config)
     else:
         raise ValueError("Dataset type is not specified")
 
@@ -135,13 +138,40 @@ class ClassificationDataset(Dataset):
 
 
 class ForecastingDataset(Dataset):
-    def __init__(self, dataset):
+    def __init__(self, dataset, use_time_features=False):
         super(ForecastingDataset, self).__init__()
         self.dataset = dataset
+        self.use_time_features = use_time_features
 
     def __getitem__(self, ind):
-        X, y = self.dataset.__getitem__(ind)
-        return X, y
+        return self.dataset.__getitem__(ind)
+
+    def __len__(self):
+        return len(self.dataset)
+
+
+class ForecastingPatchDataset(Dataset):
+    def __init__(self, dataset, patch_len, stride, use_time_features=False):
+        super(ForecastingPatchDataset, self).__init__()
+        self.dataset = dataset
+        self.patch_len = patch_len
+        self.stride = stride
+        self.use_time_features = use_time_features
+
+    def __getitem__(self, ind):
+        if self.use_time_features:
+            X, y, X_time, y_time = self.dataset.__getitem__(ind)
+        else:
+            X, y = self.dataset.__getitem__(ind)
+
+        X = X.unsqueeze(0)
+        X = create_patch(X, self.patch_len, self.stride)
+        X = X.squeeze(0)
+
+        if self.use_time_features:
+            return X, y, X_time, y_time
+        else:
+            return X, y
 
     def __len__(self):
         return len(self.dataset)
@@ -218,34 +248,7 @@ class ClassificationPatchDataset(Dataset):
         return len(self.dataset)
 
 
-class ForecastingPatchDataset(Dataset):
-    def __init__(self, dataset, patch_len, stride, use_time_features=False):
-        super(ForecastingPatchDataset, self).__init__()
-        self.dataset = dataset
-        self.patch_len = patch_len
-        self.stride = stride
-        self.use_time_features = use_time_features
-
-    def __getitem__(self, ind):
-        if self.use_time_features:
-            X, y, X_time, y_time = self.dataset.__getitem__(ind)
-        else:
-            X, y = self.dataset.__getitem__(ind)
-
-        X = X.unsqueeze(0)
-        X = create_patch(X, self.patch_len, self.stride)
-        X = X.squeeze(0)
-
-        if self.use_time_features:
-            return X, y, X_time, y_time
-        else:
-            return X, y  # torch.from_numpy(y)
-
-    def __len__(self):
-        return len(self.dataset)
-
-
-def collate_superv(data, max_len=None):
+def collate_superv(data, max_len=None, use_time_features=False):
     """Build mini-batch tensors from a list of (X, mask) tuples. Mask input. Create
     Args:
         data: len(batch_size) list of tuples (X, y).
@@ -263,7 +266,13 @@ def collate_superv(data, max_len=None):
     """
 
     batch_size = len(data)
-    features, labels = zip(*data)
+
+    if use_time_features:
+        features, labels, X_time, y_time = zip(*data)
+        X_time = torch.stack(X_time, dim=0)
+        y_time = torch.stack(y_time, dim=0)
+    else:
+        features, labels = zip(*data)
 
     # Stack and pad features and masks (convert 2D to 3D tensors, i.e. add batch dimension)
     lengths = [
@@ -285,8 +294,10 @@ def collate_superv(data, max_len=None):
         torch.tensor(lengths, dtype=torch.int32), max_len=max_len
     )  # (batch_size, padded_length) boolean tensor, "1" means keep
 
-    # TODO be careful with transforming targets to float
-    return X, targets, padding_masks
+    if use_time_features:
+        return X, targets, padding_masks, X_time, y_time
+    else:
+        return X, targets, padding_masks
 
 
 def collate_patch_superv(
@@ -345,7 +356,6 @@ def collate_patch_superv(
         torch.tensor(lengths, dtype=torch.int32), max_len=max_len
     )  # (batch_size, padded_length) boolean tensor, "1" means keep
 
-    # TODO be careful with transforming targets to float
     if use_time_features:
         return X, targets, padding_masks, X_time, y_time
     else:
