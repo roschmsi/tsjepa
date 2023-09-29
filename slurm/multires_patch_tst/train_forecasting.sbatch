@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="train hierarchical patch tst"
+#SBATCH --job-name="train multires patch tst forecasting"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -10,18 +10,17 @@
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
---model_name hierarchical_patch_tst \
+--model_name multires_patch_tst \
 --num_levels 3 \
---enc_num_layers 2 \
+--enc_num_layers 3 \
 --enc_num_heads 8 \
 --enc_d_model 512 \
 --enc_d_ff 1024 \
---dec_num_layers 2 \
+--dec_num_layers 3 \
 --dec_num_heads 8 \
 --dec_d_model 512 \
 --dec_d_ff 1024 \
---ch_factor 1 \
---window_size 6 4 \
+--window_size 96 24 4 \
 --dropout 0.5 \
 --shared_embedding \
 --norm BatchNorm \
@@ -29,8 +28,8 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --head_dropout 0 \
 --masking_ratio 0 \
 --use_patch \
---patch_len 4 \
---stride 4 \
+--patch_len 1 \
+--stride 1 \
 --optimizer AdamW \
 --lr 0.00001 \
 --scheduler CosineAnnealingLR \
@@ -41,10 +40,9 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --patience 20 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
 --task forecasting \
---seq_len 512 \
+--seq_len 720 \
 --label_len 0 \
 --pred_len 96 \
---learn_pe \
+--interpolation \
 --val_interval 2 \
---revin \
---description "full_attention"
+--description "no_revin"

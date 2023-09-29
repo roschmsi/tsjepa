@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="train hierarchical patch tst"
+#SBATCH --job-name="train petformer forecasting"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -10,18 +10,11 @@
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
---model_name hierarchical_patch_tst \
---num_levels 3 \
---enc_num_layers 2 \
---enc_num_heads 8 \
---enc_d_model 512 \
---enc_d_ff 1024 \
---dec_num_layers 2 \
---dec_num_heads 8 \
---dec_d_model 512 \
---dec_d_ff 1024 \
---ch_factor 1 \
---window_size 6 4 \
+--model_name petformer \
+--num_layers 4 \
+--num_heads 16 \
+--d_model 438 \
+--d_ff 1024 \
 --dropout 0.5 \
 --shared_embedding \
 --norm BatchNorm \
@@ -29,22 +22,24 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --head_dropout 0 \
 --masking_ratio 0 \
 --use_patch \
---patch_len 4 \
---stride 4 \
+--patch_len 16 \
+--stride 16 \
 --optimizer AdamW \
---lr 0.00001 \
+--lr 0.0001 \
 --scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
 --epochs 100 \
---batch_size 64 \
+--batch_size 128 \
 --num_workers 4 \
 --patience 20 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
 --task forecasting \
---seq_len 512 \
+--seq_len 720 \
 --label_len 0 \
 --pred_len 96 \
 --learn_pe \
 --val_interval 2 \
 --revin \
---description "full_attention"
+--use_time_features \
+--d_temp 74 \
+--description "one_hot_time"

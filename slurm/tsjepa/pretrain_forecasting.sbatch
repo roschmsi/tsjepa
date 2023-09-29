@@ -30,6 +30,7 @@ srun python3 /usr/stud/roschman/ECGAnalysis/pretrain_tsjepa.py \
 --stride 8 \
 --optimizer AdamW \
 --lr 0.00001 \
+--scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
 --epochs 3000 \
 --batch_size 512 \
