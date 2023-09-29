@@ -45,6 +45,10 @@ class Options(object):
         self.parser.add_argument("--load_classifier", type=str)
         # self.parser.add_argument("--no_momentum", action="store_true")
 
+        # stationarity
+        self.parser.add_argument("--differencing", action="store_true")
+        self.parser.add_argument("--lag", type=int, default=0)
+
         # vic regularization
         self.parser.add_argument("--vic_reg", action="store_true")
         self.parser.add_argument("--vibc_reg", action="store_true")
@@ -73,13 +77,20 @@ class Options(object):
         self.parser.add_argument("--hierarchical", action="store_true")
         self.parser.add_argument("--layer_wise_prediction", action="store_true")
         self.parser.add_argument("--num_levels", type=int)
-        self.parser.add_argument("--window_size", type=int)
+        # self.parser.add_argument("--window_size", type=int)
+        self.parser.add_argument(
+            "--window_size",
+            nargs="+",
+            type=int,
+        )
         self.parser.add_argument("--ch_factor", type=float)
         self.parser.add_argument("--hierarchical_loss", action="store_true")
+        self.parser.add_argument("--interpolation", action="store_true")
 
         # time covariates
         self.parser.add_argument("--use_time_features", action="store_true")
         self.parser.add_argument("--timeenc", type=int, default=0)
+        self.parser.add_argument("--d_temp", type=int, default=0)
 
         # fedformer
         self.parser.add_argument("--version", type=str)
@@ -163,6 +174,9 @@ class Options(object):
             type=str,
             default="/usr/stud/roschman/ECGAnalysis/output",
         )
+
+        # distributed training
+        self.parser.add_argument("--distributed", action="store_true")
 
     def parse(self):
         args = self.parser.parse_args()
