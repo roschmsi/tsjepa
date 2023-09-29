@@ -97,34 +97,35 @@ def check_config(config):
         config.mae
         or config.model_name == "tsjepa"
         or config.model_name == "hierarchical_patch_tst"
+        or config.model_name == "multires_patch_tst"
     ):
         dir += "_enc"
         if config.enc_num_layers is not None:
-            dir += f"_nlayers={config.enc_num_layers}"
+            dir += f"_l={config.enc_num_layers}"
         if config.enc_num_heads is not None:
-            dir += f"_nheads={config.enc_num_heads}"
+            dir += f"_h={config.enc_num_heads}"
         if config.enc_d_model is not None:
-            dir += f"_dmodel={config.enc_d_model}"
+            dir += f"_d={config.enc_d_model}"
         if config.enc_d_ff is not None:
-            dir += f"_dff={config.enc_d_ff}"
+            dir += f"_ff={config.enc_d_ff}"
         dir += "_dec"
         if config.dec_num_layers is not None:
-            dir += f"_nlayers={config.dec_num_layers}"
+            dir += f"_l={config.dec_num_layers}"
         if config.dec_num_heads is not None:
-            dir += f"_nheads={config.dec_num_heads}"
+            dir += f"_h={config.dec_num_heads}"
         if config.dec_d_model is not None:
-            dir += f"_dmodel={config.dec_d_model}"
+            dir += f"_d={config.dec_d_model}"
         if config.dec_d_ff is not None:
-            dir += f"_dff={config.dec_d_ff}"
+            dir += f"_ff={config.dec_d_ff}"
     else:
         if config.num_layers is not None:
-            dir += f"_nlayers={config.num_layers}"
+            dir += f"_l={config.num_layers}"
         if config.num_heads is not None:
-            dir += f"_nheads={config.num_heads}"
+            dir += f"_h={config.num_heads}"
         if config.d_model is not None:
-            dir += f"_dmodel={config.d_model}"
+            dir += f"_d={config.d_model}"
         if config.d_ff is not None:
-            dir += f"_dff={config.d_ff}"
+            dir += f"_ff={config.d_ff}"
 
     if config.dropout is not None:
         dir += f"_drop={config.dropout}"
