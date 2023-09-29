@@ -104,7 +104,9 @@ class PatchTST(nn.Module):
         else:
             raise ValueError(f"Task {task} not defined.")
 
-    def forward(self, z, padding_mask=None, return_encoding=False):
+    def forward(
+        self, z, padding_mask=None, X_time=None, y_time=None, return_encoding=False
+    ):
         """
         z: tensor [bs x num_patch x n_vars x patch_len]
         """
@@ -114,8 +116,8 @@ class PatchTST(nn.Module):
             z = self.revin_layer(z, "norm")
             z = z.permute(0, 2, 1)
 
-        # TODO do not use float here, ensure datatype in datset class
-        z = self.backbone(z.float())
+        # TODO do not use float here, ensure datatype in dataset class
+        z = self.backbone(z)
         # z: [bs x nvars x d_model x num_patch]
 
         pred = self.head(z)
