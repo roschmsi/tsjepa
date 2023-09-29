@@ -26,6 +26,8 @@ def get_criterion(config):
                 window_size=config.window_size,
                 pred_len=config.pred_len,
             )
+        elif config.model_name == "petformer":
+            return torch.nn.SmoothL1Loss(reduction="mean")
         return torch.nn.MSELoss(reduction="mean")
     else:
         raise ValueError(
