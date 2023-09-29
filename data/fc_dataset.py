@@ -218,8 +218,8 @@ class Dataset_ETT_hour(Dataset):
         df_stamp = df_raw[["date"]][border1:border2]
         df_stamp["date"] = pd.to_datetime(df_stamp.date)
         if self.timeenc == 0:
-            df_stamp["month"] = df_stamp.date.apply(lambda row: row.month, 1)
-            df_stamp["day"] = df_stamp.date.apply(lambda row: row.day, 1)
+            df_stamp["month"] = df_stamp.date.apply(lambda row: row.month - 1, 1)
+            df_stamp["day"] = df_stamp.date.apply(lambda row: row.day - 1, 1)
             df_stamp["weekday"] = df_stamp.date.apply(lambda row: row.weekday(), 1)
             df_stamp["hour"] = df_stamp.date.apply(lambda row: row.hour, 1)
             data_stamp = df_stamp.drop(["date"], axis=1).values
@@ -333,8 +333,8 @@ class Dataset_ETT_minute(Dataset):
         df_stamp = df_raw[["date"]][border1:border2]
         df_stamp["date"] = pd.to_datetime(df_stamp.date)
         if self.timeenc == 0:
-            df_stamp["month"] = df_stamp.date.apply(lambda row: row.month, 1)
-            df_stamp["day"] = df_stamp.date.apply(lambda row: row.day, 1)
+            df_stamp["month"] = df_stamp.date.apply(lambda row: row.month - 1, 1)
+            df_stamp["day"] = df_stamp.date.apply(lambda row: row.day - 1, 1)
             df_stamp["weekday"] = df_stamp.date.apply(lambda row: row.weekday(), 1)
             df_stamp["hour"] = df_stamp.date.apply(lambda row: row.hour, 1)
             df_stamp["minute"] = df_stamp.date.apply(lambda row: row.minute, 1)
@@ -461,9 +461,11 @@ class Dataset_Custom(Dataset):
         df_stamp[self.time_col_name] = pd.to_datetime(df_stamp[self.time_col_name])
         if self.timeenc == 0:
             df_stamp["month"] = df_stamp[self.time_col_name].apply(
-                lambda row: row.month, 1
+                lambda row: row.month - 1, 1
             )
-            df_stamp["day"] = df_stamp[self.time_col_name].apply(lambda row: row.day, 1)
+            df_stamp["day"] = df_stamp[self.time_col_name].apply(
+                lambda row: row.day - 1, 1
+            )
             df_stamp["weekday"] = df_stamp[self.time_col_name].apply(
                 lambda row: row.weekday(), 1
             )
@@ -583,8 +585,8 @@ class Dataset_Pred(Dataset):
         df_stamp = pd.DataFrame(columns=["date"])
         df_stamp.date = list(tmp_stamp.date.values) + list(pred_dates[1:])
         if self.timeenc == 0:
-            df_stamp["month"] = df_stamp.date.apply(lambda row: row.month, 1)
-            df_stamp["day"] = df_stamp.date.apply(lambda row: row.day, 1)
+            df_stamp["month"] = df_stamp.date.apply(lambda row: row.month - 1, 1)
+            df_stamp["day"] = df_stamp.date.apply(lambda row: row.day - 1, 1)
             df_stamp["weekday"] = df_stamp.date.apply(lambda row: row.weekday(), 1)
             df_stamp["hour"] = df_stamp.date.apply(lambda row: row.hour, 1)
             df_stamp["minute"] = df_stamp.date.apply(lambda row: row.minute, 1)
