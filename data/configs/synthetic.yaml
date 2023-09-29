@@ -1,0 +1,3 @@
+dataset: "synthetic"
+feat_dim: 1
+multilabel: false
