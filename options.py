@@ -17,10 +17,12 @@ class Options(object):
         self.parser.add_argument("--num_cnn", type=int)
         self.parser.add_argument("--d_model", type=int)
         self.parser.add_argument("--d_ff", type=int)
+        self.parser.add_argument("--mlp_ratio", type=int)
         self.parser.add_argument("--num_heads", type=int)
         self.parser.add_argument("--num_layers", type=int)
         self.parser.add_argument("--dropout", type=float)
         self.parser.add_argument("--head_dropout", type=float)
+        self.parser.add_argument("--attn_dropout", type=float)
         self.parser.add_argument("--shared_embedding", action="store_true")
         self.parser.add_argument("--norm", type=str)
         self.parser.add_argument("--activation", type=str)
@@ -77,15 +79,19 @@ class Options(object):
         self.parser.add_argument("--hierarchical", action="store_true")
         self.parser.add_argument("--layer_wise_prediction", action="store_true")
         self.parser.add_argument("--num_levels", type=int)
-        # self.parser.add_argument("--window_size", type=int)
-        self.parser.add_argument(
-            "--window_size",
-            nargs="+",
-            type=int,
-        )
+        self.parser.add_argument("--window_size", type=int)
+        # self.parser.add_argument(
+        #     "--window_size",
+        #     nargs="+",
+        #     type=int,
+        # )
         self.parser.add_argument("--ch_factor", type=float)
         self.parser.add_argument("--hierarchical_loss", action="store_true")
         self.parser.add_argument("--interpolation", action="store_true")
+        self.parser.add_argument("--depths", nargs="+", type=int)
+        self.parser.add_argument("--depths_encoder", nargs="+", type=int)
+        self.parser.add_argument("--depths_decoder", nargs="+", type=int)
+        self.parser.add_argument("--hierarchical_num_heads", nargs="+", type=int)
 
         # time covariates
         self.parser.add_argument("--use_time_features", action="store_true")

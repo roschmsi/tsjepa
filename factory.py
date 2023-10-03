@@ -1,6 +1,7 @@
 from functools import partial
 
 import torch
+import torch.nn as nn
 
 from data.dataset import (
     ClassificationDataset,
@@ -29,10 +30,13 @@ from models.hierarchical_masked_autoencoder.model import (
     HierarchicalMaskedAutoencoderPredictor,
 )
 from models.hierarchical_patch_tst.model import HierarchicalPatchTST
+from models.multires_patch_tst.model import MultiresPatchTST
 from models.masked_autoencoder.model import (
     MaskedAutoencoder,
     MaskedAutoencoderPredictor,
 )
+from models.swin_tst.model import SwinTransformer
+from models.swin_tst.unet import SwinTransformerUNet
 from models.masked_autoencoder.pretraining_masked_autoencoder_search_space import (
     get_pretraining_masked_autoencoder_search_space,
 )
@@ -59,6 +63,10 @@ from utils import load_config_yaml
 from runner.classification import SupervisedRunner
 from runner.forecasting import ForecastingRunner
 from runner.unsupervised import UnsupervisedRunner, UnsupervisedPatchRunner
+from runner.multires import MultiresRunner
+from models.petformer.model import PETformer
+from runner.swin import SwinRunner
+from models.petformer_synthetic.model import PETformerSynthetic
 
 
 def setup_pipeline(config):
@@ -128,20 +136,57 @@ def setup_pipeline(config):
         else:
             return ClassificationDataset, collate_superv, SupervisedRunner
 
-    elif config.task == "forecasting":
+    elif config.task == "forecasting" and config.model_name == "multires_patch_tst":
+        return (
+            partial(
+                ForecastingPatchDataset,
+                patch_len=config.patch_len,
+                stride=config.stride,
+                use_time_features=config.use_time_features,
+            ),
+            partial(
+                collate_patch_superv,
+                patch_len=config.patch_len,
+                stride=config.stride,
+                masking_ratio=config.masking_ratio,
+                use_time_features=config.use_time_features,
+            ),
+            MultiresRunner,
+        )
+    elif config.task == "forecasting" and (
+        config.model_name == "swin_tst" or config.model_name == "swin_tst_unet"
+    ):
+        return (
+            partial(
+                ForecastingDataset,
+                use_time_features=config.use_time_features,
+            ),
+            partial(
+                collate_superv,
+                use_time_features=config.use_time_features,
+            ),
+            partial(
+                SwinRunner,
+                patch_len=config.patch_len,
+                stride=config.stride,
+            ),
+        )
+    elif config.task == "forecasting" and (
+        config.model_name != "swin_tst" or config.model_name != "swin_tst_unet"
+    ):
         if config.use_patch:
             return (
                 partial(
-                    ForecastingPatchDataset,
-                    patch_len=config.patch_len,
-                    stride=config.stride,
+                    ForecastingDataset,
+                    # patch_len=config.patch_len,
+                    # stride=config.stride,
                     use_time_features=config.use_time_features,
                 ),
                 partial(
-                    collate_patch_superv,
-                    patch_len=config.patch_len,
-                    stride=config.stride,
-                    masking_ratio=config.masking_ratio,
+                    collate_superv,
+                    # patch_len=config.patch_len,
+                    # stride=config.stride,
+                    # masking_ratio=config.masking_ratio,
                     use_time_features=config.use_time_features,
                 ),
                 partial(
@@ -149,6 +194,9 @@ def setup_pipeline(config):
                     use_time_features=config.use_time_features,
                     layer_wise_prediction=config.layer_wise_prediction,
                     hierarchical_loss=config.hierarchical_loss,
+                    patch_len=config.patch_len,
+                    stride=config.stride,
+                    differencing=config.differencing,
                 ),
             )
         else:
@@ -286,6 +334,50 @@ def setup_model(config):
             task=config.task,
             head_dropout=config.head_dropout,
         )
+    elif config.model_name == "petformer":
+        return PETformer(
+            c_in=config.feat_dim,
+            c_out=c_out,
+            num_patch=num_patch,
+            patch_len=config.patch_len,
+            num_layers=config.num_layers,
+            num_heads=config.num_heads,
+            d_model=config.d_model,
+            d_temp=config.d_temp,
+            d_ff=config.d_ff,
+            dropout=config.dropout,
+            revin=config.revin,
+            shared_embedding=config.shared_embedding,
+            norm=config.norm,
+            activation=config.activation,
+            pe="sincos",
+            learn_pe=config.learn_pe,
+            task=config.task,
+            head_dropout=config.head_dropout,
+            attn_dropout=config.attn_dropout,
+            use_time_features=config.use_time_features,
+            # res_attention=True,  # TODO comment again
+        )
+    elif config.model_name == "petformer_synthetic":
+        return PETformerSynthetic(
+            c_in=config.feat_dim,
+            c_out=c_out,
+            num_patch=num_patch,
+            patch_len=config.patch_len,
+            num_layers=config.num_layers,
+            num_heads=config.num_heads,
+            d_model=config.d_model,
+            d_ff=config.d_ff,
+            dropout=config.dropout,
+            revin=config.revin,
+            shared_embedding=config.shared_embedding,
+            norm=config.norm,
+            activation=config.activation,
+            pe="sincos",
+            learn_pe=config.learn_pe,
+            task=config.task,
+            head_dropout=config.head_dropout,
+        )
     # hierarchical patch tst with channel independence
     elif config.model_name == "hierarchical_patch_tst":
         return HierarchicalPatchTST(
@@ -317,6 +409,38 @@ def setup_model(config):
             use_time_features=config.use_time_features,
             layer_wise_prediction=config.layer_wise_prediction,
             revin=config.revin,
+            interpolation=config.interpolation,
+        )
+    # multiresolution patch tst
+    elif config.model_name == "multires_patch_tst":
+        return MultiresPatchTST(
+            c_in=config.feat_dim,
+            c_out=c_out,
+            max_seq_len=max_seq_len,
+            num_levels=config.num_levels,
+            enc_num_layers=config.enc_num_layers,
+            enc_num_heads=config.enc_num_heads,
+            enc_d_model=config.enc_d_model,
+            enc_d_ff=config.enc_d_ff,
+            dec_num_layers=config.dec_num_layers,
+            dec_num_heads=config.dec_num_heads,
+            dec_d_model=config.dec_d_model,
+            dec_d_ff=config.dec_d_ff,
+            window_size=config.window_size,
+            dropout=config.dropout,
+            shared_embedding=config.shared_embedding,
+            norm=config.norm,
+            activation=config.activation,
+            pe="sincos",
+            learn_pe=config.learn_pe,
+            ch_token=config.ch_token,
+            cls_token=config.cls_token,
+            task=config.task,
+            head_dropout=config.head_dropout,
+            use_time_features=config.use_time_features,
+            layer_wise_prediction=config.layer_wise_prediction,
+            revin=config.revin,
+            interpolation=config.interpolation,
         )
     # patch tst with temporal encoding
     elif config.model_name == "patch_tst_t":
@@ -576,6 +700,51 @@ def setup_model(config):
             pred_len=config.pred_len,
             enc_in=config.feat_dim,
             individual=False,
+        )
+    elif config.model_name == "swin_tst":
+        return SwinTransformer(
+            input_len=config.seq_len,
+            patch_len=config.patch_len,
+            in_chans=config.feat_dim,
+            embed_dim=config.d_model,
+            depths=config.depths,
+            num_heads=config.hierarchical_num_heads,
+            window_size=config.window_size,
+            mlp_ratio=config.mlp_ratio,
+            pred_len=config.pred_len,
+            qkv_bias=True,
+            qk_scale=None,
+            drop_rate=config.dropout,
+            attn_drop_rate=0,
+            drop_path_rate=0,
+            norm_layer=nn.LayerNorm,
+            ape=config.learn_pe,
+            patch_norm=True,
+            use_checkpoint=False,
+            fused_window_process=False,
+        )
+    elif config.model_name == "swin_tst_unet":
+        return SwinTransformerUNet(
+            input_len=config.seq_len,
+            patch_len=config.patch_len,
+            in_chans=config.feat_dim,
+            embed_dim=config.d_model,
+            depths_encoder=config.depths_encoder,
+            depths_decoder=config.depths_decoder,
+            num_heads=config.hierarchical_num_heads,
+            window_size=config.window_size,
+            mlp_ratio=config.mlp_ratio,
+            pred_len=config.pred_len,
+            qkv_bias=True,
+            qk_scale=None,
+            drop_rate=config.dropout,
+            attn_drop_rate=0.0,
+            drop_path_rate=0.0,
+            norm_layer=nn.LayerNorm,
+            ape=False,
+            patch_norm=True,
+            use_checkpoint=False,
+            final_upsample="expand_first",
         )
     else:
         raise ValueError(
