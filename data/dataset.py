@@ -12,6 +12,8 @@ from data.fc_dataset import load_fc_dataset
 from data.synthetic import load_synthetic_dataset
 from copy import deepcopy
 from utils import load_config_yaml
+from statsmodels.tsa.seasonal import seasonal_decompose
+from models.patch_tst_decomposition.decomposition import series_decomp
 
 
 def load_dataset(config):
@@ -145,6 +147,42 @@ class ForecastingDataset(Dataset):
 
     def __getitem__(self, ind):
         return self.dataset.__getitem__(ind)
+
+    def __len__(self):
+        return len(self.dataset)
+
+
+class ForecastingDatasetTSR(Dataset):
+    def __init__(self, dataset, period):
+        super().__init__()
+        self.dataset = dataset
+        self.period = period
+
+    def __getitem__(self, ind):
+        X, y = self.dataset.__getitem__(ind)
+
+        X_trend = []
+        X_seasonal = []
+        X_residual = []
+
+        # decomposition
+        for d in range(X.shape[-1]):
+            decomposition = seasonal_decompose(
+                X[:, d], model="additive", period=self.period, extrapolate_trend="freq"
+            )
+            X_trend.append(decomposition.trend)
+            X_seasonal.append(decomposition.seasonal)
+            X_residual.append(decomposition.resid)
+
+        X_trend = np.stack(X_trend, axis=1)
+        X_seasonal = np.stack(X_seasonal, axis=1)
+        X_residual = np.stack(X_residual, axis=1)
+
+        X_trend = torch.from_numpy(X_trend).to(torch.float32)
+        X_seasonal = torch.from_numpy(X_seasonal).to(torch.float32)
+        X_residual = torch.from_numpy(X_residual).to(torch.float32)
+
+        return X_trend, X_seasonal, X_residual, y
 
     def __len__(self):
         return len(self.dataset)
@@ -298,6 +336,33 @@ def collate_superv(data, max_len=None, use_time_features=False):
         return X, targets, padding_masks, X_time, y_time
     else:
         return X, targets, padding_masks
+
+
+def collate_superv_decomposition(data, max_len=None, use_time_features=False):
+    """Build mini-batch tensors from a list of (X, mask) tuples. Mask input. Create
+    Args:
+        data: len(batch_size) list of tuples (X, y).
+            - X: torch tensor of shape (seq_length, feat_dim); variable seq_length.
+            - y: torch tensor of shape (num_labels,) : class indices or numerical targets
+                (for classification or regression, respectively). num_labels > 1 for multi-task models
+        max_len: global fixed sequence length. Used for architectures requiring fixed length input,
+            where the batch length cannot vary dynamically. Longer sequences are clipped, shorter are padded with 0s
+    Returns:
+        X: (batch_size, padded_length, feat_dim) torch tensor of masked features (input)
+        targets: (batch_size, padded_length, feat_dim) torch tensor of unmasked features (output)
+        target_masks: (batch_size, padded_length, feat_dim) boolean torch tensor
+            0 indicates masked values to be predicted, 1 indicates unaffected/"active" feature values
+        padding_masks: (batch_size, padded_length) boolean tensor, 1 means keep vector at this position, 0 means padding
+    """
+
+    trend, seasonal, residual, labels = zip(*data)
+
+    trend = torch.stack(trend, dim=0)
+    seasonal = torch.stack(seasonal, dim=0)
+    residual = torch.stack(residual, dim=0)
+    targets = torch.stack(labels, dim=0)
+
+    return trend, seasonal, residual, targets
 
 
 def collate_patch_superv(
