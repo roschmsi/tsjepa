@@ -11,11 +11,11 @@
 source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --model_name patch_tst \
---num_layers 3 \
---num_heads 16 \
---d_model 64 \
---d_ff 128 \
---dropout 0.1 \
+--num_layers 4 \
+--num_heads 8 \
+--d_model 128 \
+--d_ff 256 \
+--dropout 0.3 \
 --shared_embedding \
 --norm BatchNorm \
 --activation gelu \
@@ -23,22 +23,21 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --masking_ratio 0 \
 --use_patch \
 --learn_pe \
---patch_len 16 \
---stride 16 \
+--patch_len 48 \
+--stride 48 \
 --optimizer AdamW \
---lr 0.001 \
+--lr 0.00005 \
 --scheduler CosineAnnealingLR \
---weight_decay 0.01 \
+--weight_decay 0.1 \
 --epochs 100 \
 --batch_size 64 \
 --num_workers 4 \
 --patience 100 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
 --task forecasting \
---seq_len 514 \
---differencing \
---lag 2 \
+--seq_len 720 \
 --label_len 0 \
---pred_len 96 \
---differencing \
---description "differencing_grad_space_nonorm"
+--pred_len 720 \
+--patch_revin \
+--val_interval 2 \
+--description "fix_patch_revin"

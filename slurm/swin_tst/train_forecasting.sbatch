@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="train patch tst classification"
+#SBATCH --job-name="train swin tst forecasting"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
@@ -10,27 +10,35 @@
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 source /usr/stud/roschman/ECGAnalysis/ecg_310/bin/activate
 srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
---model_name patch_tst \
---num_layers 8 \
---num_heads 8 \
+--model_name swin_tst \
+--depths 1 1 1 \
+--hierarchical_num_heads 16 16 16 \
 --d_model 256 \
---d_ff 512 \
---dropout 0.1 \
+--mlp_ratio 2 \
+--dropout 0.3 \
+--window_size 4 \
 --shared_embedding \
 --norm BatchNorm \
 --activation gelu \
 --head_dropout 0 \
 --masking_ratio 0 \
 --use_patch \
---patch_len 16 \
---stride 16 \
+--learn_pe \
+--patch_len 4 \
+--stride 4 \
 --optimizer AdamW \
---lr 0.0001 \
+--lr 0.00005 \
 --scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
 --epochs 100 \
 --batch_size 64 \
 --num_workers 4 \
 --patience 20 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
---task classification
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
+--task forecasting \
+--seq_len 720 \
+--label_len 0 \
+--pred_len 720 \
+--revin \
+--val_interval 2 \
+--description "no_input_dropout"
