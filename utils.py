@@ -64,7 +64,10 @@ def check_config(config):
     if config.optimizer is not None:
         dir += f"_opt={config.optimizer}"
     if config.scheduler is not None:
-        dir += f"_sch={config.scheduler}"
+        if config.scheduler == "CosineAnnealingLR":
+            dir += "_sch=CA"
+        if config.scheduler == "CosineAnnealingLRWithWarmup":
+            dir += "_sch=CAW"
     if config.lr is not None:
         dir += f"_lr={config.lr}"
     if config.weight_decay is not None:
@@ -145,7 +148,8 @@ def check_config(config):
 
     # check tsjepa parameters
     if config.model_name == "tsjepa":
-        dir += f"_emastart={config.ema_start}"
+        if config.ema_start is not None:
+            dir += f"_emastart={config.ema_start}"
 
     # check fedformer parameters
     if config.version is not None:
@@ -369,6 +373,7 @@ def log_training(
     epoch_end_time,
     num_batches,
     num_samples,
+    aggr_imgs_train={},
 ):
     print()
     epoch_runtime = epoch_end_time - epoch_start_time
@@ -382,6 +387,9 @@ def log_training(
             *readable_time(epoch_runtime)
         )
     )
+
+    for k, v in aggr_imgs_train.items():
+        tb_writer.add_figure("{}/train".format(k), v, epoch)
 
     total_epoch_time += epoch_runtime
     avg_epoch_time = total_epoch_time / (epoch - start_epoch)
