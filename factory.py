@@ -49,6 +49,7 @@ from models.masked_autoencoder_t.model import (
     MaskedAutoencoderTPredictor,
 )
 from models.patch_tst.model import PatchTST
+from models.patch_tst_decomposition.model import PatchTSTDecomposition
 from models.patch_tst.patch_tst_search_space import get_patch_tst_search_space
 from models.patch_tst_t.model import PatchTransformerT
 from models.patch_tst_tc.model import PatchTransformerTC
@@ -57,7 +58,9 @@ from models.transformer.model import (
     TSTransformerEncoder,
     TSTransformerEncoderClassifier,
 )
-from models.ts2vec.model import TS2VecConfig, TS2Vec, TS2VecPredictor
+from runner.ts2vec import TS2VecRunner
+
+# from models.ts2vec.model import TS2VecConfig, TS2Vec, TS2VecPredictor
 from utils import load_config_yaml
 
 from runner.classification import SupervisedRunner
@@ -67,6 +70,9 @@ from runner.multires import MultiresRunner
 from models.petformer.model import PETformer
 from runner.swin import SwinRunner
 from models.petformer_synthetic.model import PETformerSynthetic
+from runner.decomposition import DecompositionRunner
+from data.dataset import ForecastingDatasetTSR
+from data.dataset import collate_superv_decomposition
 
 
 def setup_pipeline(config):
@@ -131,10 +137,76 @@ def setup_pipeline(config):
                     masking_ratio=config.masking_ratio,
                     use_time_features=config.use_time_features,
                 ),
-                SupervisedRunner,
+                partial(
+                    SupervisedRunner, mixup=config.mixup, multilabel=config.multilabel
+                ),
             )
         else:
-            return ClassificationDataset, collate_superv, SupervisedRunner
+            return (
+                ClassificationDataset,
+                collate_superv,
+                partial(
+                    SupervisedRunner, mixup=config.mixup, multilabel=config.multilabel
+                ),
+            )
+
+    elif config.model_name == "ts2vec":
+        return (
+            partial(
+                PretrainingPatchDataset,
+                masking_ratio=config.masking_ratio,
+                patch_len=config.patch_len,
+                stride=config.stride,
+                debug=config.debug,
+                only_time_masking=True
+                if (
+                    config.model_name == "masked_autoencoder_t"
+                    or config.model_name == "patch_tst_t"
+                )
+                else False,
+                hierarchical=config.hierarchical,
+                num_levels=config.num_levels,
+            ),
+            partial(
+                collate_patch_unsuperv,
+                feat_dim=config.feat_dim,
+                patch_len=config.patch_len,
+                stride=config.stride,
+                masking_ratio=config.masking_ratio,
+                num_levels=config.num_levels,
+            ),
+            TS2VecRunner,
+        )
+
+    elif config.task == "forecasting" and config.decomposition:
+        if config.trend_seasonal_residual:
+            return (
+                partial(
+                    ForecastingDatasetTSR,
+                    period=config.period,
+                ),
+                collate_superv_decomposition,
+                partial(
+                    DecompositionRunner,
+                    trend_seasonal_residual=config.trend_seasonal_residual,
+                ),
+            )
+        else:
+            return (
+                partial(
+                    ForecastingDataset,
+                    use_time_features=config.use_time_features,
+                ),
+                partial(
+                    collate_superv,
+                    use_time_features=config.use_time_features,
+                ),
+                partial(
+                    DecompositionRunner,
+                    trend_seasonal_residual=config.trend_seasonal_residual,
+                    moving_avg=config.moving_avg,
+                ),
+            )
 
     elif config.task == "forecasting" and config.model_name == "multires_patch_tst":
         return (
@@ -324,8 +396,10 @@ def setup_model(config):
             d_ff=config.d_ff,
             dropout=config.dropout,
             revin=config.revin,
+            patch_revin=config.patch_revin,
             shared_embedding=config.shared_embedding,
             norm=config.norm,
+            pre_norm=config.pre_norm,
             activation=config.activation,
             pe="sincos",
             learn_pe=config.learn_pe,
@@ -333,6 +407,31 @@ def setup_model(config):
             cls_token=config.cls_token,
             task=config.task,
             head_dropout=config.head_dropout,
+        )
+    elif config.model_name == "patch_tst_decomposition":
+        return PatchTSTDecomposition(
+            c_in=config.feat_dim,
+            c_out=c_out,
+            num_patch=num_patch,
+            patch_len=config.patch_len,
+            num_layers=config.num_layers,
+            num_heads=config.num_heads,
+            d_model=config.d_model,
+            d_ff=config.d_ff,
+            dropout=config.dropout,
+            revin=config.revin,
+            shared_embedding=config.shared_embedding,
+            norm=config.norm,
+            pre_norm=config.pre_norm,
+            activation=config.activation,
+            pe="sincos",
+            learn_pe=config.learn_pe,
+            ch_token=config.ch_token,
+            cls_token=config.cls_token,
+            task=config.task,
+            head_dropout=config.head_dropout,
+            separate_backbone=config.separate_backbone,
+            trend_seasonal_residual=config.trend_seasonal_residual,
         )
     elif config.model_name == "petformer":
         return PETformer(
@@ -356,6 +455,11 @@ def setup_model(config):
             head_dropout=config.head_dropout,
             attn_dropout=config.attn_dropout,
             use_time_features=config.use_time_features,
+            add_time_encoding=config.add_time_encoding,
+            concat_time_encoding=config.concat_time_encoding,
+            temporal_attention=config.temporal_attention,
+            patch_time=config.patch_time,
+            input_time=config.input_time,
             # res_attention=True,  # TODO comment again
         )
     elif config.model_name == "petformer_synthetic":
@@ -680,19 +784,19 @@ def setup_model(config):
             task=config.task,
             head_dropout=config.head_dropout,
         )
-    elif config.model_name == "ts2vec":
-        if config.task == "pretraining":
-            ts2vec_config_yaml = load_config_yaml(
-                "/home/stud/roschman/ECGAnalysis/models/ts2vec/config.yaml"
-            )
-            ts2vec_config = TS2VecConfig(**ts2vec_config_yaml)
-            return TS2Vec(cfg=ts2vec_config)
-        elif config.task in ["classification", "forecasting"]:
-            ts2vec_config_yaml = load_config_yaml(
-                "/home/stud/roschman/ECGAnalysis/models/ts2vec/config.yaml"
-            )
-            ts2vec_config = TS2VecConfig(**ts2vec_config_yaml)
-            return TS2VecPredictor(cfg=ts2vec_config, c_out=c_out, task=config.task)
+    # elif config.model_name == "ts2vec":
+    #     if config.task == "pretraining":
+    #         ts2vec_config_yaml = load_config_yaml(
+    #             "/home/stud/roschman/ECGAnalysis/models/ts2vec/config.yaml"
+    #         )
+    #         ts2vec_config = TS2VecConfig(**ts2vec_config_yaml)
+    #         return TS2Vec(cfg=ts2vec_config)
+    #     elif config.task in ["classification", "forecasting"]:
+    #         ts2vec_config_yaml = load_config_yaml(
+    #             "/home/stud/roschman/ECGAnalysis/models/ts2vec/config.yaml"
+    #         )
+    #         ts2vec_config = TS2VecConfig(**ts2vec_config_yaml)
+    #         return TS2VecPredictor(cfg=ts2vec_config, c_out=c_out, task=config.task)
 
     elif config.model_name == "sequential_linear":
         return SeqLinear(
@@ -738,11 +842,11 @@ def setup_model(config):
             qkv_bias=True,
             qk_scale=None,
             drop_rate=config.dropout,
-            attn_drop_rate=0.0,
-            drop_path_rate=0.0,
-            norm_layer=nn.LayerNorm,
-            ape=False,
-            patch_norm=True,
+            attn_drop_rate=config.attn_drop_rate,
+            drop_path_rate=config.drop_path_rate,
+            norm_layer=config.norm,
+            ape=config.learn_pe,
+            patch_norm=False,
             use_checkpoint=False,
             final_upsample="expand_first",
         )

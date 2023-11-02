@@ -25,8 +25,6 @@ class RevIN(nn.Module):
             x = self._normalize(x)
         elif mode == "denorm":
             x = self._denormalize(x)
-        elif mode == "norm_y":
-            x = self._normalize(x)
         else:
             raise NotImplementedError
         return x
@@ -66,4 +64,41 @@ class RevIN(nn.Module):
             x = x + self.last
         else:
             x = x + self.mean
+        return x
+
+
+class BlockRevIN(RevIN):
+    def __init__(
+        self,
+        num_features: int,
+        masking_ratio: float,
+        eps=1e-5,
+        affine=True,
+        subtract_last=False,
+    ):
+        """
+        :param num_features: the number of features or channels
+        :param eps: a value added for numerical stability
+        :param affine: if True, RevIN has learnable affine parameters
+        """
+        super(BlockRevIN, self).__init__(
+            num_features=num_features,
+            eps=eps,
+            affine=affine,
+            subtract_last=subtract_last,
+        )
+
+        self.masking_ratio = masking_ratio
+
+    def forward(self, x, mode: str):
+        if mode == "norm":
+            x_enc_len = x.shape[1] - int(self.masking_ratio * x.shape[1])
+            x_enc = x[:, :x_enc_len, :]
+            x_pred = x[:, x_enc_len:, :]
+            self._get_statistics(x_enc)
+            x_enc = self._normalize(x_enc)
+            x_pred = self._normalize(x_pred)
+            x = torch.cat((x_enc, x_pred), dim=1)
+        else:
+            raise NotImplementedError
         return x

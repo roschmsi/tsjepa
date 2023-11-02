@@ -7,6 +7,7 @@ from models.patch_tst.layers.encoder import TSTEncoder
 from models.patch_tst.layers.heads import (
     ClassificationHead,
     PredictionHead,
+    PatchRevinHead,
     PretrainHead,
 )
 from models.patch_tst.layers.pos_encoding import positional_encoding
@@ -34,6 +35,7 @@ class PatchTST(nn.Module):
         d_ff: int,
         dropout: float,
         revin: bool = False,
+        patch_revin: bool = False,
         shared_embedding=True,
         norm: str = "BatchNorm",
         pre_norm: bool = False,
@@ -52,6 +54,7 @@ class PatchTST(nn.Module):
         super().__init__()
 
         self.revin = revin
+        self.patch_revin = patch_revin
         if self.revin:
             self.revin_layer = RevIN(c_in, affine=True, subtract_last=False)
 
@@ -85,14 +88,25 @@ class PatchTST(nn.Module):
                 head_dropout=head_dropout,
             )
         elif task == "forecasting":
-            self.head = PredictionHead(
-                individual=individual,
-                n_vars=c_in,
-                d_model=d_model,
-                num_patch=num_patch,
-                forecast_len=c_out,
-                head_dropout=head_dropout,
-            )
+            if self.patch_revin:
+                self.head = PatchRevinHead(
+                    n_vars=c_in,
+                    d_model=d_model,
+                    input_num_patch=num_patch,
+                    output_num_patch=c_out // patch_len,
+                    forecast_len=c_out,
+                    head_dropout=head_dropout,
+                    patch_len=patch_len,
+                )
+            else:
+                self.head = PredictionHead(
+                    individual=individual,
+                    n_vars=c_in,
+                    d_model=d_model,
+                    num_patch=num_patch,
+                    forecast_len=c_out,
+                    head_dropout=head_dropout,
+                )
         elif task == "classification":
             self.head = ClassificationHead(
                 n_vars=c_in,
@@ -110,26 +124,41 @@ class PatchTST(nn.Module):
         """
         z: tensor [bs x num_patch x n_vars x patch_len]
         """
+        bs, num_patch, n_vars, patch_len = z.shape
+
         # bs x nvars x seq_len
         if self.revin:
-            z = z.permute(0, 2, 1)
-            z = self.revin_layer(z, "norm")
-            z = z.permute(0, 2, 1)
+            z = z.transpose(1, 2)
+            z = z.reshape(bs, n_vars, num_patch * patch_len)  # bs x n_vars x seq_len
+            z = z.transpose(1, 2)  # bs x seq_len x n_vars
+
+            z = self.revin_layer(z, mode="norm")
+
+            z = z.transpose(1, 2)
+            z = z.reshape(bs, n_vars, num_patch, patch_len)
+            z = z.transpose(1, 2)
+        elif self.patch_revin:
+            mean = z.mean(dim=-1, keepdim=True)
+            std = torch.sqrt(z.var(dim=-1, keepdim=True) + 1e-4)
+            z = (z - mean) / std
 
         # TODO do not use float here, ensure datatype in dataset class
         z = self.backbone(z)
         # z: [bs x nvars x d_model x num_patch]
 
-        pred = self.head(z)
+        if self.patch_revin:
+            pred = self.head(z, mean, std)
+        else:
+            pred = self.head(z)
         # z: [bs x target_dim x nvars] for prediction
         #    [bs x target_dim] for regression
         #    [bs x target_dim] for classification
         #    [bs x num_patch x n_vars x patch_len] for pretrain
 
         if self.revin:
-            pred = pred.permute(0, 2, 1)
+            # pred = pred.permute(0, 2, 1)
             pred = self.revin_layer(pred, "denorm")
-            pred = pred.permute(0, 2, 1)
+            # pred = pred.permute(0, 2, 1)
 
         if return_encoding:
             return pred, z
@@ -221,7 +250,8 @@ class PatchTSTEncoder(nn.Module):
         # x: [bs * nvars x num_patch x d_model]
 
         # add positional encoding
-        x = self.dropout(x + self.W_pos)
+        # x = self.dropout(x + self.W_pos)
+        x = x + self.W_pos
 
         x = x.reshape(bs, n_vars, num_patch, self.d_model)
 

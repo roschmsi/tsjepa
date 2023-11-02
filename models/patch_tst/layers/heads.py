@@ -113,6 +113,50 @@ class PredictionHead(nn.Module):
         return x.transpose(2, 1)  # [bs x forecast_len x nvars]
 
 
+class PatchRevinHead(nn.Module):
+    def __init__(
+        self,
+        n_vars,
+        d_model,
+        input_num_patch,
+        output_num_patch,
+        patch_len,
+        forecast_len,
+        head_dropout=0,
+        flatten=False,
+    ):
+        super().__init__()
+        self.n_vars = n_vars
+        self.flatten = flatten
+        head_dim = d_model * input_num_patch
+
+        self.flatten = nn.Flatten(start_dim=-2)
+        self.linear_val = nn.Linear(head_dim, forecast_len)
+        self.linear_mean = nn.Linear(input_num_patch, output_num_patch)
+        self.linear_std = nn.Linear(input_num_patch, output_num_patch)
+        self.dropout = nn.Dropout(head_dropout)
+        self.output_num_patch = output_num_patch
+        self.patch_len = patch_len
+
+    def forward(self, x, mean, std):
+        """
+        x: [bs x nvars x d_model x num_patch]
+        output: [bs x forecast_len x nvars]
+        """
+        x = self.flatten(x)  # x: [bs x nvars x (d_model * num_patch)]
+        x = self.dropout(x)
+        y = self.linear_val(x)  # x: [bs x nvars x forecast_len]
+
+        y_mean = self.linear_mean(mean.squeeze(-1).transpose(1, 2))
+        y_mean = y_mean.repeat_interleave(dim=-1, repeats=48)
+        y_std = self.linear_std(std.squeeze(-1).transpose(1, 2))
+        y_std = y_std.repeat_interleave(dim=-1, repeats=48)
+
+        y = (y * y_std) + y_mean
+
+        return y.transpose(2, 1)  # [bs x forecast_len x nvars]
+
+
 class PretrainHead(nn.Module):
     def __init__(self, d_model, patch_len, head_dropout):
         super().__init__()
