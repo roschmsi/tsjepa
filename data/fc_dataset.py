@@ -345,7 +345,8 @@ class Dataset_ETT_minute(Dataset):
                 pd.to_datetime(df_stamp["date"].values), freq=self.freq
             )
             data_stamp = data_stamp.transpose(1, 0)
-
+        elif self.timeenc == 2:
+            data_stamp = pd.to_datetime(df_stamp["date"].values)
         self.data_x = data[border1:border2]
         self.data_y = data[border1:border2]
         self.data_stamp = data_stamp
@@ -362,7 +363,12 @@ class Dataset_ETT_minute(Dataset):
         seq_y_mark = self.data_stamp[r_begin:r_end]
 
         if self.use_time_features:
-            return _torch(seq_x, seq_y, seq_x_mark, seq_y_mark)
+            if self.timeenc == 2:
+                seq_x = torch.from_numpy(seq_x).float()
+                seq_y = torch.from_numpy(seq_y).float()
+                return seq_x, seq_y, seq_x_mark, seq_y_mark
+            else:
+                return _torch(seq_x, seq_y, seq_x_mark, seq_y_mark)
         else:
             return _torch(seq_x, seq_y)
 
