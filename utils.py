@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def check_config(config):
     # check dataset
-    dir = f"dataset={config.dataset}"
+    dir = f"{config.dataset}"
     # if "fs" in config.keys():
     #     dir += f"_fs={config.fs}"
     if config.filter_bandwidth:
@@ -44,8 +44,8 @@ def check_config(config):
     if config.use_patch:
         assert config.patch_len is not None
         assert config.stride is not None
-        dir += f"_patch={config.patch_len}"
-        dir += f"_stride={config.stride}"
+        dir += f"_pat={config.patch_len}"
+        dir += f"_str={config.stride}"
 
         if config.masking_ratio > 0:
             dir += f"_mratio={config.masking_ratio}"
@@ -61,8 +61,8 @@ def check_config(config):
     # check training parameters
     if config.batch_size is not None:
         dir += f"_bs={config.batch_size}"
-    if config.optimizer is not None:
-        dir += f"_opt={config.optimizer}"
+    # if config.optimizer is not None:
+    #     dir += f"_opt={config.optimizer}"
     if config.scheduler is not None:
         if config.scheduler == "CosineAnnealingLR":
             dir += "_sch=CA"
@@ -96,39 +96,32 @@ def check_config(config):
         dir += f"_wsize={config.window_size}"
 
     # check transformer parameters
-    if (
-        config.mae
-        or config.model_name == "tsjepa"
-        or config.model_name == "hierarchical_patch_tst"
-        or config.model_name == "multires_patch_tst"
-    ):
+    if config.enc_num_layers is not None:
         dir += "_enc"
-        if config.enc_num_layers is not None:
-            dir += f"_l={config.enc_num_layers}"
-        if config.enc_num_heads is not None:
-            dir += f"_h={config.enc_num_heads}"
-        if config.enc_d_model is not None:
-            dir += f"_d={config.enc_d_model}"
-        if config.enc_d_ff is not None:
-            dir += f"_ff={config.enc_d_ff}"
+        dir += f"_l={config.enc_num_layers}"
+    if config.enc_num_heads is not None:
+        dir += f"_h={config.enc_num_heads}"
+    if config.enc_d_model is not None:
+        dir += f"_d={config.enc_d_model}"
+    if config.enc_d_ff is not None:
+        dir += f"_ff={config.enc_d_ff}"
+    if config.dec_num_layers is not None:
         dir += "_dec"
-        if config.dec_num_layers is not None:
-            dir += f"_l={config.dec_num_layers}"
-        if config.dec_num_heads is not None:
-            dir += f"_h={config.dec_num_heads}"
-        if config.dec_d_model is not None:
-            dir += f"_d={config.dec_d_model}"
-        if config.dec_d_ff is not None:
-            dir += f"_ff={config.dec_d_ff}"
-    else:
-        if config.num_layers is not None:
-            dir += f"_l={config.num_layers}"
-        if config.num_heads is not None:
-            dir += f"_h={config.num_heads}"
-        if config.d_model is not None:
-            dir += f"_d={config.d_model}"
-        if config.d_ff is not None:
-            dir += f"_ff={config.d_ff}"
+        dir += f"_l={config.dec_num_layers}"
+    if config.dec_num_heads is not None:
+        dir += f"_h={config.dec_num_heads}"
+    if config.dec_d_model is not None:
+        dir += f"_d={config.dec_d_model}"
+    if config.dec_d_ff is not None:
+        dir += f"_ff={config.dec_d_ff}"
+    if config.num_layers is not None:
+        dir += f"_l={config.num_layers}"
+    if config.num_heads is not None:
+        dir += f"_h={config.num_heads}"
+    if config.d_model is not None:
+        dir += f"_d={config.d_model}"
+    if config.d_ff is not None:
+        dir += f"_ff={config.d_ff}"
 
     if config.dropout is not None:
         dir += f"_drop={config.dropout}"
@@ -136,8 +129,8 @@ def check_config(config):
         dir += "_learnpe"
     if config.norm is not None:
         dir += f"_norm={config.norm}"
-    if config.activation is not None:
-        dir += f"_act={config.activation}"
+    # if config.activation is not None:
+    #     dir += f"_act={config.activation}"
 
     if config.num_cnn is not None:
         dir += f"_numcnn={config.num_cnn}"
@@ -149,7 +142,7 @@ def check_config(config):
     # check tsjepa parameters
     if config.model_name == "tsjepa":
         if config.ema_start is not None:
-            dir += f"_emastart={config.ema_start}"
+            dir += f"_emast={config.ema_start}"
 
     # check fedformer parameters
     if config.version is not None:
