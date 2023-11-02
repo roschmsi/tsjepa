@@ -21,10 +21,13 @@ class Options(object):
         self.parser.add_argument("--num_heads", type=int)
         self.parser.add_argument("--num_layers", type=int)
         self.parser.add_argument("--dropout", type=float)
+        self.parser.add_argument("--attn_drop_rate", type=float, default=0)
+        self.parser.add_argument("--drop_path_rate", type=float, default=0)
         self.parser.add_argument("--head_dropout", type=float)
-        self.parser.add_argument("--attn_dropout", type=float)
+        # self.parser.add_argument("--attn_dropout", type=float)
         self.parser.add_argument("--shared_embedding", action="store_true")
         self.parser.add_argument("--norm", type=str)
+        self.parser.add_argument("--pre_norm", action="store_true")
         self.parser.add_argument("--activation", type=str)
         self.parser.add_argument("--learn_pe", action="store_true")
 
@@ -41,11 +44,34 @@ class Options(object):
         self.parser.add_argument("--dec_num_layers", type=int)
         self.parser.add_argument("--dec_mlp_ratio", type=int)
 
+        # loss
+        self.parser.add_argument("--loss", type=str)
+
+        # trend-seasonal-residual decomposition
+        self.parser.add_argument("--decomposition", action="store_true")
+        self.parser.add_argument("--period", type=int)
+        self.parser.add_argument("--trend_seasonal_residual", action="store_true")
+
         # tsjepa
         self.parser.add_argument("--ema_start", type=float)
         self.parser.add_argument("--ema_end", type=float)
+        self.parser.add_argument("--no_ema", action="store_true")
         self.parser.add_argument("--load_classifier", type=str)
+        self.parser.add_argument("--no_output_norm", action="store_true")
+        self.parser.add_argument("--head_type", type=str)
         # self.parser.add_argument("--no_momentum", action="store_true")
+
+        # ts2vec
+        self.parser.add_argument("--activation_drop_rate", type=float)
+        self.parser.add_argument("--layer_norm_first", action="store_true")
+        self.parser.add_argument("--average_top_k_layers", type=int)
+        self.parser.add_argument("--normalize_targets", action="store_true")
+        self.parser.add_argument("--targets_norm", type=str)
+        self.parser.add_argument("--ema_decay", type=float)
+        self.parser.add_argument("--ema_end_decay", type=float)
+        self.parser.add_argument("--ema_anneal_end_step", type=int)
+        self.parser.add_argument("--skip_embeddings", action="store_true")
+        self.parser.add_argument("--targets_rep", type=str)
 
         # stationarity
         self.parser.add_argument("--differencing", action="store_true")
@@ -60,9 +86,15 @@ class Options(object):
         self.parser.add_argument("--cov_weight", type=float)
 
         self.parser.add_argument("--checkpoint_last", action="store_true")
+        self.parser.add_argument("--checkpoint", type=int)
 
         # revserse instance normalization
         self.parser.add_argument("--revin", action="store_true")
+        self.parser.add_argument("--patch_revin", action="store_true")
+        self.parser.add_argument("--revin_affine", action="store_true")
+
+        # decomposition
+        self.parser.add_argument("--separate_backbone", action="store_true")
 
         # patch and mask
         self.parser.add_argument("--use_patch", action="store_true")
@@ -97,6 +129,11 @@ class Options(object):
         self.parser.add_argument("--use_time_features", action="store_true")
         self.parser.add_argument("--timeenc", type=int, default=0)
         self.parser.add_argument("--d_temp", type=int, default=0)
+        self.parser.add_argument("--temporal_attention", action="store_true")
+        self.parser.add_argument("--add_time_encoding", action="store_true")
+        self.parser.add_argument("--concat_time_encoding", action="store_true")
+        self.parser.add_argument("--patch_time", action="store_true")
+        self.parser.add_argument("--input_time", action="store_true")
 
         # fedformer
         self.parser.add_argument("--version", type=str)
@@ -122,6 +159,11 @@ class Options(object):
         self.parser.add_argument("--optimizer", type=str)
         self.parser.add_argument("--scheduler", type=str)
         self.parser.add_argument("--lr", type=float)
+        self.parser.add_argument("--start_lr", type=float)
+        self.parser.add_argument("--ref_lr", type=float)
+        self.parser.add_argument("--final_lr", type=float)
+        self.parser.add_argument("--start_factor", type=float)
+        self.parser.add_argument("--warmup", type=int)
         self.parser.add_argument("--weight_decay", type=float)
         self.parser.add_argument("--epochs", type=int)
         self.parser.add_argument("--batch_size", type=int)
@@ -151,12 +193,8 @@ class Options(object):
             action="store_true",
             help="Optimize printout for console output; otherwise for file",
         )
-        self.parser.add_argument(
-            "--val_interval",
-            type=int,
-            default=5,
-            help="Evaluate on validation set every this many epochs. Must be >= 1.",
-        )
+        self.parser.add_argument("--val_interval", type=int, default=5)
+        self.parser.add_argument("--plot_interval", type=int, default=5)
         self.parser.add_argument(
             "--print_interval",
             type=int,
