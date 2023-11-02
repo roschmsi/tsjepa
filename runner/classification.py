@@ -23,7 +23,7 @@ class SupervisedRunner(BaseRunner):
         for batch in self.dataloader:
             X, targets, padding_masks = batch
             X = X.to(self.device)
-            targets = targets.to(self.device)
+            targets = targets.to(self.device).float()
             padding_masks = padding_masks.to(self.device)  # 0s: ignore
 
             if self.mixup is not None:
@@ -91,7 +91,8 @@ class SupervisedRunner(BaseRunner):
         for batch in self.dataloader:
             X, targets, padding_masks = batch
             X = X.to(self.device)
-            targets = targets.to(self.device)
+            # TODO better conversion to float
+            targets = targets.to(self.device).float()
             padding_masks = padding_masks.to(self.device)  # 0s: ignore
 
             # classification: (batch_size, num_classes) of logits
