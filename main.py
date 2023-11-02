@@ -20,7 +20,8 @@ from factory import (
     setup_scheduler,
 )
 from loss import get_criterion
-from models.ts_jepa.utils import plot_2d, plot_classwise_distribution
+
+# from models.ts_jepa.utils import plot_2d, plot_classwise_distribution, plot_forecast
 from options import Options
 from evaluation.evaluate_12ECG_score import (
     compute_challenge_metric,
@@ -107,6 +108,7 @@ def main(config):
                 change_output=config.finetuning,  # finetuning on different task
                 device=device,
             )
+
     model.to(device)
 
     # initialize loss
@@ -129,21 +131,18 @@ def main(config):
         num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=lambda x: collate_fn(x, max_len=max_len),
-        # discard_last=True,
     )
 
     scheduler = setup_scheduler(config, optimizer, iters_per_epoch=len(train_loader))
     trainer = runner_class(
-        model,
-        train_loader,
-        device,
-        criterion,
-        optimizer,
-        mixup=config.mixup,
+        model=model,
+        dataloader=train_loader,
+        device=device,
+        criterion=criterion,
+        optimizer=optimizer,
+        scheduler=scheduler,
         print_interval=config["print_interval"],
         console=config["console"],
-        multilabel=config.multilabel,
-        scheduler=scheduler,
     )
 
     val_dataset = dataset_class(val_dataset)
@@ -154,17 +153,14 @@ def main(config):
         num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=lambda x: collate_fn(x, max_len=max_len),
-        # discard_last=True,
     )
     val_evaluator = runner_class(
-        model,
-        val_loader,
-        device,
-        criterion,
-        mixup=config.mixup,
+        model=model,
+        dataloader=val_loader,
+        device=device,
+        criterion=criterion,
         print_interval=config["print_interval"],
         console=config["console"],
-        multilabel=config.multilabel,
     )
 
     test_dataset = dataset_class(test_dataset)
@@ -175,22 +171,20 @@ def main(config):
         num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=lambda x: collate_fn(x, max_len=max_len),
-        # discard_last=True,
     )
     test_evaluator = runner_class(
-        model,
-        test_loader,
-        device,
-        criterion,
-        mixup=config.mixup,
+        model=model,
+        dataloader=test_loader,
+        device=device,
+        criterion=criterion,
         print_interval=config["print_interval"],
         console=config["console"],
-        multilabel=config.multilabel,
     )
 
     if config.test:
         logger.info("Test performance:")
-        aggr_metrics_test, _ = test_evaluator.evaluate()
+        with torch.no_grad():
+            aggr_metrics_test = test_evaluator.evaluate()
         for k, v in aggr_metrics_test.items():
             logger.info(f"{k}: {v}")
 
@@ -251,6 +245,15 @@ def main(config):
                 )
             else:
                 patience_count += config["val_interval"]
+
+            # plot_forecast(
+            #     model=model,
+            #     data_loader=train_loader,
+            #     device=device,
+            #     config=config,
+            #     tb_writer=tb_writer,
+            #     epoch=epoch,
+            # )
 
             # plot_2d(
             #     method="pca",
