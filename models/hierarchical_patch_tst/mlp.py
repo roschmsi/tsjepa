@@ -15,6 +15,7 @@ class DownsamplingMLP(nn.Module):
         self.win_size = win_size
         self.linear_trans = nn.Linear(win_size * c_in, c_out)
         self.norm = norm_layer(win_size * c_in)
+        self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
         """
@@ -25,8 +26,10 @@ class DownsamplingMLP(nn.Module):
 
         # TODO maybe just repeat the final values ?
         if pad_num != 0:
-            pad_num = self.win_size - pad_num
-            x = torch.cat((x[:, :pad_num, :], x), dim=1)
+            # pad_num = self.win_size - pad_num
+            # x = torch.cat((x[:, :pad_num, :], x), dim=1)
+            # discard first few elements
+            x = x[:, pad_num:, :]
 
         seg_to_merge = []
         for i in range(self.win_size):
@@ -34,6 +37,7 @@ class DownsamplingMLP(nn.Module):
         x = torch.cat(seg_to_merge, -1)  # [B, ts_d, seg_num/win_size, win_size*d_model]
 
         x = self.norm(x)
+        x = self.dropout(x)
         x = self.linear_trans(x)
 
         return x
@@ -53,6 +57,7 @@ class UpsamplingMLP(nn.Module):
         self.win_size = win_size
         self.linear_trans = nn.Linear(c_in, win_size * c_out)
         self.norm = norm_layer(win_size * c_in)
+        self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
         """
@@ -61,6 +66,7 @@ class UpsamplingMLP(nn.Module):
         batch_size, num_patch, d_model = x.shape
 
         # x = self.norm(x)
+        x = self.dropout(x)
         x = self.linear_trans(x)
 
         x = x.reshape(batch_size, num_patch, self.win_size, self.c_out)

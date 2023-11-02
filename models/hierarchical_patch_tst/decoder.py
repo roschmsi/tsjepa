@@ -16,7 +16,7 @@ class TSTDecoder(nn.Module):
         d_model,
         d_ff,
         dropout,
-        num_patch,
+        num_patch=None,
         norm="BatchNorm",
         pre_norm=False,
         activation="gelu",
@@ -26,9 +26,9 @@ class TSTDecoder(nn.Module):
     ):
         super().__init__()
 
-        self.W_pos = positional_encoding(
-            pe="sincos", learn_pe=False, q_len=num_patch, d_model=d_model
-        )
+        # self.W_pos = positional_encoding(
+        #     pe="sincos", learn_pe=False, q_len=num_patch, d_model=d_model
+        # )
 
         self.layers = nn.ModuleList(
             [
