@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
-from torch.nn import LayerNorm
 import math
 from models.ts_jepa.model import get_1d_sincos_pos_embed
 from models.ts_jepa.mask import apply_masks
 from models.ts_jepa.tensors import trunc_normal_
+from models.patch_tst.layers.basics import Transpose
 
 
 def init_bert_params(module):
@@ -124,14 +124,15 @@ class TransformerEncoderLayer(nn.Module):
 
     def __init__(
         self,
-        embedding_dim: float = 768,
-        ffn_embedding_dim: float = 3072,
-        num_attention_heads: int = 8,
-        dropout: float = 0.1,
-        attention_dropout: float = 0.1,
-        activation_dropout: float = 0.1,
-        activation_fn: str = "relu",
-        layer_norm_first: bool = False,
+        embedding_dim,
+        ffn_embedding_dim,
+        num_attention_heads,
+        dropout,
+        attention_dropout,
+        activation_dropout,
+        activation_fn,
+        norm_layer,
+        layer_norm_first,
     ) -> None:
         super().__init__()
         # Initialize parameters
@@ -154,12 +155,12 @@ class TransformerEncoderLayer(nn.Module):
         self.layer_norm_first = layer_norm_first
 
         # layer norm associated with the self attention layer
-        self.self_attn_layer_norm = LayerNorm(self.embedding_dim)
+        self.self_attn_layer_norm = norm_layer(self.embedding_dim)
         self.fc1 = nn.Linear(self.embedding_dim, ffn_embedding_dim)
         self.fc2 = nn.Linear(ffn_embedding_dim, self.embedding_dim)
 
         # layer norm associated with the position wise feed-forward NN
-        self.final_layer_norm = LayerNorm(self.embedding_dim)
+        self.final_layer_norm = norm_layer(self.embedding_dim)
 
     def forward(
         self,
@@ -219,6 +220,28 @@ class TransformerEncoderLayer(nn.Module):
         return x, attn, layer_result
 
 
+class LayerNorm(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.norm = nn.LayerNorm(dim)
+
+    def forward(self, x):
+        return self.norm(x)
+
+
+class BatchNorm(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.norm = nn.Sequential(
+            Transpose(1, 2),
+            nn.BatchNorm1d(dim),
+            Transpose(1, 2),
+        )
+
+    def forward(self, x):
+        return self.norm(x)
+
+
 # based on I-JEPA
 class TransformerEncoder(nn.Module):
     """Time Series Transformer with channel independence"""
@@ -236,7 +259,7 @@ class TransformerEncoder(nn.Module):
         attn_drop_rate=0.0,
         activation="gelu",
         activation_drop_rate=0.0,
-        # norm_layer=nn.LayerNorm,
+        norm="LayerNorm",
         init_std=0.02,
         layer_norm_first=True,
         learn_pe=False,
@@ -250,6 +273,14 @@ class TransformerEncoder(nn.Module):
         self.patch_embed = nn.Linear(patch_size, embed_dim)
 
         num_patches = int(seq_len // patch_size)
+
+        # norm layer
+        if norm == "LayerNorm":
+            norm_layer = LayerNorm
+        elif norm == "BatchNorm":
+            norm_layer = BatchNorm
+        else:
+            raise NotImplementedError(f"Norm type {norm} not supported")
 
         # 1d pos embed
         # absolute position encoding
@@ -272,12 +303,13 @@ class TransformerEncoder(nn.Module):
                     attention_dropout=attn_drop_rate,
                     activation_dropout=activation_drop_rate,
                     activation_fn=activation,
+                    norm_layer=norm_layer,
                     layer_norm_first=layer_norm_first,
                 )
                 for i in range(depth)
             ]
         )
-        self.norm = nn.LayerNorm(embed_dim)
+        self.norm = norm_layer(embed_dim)
 
         # ------
         self.init_std = init_std
@@ -305,36 +337,36 @@ class TransformerEncoder(nn.Module):
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x):
+    def forward(self, x, mask=None):
         # x: [bs x seq_len x n_vars]
-        # if masks is not None:
-        #     if not isinstance(masks, list):
-        #         masks = [masks]
-
-        # x: [bs x num_patch x patch_len
-        # ch = 1
 
         # patchify x
-        # x = x.transpose(1, 2)
         # x: [bs x n_vars x seq_len]
         x = self.patch_embed(x)
         # x: [bs x num_patches x embed_dim]
 
         # add positional embedding to x
         # TODO potentially add input dropout
-        x = x + self.interpolate_pos_encoding(x, self.pos_embed)
+        pos_embed = self.pos_embed.repeat_interleave(dim=0, repeats=x.shape[0])
+        if mask is not None:
+            mask = mask.unsqueeze(-1).repeat_interleave(dim=-1, repeats=self.embed_dim)
+            pos_embed = pos_embed[mask]
+            pos_embed = pos_embed.reshape(x.shape[0], x.shape[1], self.embed_dim)
 
-        # mask x
-        # if masks is not None:
-        #     x = apply_masks(x, masks)
+        x += pos_embed
+
+        # TODO interpolation only for finetuning if necessary
+        # x = x + self.interpolate_pos_encoding(x, self.pos_embed)
 
         # layer results after ffn in every block
+        layer_results_ffn = []
         layer_results = []
 
         # fwd prop
         for i, blk in enumerate(self.blocks):
-            x, attn, layer_res = blk(x)
-            layer_results.append(layer_res)
+            x, attn, layer_res_ffn = blk(x)
+            layer_results.append(x)
+            layer_results_ffn.append(layer_res_ffn)
 
         if self.layer_norm_first:
             x = self.norm(x)
@@ -342,6 +374,7 @@ class TransformerEncoder(nn.Module):
         return {
             "encoder_out": x,
             "encoder_states": layer_results,
+            "encoder_states_ffn": layer_results_ffn,
         }
 
     def interpolate_pos_encoding(self, x, pos_embed):
