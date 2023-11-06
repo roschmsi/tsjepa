@@ -46,6 +46,7 @@ class Options(object):
 
         # loss
         self.parser.add_argument("--loss", type=str)
+        self.parser.add_argument("--smoothl1_beta", type=float)
 
         # trend-seasonal-residual decomposition
         self.parser.add_argument("--decomposition", action="store_true")
@@ -67,11 +68,18 @@ class Options(object):
         self.parser.add_argument("--average_top_k_layers", type=int)
         self.parser.add_argument("--normalize_targets", action="store_true")
         self.parser.add_argument("--targets_norm", type=str)
+        self.parser.add_argument("--normalize_pred", action="store_true")
+        self.parser.add_argument("--pred_norm", type=str)
         self.parser.add_argument("--ema_decay", type=float)
         self.parser.add_argument("--ema_end_decay", type=float)
         self.parser.add_argument("--ema_anneal_end_step", type=int)
         self.parser.add_argument("--skip_embeddings", action="store_true")
+        self.parser.add_argument("--skip_pos_embed", action="store_true")
+        self.parser.add_argument("--skip_patch_embed", action="store_true")
         self.parser.add_argument("--targets_rep", type=str)
+        self.parser.add_argument("--predictor", type=str)
+        self.parser.add_argument("--kernel_size", type=int)
+        self.parser.add_argument("--mask_noise_std", type=float)
 
         # stationarity
         self.parser.add_argument("--differencing", action="store_true")
