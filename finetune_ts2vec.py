@@ -118,6 +118,7 @@ def main(config):
         attn_drop_rate=config.attn_drop_rate,
         activation=config.activation,
         activation_drop_rate=config.activation_drop_rate,
+        norm=config.norm,
         layer_norm_first=config.layer_norm_first,
         learn_pe=config.learn_pe,
     )
@@ -146,6 +147,7 @@ def main(config):
 
     if config.load_model:
         # load pretrained weights
+        # TODO load checkpoint best or last or specified one with single string
         if config.checkpoint_last:
             path = os.path.join(config.load_model, "checkpoints", "model_last.pth")
         elif config.checkpoint is not None:
@@ -260,6 +262,7 @@ def main(config):
                 epoch=epoch,
                 model=trainer.model,
                 optimizer=trainer.optimizer,
+                scheduler=trainer.scheduler,
                 path=config["checkpoint_dir"],
                 better=better,
             )
@@ -272,7 +275,7 @@ def main(config):
 
     # if not config.debug:
     path = os.path.join(config["output_dir"], "checkpoints", "model_best.pth")
-    model, _, epoch = load_checkpoint(
+    model, _, _, epoch = load_checkpoint(
         path,
         model=model,
     )

@@ -2,6 +2,7 @@ import os
 import torch
 import sys
 import logging
+from utils import optimizer_to
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger()
@@ -11,13 +12,15 @@ def save_checkpoint(
     epoch,
     model,
     optimizer,
+    scheduler,
     path,
     better,
 ):
     save_dict = {
         "epoch": epoch,
         "model": model.state_dict(),
-        "opt": optimizer.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "scheduler": scheduler.state_dict() if scheduler is not None else None,
     }
 
     torch.save(save_dict, os.path.join(path, "model_last.pth"))
@@ -33,9 +36,10 @@ def load_checkpoint(
     path,
     model,
     optimizer=None,
+    scheduler=None,
 ):
     try:
-        checkpoint = torch.load(path, map_location=torch.device("cpu"))
+        checkpoint = torch.load(path)
         epoch = checkpoint["epoch"]
 
         # -- loading encoder
@@ -45,13 +49,19 @@ def load_checkpoint(
 
         # -- loading optimizer
         if optimizer is not None:
-            optimizer.load_state_dict(checkpoint["opt"])
+            msg = optimizer.load_state_dict(checkpoint["optimizer"])
+            logger.info(f"loaded optimizer from epoch {epoch} with msg: {msg}")
+            # optimizer_to(optimizer, device=device)
+
+        if scheduler is not None:
+            msg = scheduler.load_state_dict(checkpoint["scheduler"])
+            logger.info(f"loaded scheduler from epoch {epoch} with msg: {msg}")
 
     except Exception as e:
         logger.info(f"Encountered exception when loading checkpoint {e}")
         epoch = 0
 
-    return model, optimizer, epoch
+    return model, optimizer, scheduler, epoch
 
 
 def load_encoder_from_ts2vec(path, encoder):
