@@ -6,6 +6,7 @@ import os
 import sys
 import time
 from functools import partial
+import torch.nn as nn
 
 
 import torch
@@ -21,6 +22,7 @@ from models.ts_jepa.setup import (
     init_optimizer_model,
     init_scheduler,
 )
+from models.ts2vec.predictor import TransformerPredictor, get_predictor
 from models.ts_jepa.utils import (
     plot_2d,
     plot_classwise_distribution,
@@ -29,9 +31,9 @@ from models.ts2vec.utils import save_checkpoint, load_checkpoint
 from options import Options
 from runner.ts2vec import TS2VecRunner
 from utils import log_training, readable_time, seed_everything, setup
-from models.patch_tst.layers.revin import RevIN
+from models.patch_tst.layers.revin import RevIN, BlockRevIN
 
-from models.ts2vec.ts2vec import TS2Vec
+from models.ts2vec.ts2vec import TS2VecEMA, TS2VecNoEMA
 from models.ts2vec.encoder import TransformerEncoder
 
 logging.basicConfig(
@@ -40,7 +42,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.info("Loading packages ...")  #
 
-from data.dataset import CIPretrainingPatchDataset, collate_patch_unsuperv
+from data.dataset import collate_patch_unsuperv
 
 
 def main(config):
@@ -73,7 +75,7 @@ def main(config):
 
     # initialize data generator and runner
     # channel independence, TODO solve for forecasting all dataset
-    dataset_class = partial(CIDataset, num_channels=config.feat_dim)
+    dataset_class = partial(CIDataset, num_channels=config.feat_dim, debug=config.debug)
 
     # prepare dataloader
     train_dataset = dataset_class(train_dataset)
@@ -119,25 +121,47 @@ def main(config):
         attn_drop_rate=config.attn_drop_rate,
         activation=config.activation,
         activation_drop_rate=config.activation_drop_rate,
+        norm=config.norm,
         layer_norm_first=config.layer_norm_first,
         learn_pe=config.learn_pe,
     )
-    model = TS2Vec(
-        encoder=encoder,
-        device=device,
-        average_top_k_layers=config.average_top_k_layers,
-        normalize_targets=config.normalize_targets,
-        targets_norm=config.targets_norm,
-        embed_dim=config.enc_d_model,
-        ema_decay=config.ema_decay,
-        ema_end_decay=config.ema_end_decay,
-        ema_anneal_end_step=config.ema_anneal_end_step * ipe,
-        skip_embeddings=config.skip_embeddings,
-    )
+
+    predictor = get_predictor(config, max_seq_len=max_seq_len)
+
+    if config.no_ema:
+        model = TS2VecNoEMA(
+            encoder=encoder,
+            predictor=predictor,
+            predictor_type=config.predictor,
+            device=device,
+            average_top_k_layers=config.average_top_k_layers,
+            normalize_targets=config.normalize_targets,
+            targets_rep=config.targets_rep,
+            targets_norm=config.targets_norm,
+            embed_dim=config.enc_d_model,
+        )
+    else:
+        model = TS2VecEMA(
+            encoder=encoder,
+            predictor=predictor,
+            predictor_type=config.predictor,
+            device=device,
+            average_top_k_layers=config.average_top_k_layers,
+            normalize_targets=config.normalize_targets,
+            targets_norm=config.targets_norm,
+            normalize_pred=config.normalize_pred,
+            pred_norm=config.pred_norm,
+            embed_dim=config.enc_d_model,
+            ema_decay=config.ema_decay,
+            ema_end_decay=config.ema_end_decay,
+            ema_anneal_end_step=config.ema_anneal_end_step * ipe,
+            skip_pos_embed=config.skip_pos_embed,
+            skip_patch_embed=config.skip_patch_embed,
+            targets_rep=config.targets_rep,
+        )
     model.to(device)
 
     # create optimizer and scheduler
-    # TODO use more advanced optimizer from setup.py
     optimizer = init_optimizer_model(
         model, lr=config.lr, weight_decay=config.weight_decay, epochs=config.epochs
     )
@@ -153,26 +177,46 @@ def main(config):
         elif config.load_model:
             path = os.path.join(config["output_dir"], "checkpoints", "model_best.pth")
         # TODO load checkpoint
-        model, optimizer, epoch = load_checkpoint(
+        model, optimizer, scheduler, epoch = load_checkpoint(
             path,
             model=model,
-            optimizer=optimizer,
+            optimizer=optimizer if config.resume else None,
+            scheduler=scheduler if config.resume else None,
         )
         if config.resume:
             start_epoch = epoch
-            if scheduler is not None:
-                for _ in range(start_epoch):
-                    scheduler.step()
+        #     if scheduler is not None:
+        #         for _ in range(start_epoch):
+        #             scheduler.step()
 
     if config.revin:
-        revin = RevIN(
-            num_features=1,  # channel independence
-            affine=True if config.revin_affine else False,
-            subtract_last=False,
-        )
+        if config.masking == "random":
+            revin = RevIN(
+                num_features=1,  # channel independence
+                affine=True if config.revin_affine else False,
+                subtract_last=False,
+            )
+        elif config.masking == "block":
+            revin = BlockRevIN(
+                num_features=1,  # channel independence
+                affine=True if config.revin_affine else False,
+                subtract_last=False,
+                masking_ratio=config.masking_ratio,
+            )
+        else:
+            raise NotImplementedError
         # revin = revin.to(device)
     else:
         revin = None
+
+    # criterion
+    if config.loss == "l1":
+        criterion = nn.L1Loss(reduction="mean")
+    elif config.loss == "smoothl1":
+        criterion = nn.SmoothL1Loss(reduction="mean", beta=config.smoothl1_beta)
+    else:
+        criterion = nn.MSELoss(reduction="mean")
+    criterion.to(device)
 
     # initialize runner for training, validation and testing
     runner_class = TS2VecRunner
@@ -186,6 +230,11 @@ def main(config):
         masking=config.masking,
         masking_ratio=config.masking_ratio,
         debug=config.debug,
+        pred_weight=config.pred_weight,
+        std_weight=config.std_weight,
+        cov_weight=config.cov_weight,
+        criterion=criterion,
+        no_ema=config.no_ema,
     )
     trainer = runner_class(
         dataloader=train_loader,
@@ -257,6 +306,7 @@ def main(config):
                 epoch=epoch,
                 model=trainer.model,
                 optimizer=trainer.optimizer,
+                scheduler=trainer.scheduler,
                 path=config["checkpoint_dir"],
                 better=better,
             )
@@ -332,6 +382,7 @@ def main(config):
                 epoch=epoch,
                 model=trainer.model,
                 optimizer=trainer.optimizer,
+                scheduler=trainer.scheduler,
                 path=config["checkpoint_dir"],
                 better=False,
             )
