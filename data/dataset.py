@@ -249,10 +249,11 @@ class JEPADataset(Dataset):
 
 
 class CIDataset(Dataset):
-    def __init__(self, dataset, num_channels):
+    def __init__(self, dataset, num_channels, debug=False):
         super(CIDataset, self).__init__()
         self.dataset = dataset
         self.num_channels = num_channels
+        self.debug = debug
 
     def __getitem__(self, ind):
         series_ind = ind // self.num_channels
@@ -265,7 +266,10 @@ class CIDataset(Dataset):
         return X, y
 
     def __len__(self):
-        return len(self.dataset) * self.num_channels
+        if self.debug:
+            return 2
+        else:
+            return len(self.dataset) * self.num_channels
 
 
 class ClassificationPatchDataset(Dataset):
