@@ -10,6 +10,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import pandas as pd
 import seaborn as sns
+from data.dataset import create_patch
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger()
@@ -28,7 +29,9 @@ def save_checkpoint(
         "epoch": epoch,
         "encoder": encoder.state_dict(),
         "predictor": predictor.state_dict(),
-        "target_encoder": target_encoder.state_dict(),
+        "target_encoder": target_encoder.state_dict()
+        if target_encoder is not None
+        else None,
         "opt": optimizer.state_dict(),
         # "lr": lr,
         # "loss": loss,
@@ -84,6 +87,24 @@ def load_checkpoint(
     return encoder, predictor, target_encoder, optimizer, epoch
 
 
+def save_classifier_checkpoint(
+    epoch,
+    classifier,
+    optimizer,
+    path,
+    better,
+):
+    save_dict = {
+        "epoch": epoch,
+        "classifier": classifier.state_dict(),
+        "opt": optimizer.state_dict(),
+    }
+
+    torch.save(save_dict, os.path.join(path, "model_last.pth"))
+    if better:
+        torch.save(save_dict, os.path.join(path, "model_best.pth"))
+
+
 # function to load the checkpoint for the classifier
 def load_classifier_checkpoint(
     path,
@@ -136,6 +157,8 @@ def load_encoder_from_tsjepa(path, encoder):
     checkpoint = torch.load(path, map_location=torch.device("cpu"))
     epoch = checkpoint["epoch"]
 
+    print(f"Loading model from checkpoint at epoch {epoch}")
+
     # -- loading classifier
     pretrained_dict = checkpoint["encoder"]
     msg = encoder.load_state_dict(pretrained_dict)
@@ -143,27 +166,6 @@ def load_encoder_from_tsjepa(path, encoder):
 
     # -- loading optimizer
     return encoder
-
-
-def save_classifier_checkpoint(
-    epoch,
-    classifier,
-    optimizer,
-    path,
-    better,
-):
-    save_dict = {
-        "epoch": epoch,
-        "classifier": classifier.state_dict(),
-        "opt": optimizer.state_dict(),
-        # "lr": lr,
-        # "loss": loss,
-        # "batch_size": batch_size,
-    }
-
-    torch.save(save_dict, os.path.join(path, "model_last.pth"))
-    if better:
-        torch.save(save_dict, os.path.join(path, "model_best.pth"))
 
 
 def pca(X):
@@ -178,6 +180,17 @@ def tsne(X):
     return X_2d
 
 
+def plot_forecast(
+    model,
+    data_loader,
+    device,
+    config,
+    tb_writer,
+    epoch,
+):
+    return 0
+
+
 # TODO improve mode for patch_tst, tsjepa supervised, tsjepa unsupervised
 def plot_2d(
     method,
@@ -187,13 +200,16 @@ def plot_2d(
     config,
     fname,
     num_classes,
+    revin=None,
     tb_writer=None,
     mode=None,
     epoch=None,
     supervised=False,
     model=None,
+    patch_len=0,
+    stride=0,
 ):
-    encoder = encoder.eval()
+    encoder.eval()
     X_rep = []
     y_rep = []
 
@@ -222,6 +238,29 @@ def plot_2d(
                 X_enc = encoder(X)
                 X_rep.append(X_enc.mean(dim=1).mean(dim=2))
                 y_rep.append(y)
+        elif model == "ts2vec":
+            for X, y in data_loader:
+                num_samples += X.shape[0]
+                if num_samples > 100000:
+                    break
+
+                X = X.to(device)
+                if revin is not None:
+                    X = revin(X, "norm")
+
+                X = create_patch(X, patch_len=patch_len, stride=stride)
+                X = X.squeeze()
+                X_enc = encoder(X)["encoder_out"]
+                bs, seq_len, d_model = X_enc.shape
+                X_enc = X_enc.reshape(bs * seq_len, d_model)
+
+                X_rep.append(X_enc)
+
+                if num_classes == 1:
+                    y_rep.append(torch.zeros(X_enc.shape[0]))
+                else:
+                    y_rep.append(y)
+                # y_rep.append(torch.where(y == 1)[1])
         else:
             for X, y, masks_enc, masks_pred in data_loader:
                 num_samples += X.shape[0]
@@ -264,7 +303,7 @@ def plot_2d(
         tb_writer.add_figure(f"{method}/{mode}", plt.gcf(), epoch)
 
     plt.close()
-    encoder = encoder.train()
+    encoder.train()
 
 
 def plot_classwise_distribution(
@@ -273,13 +312,16 @@ def plot_classwise_distribution(
     device,
     d_model,
     num_classes,
+    revin=None,
     tb_writer=None,
     mode=None,
     epoch=None,
     supervised=False,
     model=None,
+    patch_len=0,
+    stride=0,
 ):
-    encoder = encoder.eval()
+    encoder.eval()
     df = None
 
     with torch.no_grad():
@@ -324,10 +366,38 @@ def plot_classwise_distribution(
 
                 df_batch = pd.concat([df_y, df_z], axis=1)
                 df = pd.concat([df, df_batch], axis=0)
-        else:
-            for X, y, masks_enc, masks_pred in data_loader:
+
+        elif model == "ts2vec":
+            for X, y in data_loader:
                 if df is not None and df.shape[0] > 100000:
                     break
+
+                X = X.to(device)
+                if revin is not None:
+                    X = revin(X, "norm")
+
+                X = create_patch(X, patch_len=patch_len, stride=stride)
+                X = X.squeeze()
+                X_enc = encoder(X)["encoder_out"]
+                bs, seq_len, d_model = X_enc.shape
+                X_enc = X_enc.reshape(bs * seq_len, d_model)
+                # X_enc = X_enc.mean(dim=1)
+
+                df_z = pd.DataFrame(X_enc.cpu()).astype("float")
+
+                if num_classes == 1:
+                    df_y = pd.DataFrame(torch.zeros(y.shape[0]), columns=["y"]).astype(
+                        "int"
+                    )
+                else:
+                    df_y = pd.DataFrame(y.cpu(), columns=["y"]).astype("int")
+
+                df_batch = pd.concat([df_y, df_z], axis=1)
+                df = pd.concat([df, df_batch], axis=0)
+        else:
+            for X, y, masks_enc, masks_pred in data_loader:
+                # if df is not None and df.shape[0] > 100000:
+                #     break
 
                 X = X.float().to(device)
                 X_enc = encoder(X, masks=None)
@@ -359,7 +429,8 @@ def plot_classwise_distribution(
             fig.set(xlabel=None)
             fig.set(ylabel=None)
 
-        plt.xlim([-1.5, 1.5])
+        # TODO set xlim again
+        # plt.xlim([-2.0, 2.0])
         plt.legend()
         # plt.savefig(path / f"kde_dim={dim}.jpg", bbox_inches="tight")
         plt.tight_layout()
@@ -371,4 +442,4 @@ def plot_classwise_distribution(
 
         plt.close()
 
-    encoder = encoder.train()
+    encoder.train()
