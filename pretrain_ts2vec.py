@@ -19,7 +19,7 @@ from models.ts_jepa.mask import RandomMaskCollator, BlockMaskCollator
 from models.ts_jepa.setup import (
     init_model_pretraining,
     init_optimizer_enc_pred,
-    init_optimizer_model,
+    init_optimizer,
     init_scheduler,
 )
 from models.ts2vec.predictor import TransformerPredictor, get_predictor
@@ -162,7 +162,7 @@ def main(config):
     model.to(device)
 
     # create optimizer and scheduler
-    optimizer = init_optimizer_model(
+    optimizer = init_optimizer(
         model, lr=config.lr, weight_decay=config.weight_decay, epochs=config.epochs
     )
 
@@ -175,7 +175,7 @@ def main(config):
         if config.resume:
             path = os.path.join(config["output_dir"], "checkpoints", "model_last.pth")
         elif config.load_model:
-            path = os.path.join(config["output_dir"], "checkpoints", "model_best.pth")
+            path = os.path.join(config.load_model, "checkpoints", "model_best.pth")
         # TODO load checkpoint
         model, optimizer, scheduler, epoch = load_checkpoint(
             path,
@@ -244,15 +244,56 @@ def main(config):
     val_evaluator = runner_class(dataloader=val_loader)
     test_evaluator = runner_class(dataloader=test_loader)
 
+    tb_writer = SummaryWriter(config.output_dir)
+
+    # TODO use test_evaluator again
     if config.test:
         logger.info("Test performance:")
-        aggr_metrics_test, _ = test_evaluator.evaluate()
+        aggr_metrics_test, aggr_imgs_test = test_evaluator.evaluate()
         for k, v in aggr_metrics_test.items():
             logger.info(f"{k}: {v}")
+            tb_writer.add_scalar(f"{k}/test", v, epoch)
+
+        for k, v in aggr_imgs_test.items():
+            tb_writer.add_figure(f"{k}/test", v, epoch)
+
+        # TODO revin as compulsary argument
+        plot_2d(
+            method="pca",
+            encoder=model.encoder,
+            data_loader=test_loader,
+            device=device,
+            config=config,
+            fname="pca_test.png",
+            revin=revin,
+            tb_writer=tb_writer,
+            mode="test",
+            epoch=epoch,
+            num_classes=config.num_classes
+            if "num_classes" in config.keys() and config.multilabel is False
+            else 1,
+            model="ts2vec",
+            patch_len=config.patch_len,
+            stride=config.stride,
+        )
+        plot_classwise_distribution(
+            encoder=model.encoder,
+            data_loader=test_loader,
+            device=device,
+            d_model=config.enc_d_model,
+            num_classes=config.num_classes
+            if "num_classes" in config.keys() and config.multilabel is False
+            else 1,
+            revin=revin,
+            tb_writer=tb_writer,
+            mode="test",
+            epoch=epoch,
+            model="ts2vec",
+            patch_len=config.patch_len,
+            stride=config.stride,
+        )
 
         return
-
-    tb_writer = SummaryWriter(config.output_dir)
 
     patience_count = 0
     best_loss_val = 1e16

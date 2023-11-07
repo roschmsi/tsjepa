@@ -57,7 +57,6 @@ class RandomMaskCollator(object):
         # TODO actually just for the forecasting datasets, otherwise collated y has to be handled differently
         bs, num_patches, feat_dim = collated_X.shape
 
-        # TODO use CIDataset class wrapper instead of collate fn for channel independence
         # CI dataset should already make sure that there are only univariate ts at this point
         if self.channel_independence and feat_dim > 1:
             collated_X = (

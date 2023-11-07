@@ -263,6 +263,7 @@ class TransformerEncoder(nn.Module):
         init_std=0.02,
         layer_norm_first=True,
         learn_pe=False,
+        use_mask_tokens=False,
         **kwargs,
     ):
         super().__init__()

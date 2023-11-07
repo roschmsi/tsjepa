@@ -1,6 +1,6 @@
 dataset: "weather"
 dataset_class: "custom"
-root_path: "/storage/user/roschman/datasets/forecasting_datasets/weather"
+root_path: "/home/stud/roschman/forecasting_datasets/weather"
 data_path: "weather.csv"
 feat_dim: 21
 features: "M"

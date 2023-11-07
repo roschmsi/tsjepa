@@ -88,6 +88,7 @@ class TS2VecEMA(nn.Module):
 
     def forward_mlp_predictor(self, X_masked):
         # model forward in online mode (student)
+        # X_kept with masked tokens
         X_enc = self.encoder(X_masked)["encoder_out"]  # fetch the last layer outputs
         y_pred = self.predictor(X_enc)
 
