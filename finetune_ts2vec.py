@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from data.dataset import load_dataset, CIDataset
 from models.ts_jepa.setup import (
-    init_optimizer_model,
+    init_optimizer,
     init_scheduler,
 )
 from options import Options
@@ -135,7 +135,7 @@ def main(config):
     model = model.to(device)
 
     # create optimizer and scheduler
-    optimizer = init_optimizer_model(
+    optimizer = init_optimizer(
         model=model,
         lr=config.lr,
         weight_decay=config.weight_decay,
