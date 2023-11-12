@@ -63,12 +63,10 @@ def vicreg_fn(z_enc, z_pred):
     frac_enc = z_enc.shape[0] / (z_enc.shape[0] + z_pred.shape[0])
     frac_pred = 1 - frac_enc
 
-    # TODO fine for 50 % masking, but actually problematic if different
-    # should be better to concatenate the two and then compute the std
-    std_enc = torch.sqrt(z_enc.var(dim=0) + 0.0001)
-    std_pred = torch.sqrt(z_pred.var(dim=0) + 0.0001)
-
+    std_enc = torch.sqrt(z_enc.var(dim=0) + 1e-6)
     std_loss_enc = torch.mean(F.relu(1 - std_enc))
+
+    std_pred = torch.sqrt(z_pred.var(dim=0) + 1e-6)
     std_loss_pred = torch.mean(F.relu(1 - std_pred))
 
     std_loss = frac_enc * std_loss_enc + frac_pred * std_loss_pred
@@ -81,6 +79,40 @@ def vicreg_fn(z_enc, z_pred):
     cov_loss = frac_enc * cov_loss_enc + frac_pred * cov_loss_pred
 
     return std_loss, cov_loss, cov_enc, cov_pred
+
+
+def vibcreg(z):
+    num_features = z.shape[-1]
+
+    z = z.reshape(-1, num_features)
+    z = z - z.mean(dim=0)
+
+    std = torch.sqrt(z.var(dim=0) + 1e-4)
+    std_mean = std.mean()
+    std_loss = torch.mean(F.relu(1 - std))
+
+    z_norm = F.normalize(z_norm, p=2, dim=0)
+    cov = z_norm.T @ z_norm
+    cov.fill_diagonal_(0)
+    cov_loss = (cov**2).mean()
+
+    return std_loss, cov_loss, std_mean, cov
+
+
+def vicreg(z):
+    num_features = z.shape[-1]
+
+    z = z.reshape(-1, num_features)
+    z = z - z.mean(dim=0)
+
+    std = torch.sqrt(z.var(dim=0) + 1e-4)
+    std_mean = std.mean()
+    std_loss = torch.mean(F.relu(1 - std))
+
+    cov = (z.T @ z) / (z.shape[0] - 1)
+    cov_loss = off_diagonal(cov).pow_(2).sum().div(num_features)
+
+    return std_loss, cov_loss, std_mean, cov
 
 
 def enc_vicreg_fn(z_enc):
