@@ -9,6 +9,7 @@ from biosppy.signals.tools import filter_signal
 import pandas as pd
 from data.augmentation import augment
 import random
+import torch
 
 from rand_ecg.augmentation import randaug
 
@@ -226,7 +227,14 @@ class ECGDataset(Dataset):
         if self.gender:
             lbl = male
 
-        return data.transpose(), lbl
+        data = data.transpose()
+
+        data = torch.from_numpy(data)
+        data = data.to(torch.float32)
+        lbl = torch.from_numpy(lbl)
+        lbl = lbl.to(torch.float32)
+
+        return data, lbl
 
 
 def load_challenge_data(header_file, fs):
@@ -235,7 +243,7 @@ def load_challenge_data(header_file, fs):
     sampling_rate = int(header[0].split()[2])
     mat_file = header_file.replace(".hea", ".mat")
     x = loadmat(mat_file)
-    recording = np.asarray(x["val"], dtype=np.float64)
+    recording = np.asarray(x["val"], dtype=np.float32)
 
     # Standardize sampling rate
     if sampling_rate > fs:
