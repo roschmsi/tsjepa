@@ -192,6 +192,7 @@ def plot_forecast(
 
 
 # TODO improve mode for patch_tst, tsjepa supervised, tsjepa unsupervised
+# TODO how to mean representations for classification, for forecasting they should not be meaned at all
 def plot_2d(
     method,
     encoder,
@@ -239,12 +240,13 @@ def plot_2d(
                 X_rep.append(X_enc.mean(dim=1).mean(dim=2))
                 y_rep.append(y)
         elif model == "ts2vec":
-            for X, y in data_loader:
-                num_samples += X.shape[0]
+            for X in data_loader:
                 if num_samples > 100000:
                     break
+                num_samples += X.shape[0]
 
                 X = X.to(device)
+
                 if revin is not None:
                     X = revin(X, "norm")
 
@@ -254,7 +256,7 @@ def plot_2d(
                 bs, seq_len, d_model = X_enc.shape
                 X_enc = X_enc.reshape(bs * seq_len, d_model)
 
-                X_rep.append(X_enc)
+                X_rep.append(X_enc.cpu())
 
                 if num_classes == 1:
                     y_rep.append(torch.zeros(X_enc.shape[0]))
@@ -368,7 +370,7 @@ def plot_classwise_distribution(
                 df = pd.concat([df, df_batch], axis=0)
 
         elif model == "ts2vec":
-            for X, y in data_loader:
+            for X in data_loader:
                 if df is not None and df.shape[0] > 100000:
                     break
 
@@ -386,7 +388,7 @@ def plot_classwise_distribution(
                 df_z = pd.DataFrame(X_enc.cpu()).astype("float")
 
                 if num_classes == 1:
-                    df_y = pd.DataFrame(torch.zeros(y.shape[0]), columns=["y"]).astype(
+                    df_y = pd.DataFrame(torch.zeros(X.shape[0]), columns=["y"]).astype(
                         "int"
                     )
                 else:
