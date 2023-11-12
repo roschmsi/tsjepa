@@ -6,7 +6,10 @@ from runner.base import BaseRunner
 from models.ts_jepa.vic_reg import vicreg
 import matplotlib.pyplot as plt
 import torch.nn as nn
-from data.dataset import create_patch, random_patch_masking, block_patch_masking
+from data.dataset import create_patch, random_patch_masking
+from evaluation.evaluate_12ECG_score import compute_auc
+import torch
+import numpy as np
 
 logger = logging.getLogger("__main__")
 
@@ -92,7 +95,7 @@ class TS2VecRunner(BaseRunner):
         target_cov_matrix = torch.zeros(self.model.embed_dim, self.model.embed_dim)
 
         for batch in self.dataloader:
-            X, y = batch
+            X = batch  # no y needed
 
             # TODO revin for block masking separately on X and y to reduce the distribution shift
             # X: (bs x seq_len x n_vars)
@@ -122,7 +125,7 @@ class TS2VecRunner(BaseRunner):
             X_masked = X_masked.to(self.device)
             X_kept = X_kept.to(self.device)
             mask = mask.to(self.device)
-            ids_keep = ids_keep.to(self.device)
+            # ids_keep = ids_keep.to(self.device)
             ids_restore = ids_restore.to(self.device)
 
             # channel independence
@@ -268,7 +271,7 @@ class TS2VecRunner(BaseRunner):
         target_cov_matrix = torch.zeros(self.model.embed_dim, self.model.embed_dim)
 
         for batch in self.dataloader:
-            X, y = batch
+            X = batch  # no y needed
 
             # X: (bs x seq_len x n_vars)
             if self.revin is not None:
@@ -297,7 +300,7 @@ class TS2VecRunner(BaseRunner):
             X_masked = X_masked.to(self.device)
             X_kept = X_kept.to(self.device)
             mask = mask.to(self.device)
-            ids_keep = ids_keep.to(self.device)
+            # ids_keep = ids_keep.to(self.device)
             ids_restore = ids_restore.to(self.device)
 
             # channel independence
@@ -531,5 +534,105 @@ class TS2VecForecastingRunner(BaseRunner):
         self.epoch_metrics["loss"] = loss_meter.avg
         self.epoch_metrics["mse"] = mse_meter.avg
         self.epoch_metrics["mae"] = mae_meter.avg
+
+        return self.epoch_metrics
+
+
+class TS2VecClassificationRunner(BaseRunner):
+    def __init__(
+        self,
+        model,
+        dataloader,
+        device,
+        criterion,
+        patch_len,
+        stride,
+        optimizer=None,
+        scheduler=None,
+    ):
+        self.model = model
+        self.dataloader = dataloader
+        self.device = device
+        self.criterion = criterion
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+
+        self.patch_len = patch_len
+        self.stride = stride
+
+        self.epoch_metrics = OrderedDict()
+
+    def train_epoch(self, epoch_num=None):
+        self.model.train()
+
+        loss_meter = AverageMeter()
+        probs = []
+        lbls = []
+
+        for batch in self.dataloader:
+            X, y = batch
+            X = X.to(self.device)
+            y = y.to(self.device)
+
+            # create patch
+            X = create_patch(X, patch_len=self.patch_len, stride=self.stride)
+
+            y_pred = self.model(X)
+
+            loss = self.criterion(y_pred, y)
+
+            #  Step 2. Backward & step
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+            loss_meter.update(loss.item(), n=X.shape[0])
+            prob = y_pred.sigmoid().data.cpu().numpy()
+            probs.append(prob)
+            lbls.append(y.data.cpu().numpy())
+
+        # scheduler for learning rate change every epoch
+        if self.scheduler is not None:
+            self.scheduler.step()
+
+        # average loss per sample for whole epoch
+        self.epoch_metrics["loss"] = loss_meter.avg
+        lbls = np.concatenate(lbls)
+        probs = np.concatenate(probs)
+        auroc, _ = compute_auc(lbls, probs)
+        self.epoch_metrics["auroc"] = auroc
+
+        return self.epoch_metrics
+
+    def evaluate(self, epoch_num=None):
+        self.model.eval()
+
+        loss_meter = AverageMeter()
+        probs = []
+        lbls = []
+
+        for batch in self.dataloader:
+            X, y = batch
+            X = X.to(self.device)
+            y = y.to(self.device)
+
+            # create patch
+            X = create_patch(X, patch_len=self.patch_len, stride=self.stride)
+
+            y_pred = self.model(X)
+
+            loss = self.criterion(y_pred, y)
+
+            loss_meter.update(loss.item(), n=X.shape[0])
+            prob = y_pred.sigmoid().data.cpu().numpy()
+            probs.append(prob)
+            lbls.append(y.data.cpu().numpy())
+
+        # average loss per sample for whole epoch
+        self.epoch_metrics["loss"] = loss_meter.avg
+        lbls = np.concatenate(lbls)
+        probs = np.concatenate(probs)
+        auroc, _ = compute_auc(lbls, probs)
+        self.epoch_metrics["auroc"] = auroc
 
         return self.epoch_metrics

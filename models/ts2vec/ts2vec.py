@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .ema import EMA
+from models.patch_tst.layers.heads import ClassificationPoolHead
 
 
 class TS2VecEMA(nn.Module):
@@ -412,5 +413,63 @@ class TS2VecForecaster(nn.Module):
 
         if self.head_type == "transformer":
             y = y.reshape(bs, ch, -1).transpose(1, 2)
+
+        return y
+
+
+class TS2VecClassifier(nn.Module):
+    """
+    Data2Vec main module.
+
+    Args:
+         encoder (nn.Module): The encoder module like BEiT, ViT, etc.
+         cfg (omegaconf.DictConfig): The config containing model properties
+    """
+
+    def __init__(
+        self,
+        encoder,
+        n_vars,
+        d_model,
+        n_classes,
+        head_dropout,
+        head_type="linear",
+    ):
+        super(TS2VecClassifier, self).__init__()
+        self.encoder = encoder
+
+        self.head = ClassificationPoolHead(
+            n_vars=n_vars,
+            d_model=d_model,
+            n_classes=n_classes,
+            head_dropout=head_dropout,
+        )
+
+    def forward(self, X):
+        """
+        Data2Vec forward method.
+
+        Args:
+            src: src tokens (masked inputs for training)
+            trg: trg tokens (unmasked inputs for training but left as `None` otherwise)
+            mask: bool masked indices, Note: if a modality requires the inputs to be masked before forward this param
+            has no effect. (see the Encoder for each modality to see if it uses mask or not)
+
+        Returns:
+            Either encoder outputs or a tuple of encoder + EMA outputs
+
+        """
+        # channel independence
+        bs, num_patch, ch, patch_len = X.shape
+        X = X.transpose(1, 2).reshape(bs * ch, num_patch, patch_len)
+
+        # model forward in online mode (student)
+        X = self.encoder(X)["encoder_out"]
+
+        # channel independence
+        X = X.reshape(bs, ch, num_patch, -1)
+        X = X.transpose(2, 3)
+
+        y = self.head(X)
 
         return y

@@ -262,8 +262,8 @@ class CIDataset(Dataset):
         # TODO fix this for ECG dataset
         # X = X.astype(float)
         X = X[:, channel_ind].unsqueeze(-1)
-        y = y[:, channel_ind].unsqueeze(-1)
-        return X, y
+        # y = y[:, channel_ind].unsqueeze(-1)
+        return X  # , y
 
     def __len__(self):
         if self.debug:

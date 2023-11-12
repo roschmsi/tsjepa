@@ -353,23 +353,24 @@ def main(config):
             )
 
         if epoch % config["plot_interval"] == 0:
-            plot_2d(
-                method="pca",
-                encoder=model.encoder,
-                data_loader=train_loader,
-                device=device,
-                config=config,
-                fname="pca_train.png",
-                tb_writer=tb_writer,
-                mode="train",
-                epoch=epoch,
-                num_classes=config.num_classes
-                if "num_classes" in config.keys() and config.multilabel is False
-                else 1,
-                model="ts2vec",
-                patch_len=config.patch_len,
-                stride=config.stride,
-            )
+            # plot_2d(
+            #     method="pca",
+            #     encoder=model.encoder,
+            #     data_loader=train_loader,
+            #     device=device,
+            #     config=config,
+            #     fname="pca_train.png",
+            #     tb_writer=tb_writer,
+            #     mode="train",
+            #     epoch=epoch,
+            #     num_classes=config.num_classes
+            #     if "num_classes" in config.keys() and config.multilabel is False
+            #     else 1,
+            #     model="ts2vec",
+            #     patch_len=config.patch_len,
+            #     stride=config.stride,
+            #     revin=revin,
+            # )
             plot_classwise_distribution(
                 encoder=model.encoder,
                 data_loader=train_loader,
@@ -384,24 +385,26 @@ def main(config):
                 model="ts2vec",
                 patch_len=config.patch_len,
                 stride=config.stride,
+                revin=revin,
             )
-            plot_2d(
-                method="pca",
-                encoder=model.encoder,
-                data_loader=val_loader,
-                device=device,
-                config=config,
-                fname="pca_val.png",
-                tb_writer=tb_writer,
-                mode="val",
-                epoch=epoch,
-                num_classes=config.num_classes
-                if "num_classes" in config.keys() and config.multilabel is False
-                else 1,
-                model="ts2vec",
-                patch_len=config.patch_len,
-                stride=config.stride,
-            )
+            # plot_2d(
+            #     method="pca",
+            #     encoder=model.encoder,
+            #     data_loader=val_loader,
+            #     device=device,
+            #     config=config,
+            #     fname="pca_val.png",
+            #     tb_writer=tb_writer,
+            #     mode="val",
+            #     epoch=epoch,
+            #     num_classes=config.num_classes
+            #     if "num_classes" in config.keys() and config.multilabel is False
+            #     else 1,
+            #     model="ts2vec",
+            #     patch_len=config.patch_len,
+            #     stride=config.stride,
+            #     revin=revin,
+            # )
             plot_classwise_distribution(
                 encoder=model.encoder,
                 data_loader=val_loader,
@@ -416,6 +419,7 @@ def main(config):
                 model="ts2vec",
                 patch_len=config.patch_len,
                 stride=config.stride,
+                revin=revin,
             )
 
         else:

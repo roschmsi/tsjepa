@@ -13,17 +13,17 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from data.dataset import load_dataset, CIDataset
+from data.dataset import load_dataset
 from models.ts_jepa.setup import (
     init_optimizer,
     init_scheduler,
 )
 from options import Options
-from runner.ts2vec import TS2VecForecastingRunner
+from runner.ts2vec import TS2VecForecastingRunner, TS2VecClassificationRunner
 from utils import log_training, readable_time, seed_everything, setup
 from models.patch_tst.layers.revin import RevIN
 
-from models.ts2vec.ts2vec import TS2VecForecaster
+from models.ts2vec.ts2vec import TS2VecForecaster, TS2VecClassifier
 from models.ts2vec.encoder import TransformerEncoder
 from models.ts2vec.utils import (
     load_encoder_from_ts2vec,
@@ -122,16 +122,28 @@ def main(config):
         layer_norm_first=config.layer_norm_first,
         learn_pe=config.learn_pe,
     )
-    model = TS2VecForecaster(
-        encoder=encoder,
-        n_vars=config.feat_dim,
-        d_model=config.enc_d_model,
-        num_patch=num_patch,
-        forecast_len=config.pred_len,
-        patch_len=config.patch_len,
-        head_dropout=config.head_dropout,
-        head_type=config.head_type,
-    )
+    if config.task == "forecasting":
+        model = TS2VecForecaster(
+            encoder=encoder,
+            n_vars=config.feat_dim,
+            d_model=config.enc_d_model,
+            num_patch=num_patch,
+            forecast_len=config.pred_len,
+            patch_len=config.patch_len,
+            head_dropout=config.head_dropout,
+            head_type=config.head_type,
+        )
+    elif config.task == "classification":
+        model = TS2VecClassifier(
+            encoder=encoder,
+            n_vars=config.feat_dim,
+            d_model=config.enc_d_model,
+            n_classes=config.num_classes,
+            head_dropout=config.head_dropout,
+        )
+    else:
+        raise ValueError(f"Task {config.task} not supported.")
+
     model = model.to(device)
 
     # create optimizer and scheduler
@@ -167,7 +179,15 @@ def main(config):
             param.requires_grad = False
 
     # TODO enable to select a loss
-    criterion = nn.MSELoss(reduction="mean")
+    if config.task == "forecasting":
+        criterion = nn.MSELoss(reduction="mean")
+    elif config.task == "classification":
+        if config.multilabel:
+            criterion = BCEWithLogitsLoss(reduction="mean")
+        else:
+            criterion = nn.CrossEntropyLoss(reduction="mean")
+    else:
+        raise ValueError(f"Task {config.task} not supported.")
 
     if config.revin:
         revin = RevIN(
@@ -179,17 +199,29 @@ def main(config):
     else:
         revin = None
 
-    runner_class = TS2VecForecastingRunner
-
-    runner_class = partial(
-        runner_class,
-        model=model,
-        revin=revin,
-        device=device,
-        criterion=criterion,
-        patch_len=config.patch_len,
-        stride=config.stride,
-    )
+    if config.task == "forecasting":
+        runner_class = TS2VecForecastingRunner
+        runner_class = partial(
+            runner_class,
+            model=model,
+            revin=revin,
+            device=device,
+            criterion=criterion,
+            patch_len=config.patch_len,
+            stride=config.stride,
+        )
+    elif config.task == "classification":
+        runner_class = TS2VecClassificationRunner
+        runner_class = partial(
+            runner_class,
+            model=model,
+            device=device,
+            criterion=criterion,
+            patch_len=config.patch_len,
+            stride=config.stride,
+        )
+    else:
+        raise ValueError(f"Task {config.task} not supported.")
 
     trainer = runner_class(
         dataloader=train_loader, optimizer=optimizer, scheduler=scheduler
