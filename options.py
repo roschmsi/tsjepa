@@ -81,6 +81,8 @@ class Options(object):
         self.parser.add_argument("--kernel_size", type=int)
         self.parser.add_argument("--mask_noise_std", type=float)
 
+        self.parser.add_argument("--robustness", action="store_true")
+
         # stationarity
         self.parser.add_argument("--differencing", action="store_true")
         self.parser.add_argument("--lag", type=int, default=0)
