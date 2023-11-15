@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="finetune ts2vec forecasting"
+#SBATCH --job-name="finetune ts2vec classification"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:8G
@@ -11,7 +11,7 @@
 source /home/stud/roschman/ECGAnalysis/ecg_env/bin/activate
 srun python3 /home/stud/roschman/ECGAnalysis/finetune_ts2vec.py \
 --model_name ts2vec \
---enc_num_layers 4 \
+--enc_num_layers 8 \
 --enc_num_heads 16 \
 --enc_d_model 128 \
 --enc_mlp_ratio 2 \
@@ -19,29 +19,25 @@ srun python3 /home/stud/roschman/ECGAnalysis/finetune_ts2vec.py \
 --activation_drop_rate 0.2 \
 --attn_drop_rate 0 \
 --head_type linear \
---head_dropout 0 \
+--head_dropout 0.1 \
 --norm LayerNorm \
 --layer_norm_first \
 --activation gelu \
 --learn_pe \
 --use_patch \
---patch_len 24 \
---stride 24 \
+--patch_len 8 \
+--stride 8 \
 --optimizer AdamW \
---lr 0.00001 \
---weight_decay 0.01 \
+--lr 0.0001 \
+--weight_decay 0.05 \
 --scheduler CosineAnnealingLR \
 --epochs 100 \
---batch_size 64 \
+--batch_size 32 \
 --num_workers 4 \
 --patience 10 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/weather.yaml \
---seq_len 720 \
---label_len 0 \
---pred_len 96 \
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
 --channel_independence \
---task forecasting \
---revin \
+--task classification \
 --val_interval 2 \
 --output_dir /home/stud/roschman/ECGAnalysis/output \
---description "from_scratch_robanl_noinit_patstpe"
+--description "reuse_ts2vec_init"

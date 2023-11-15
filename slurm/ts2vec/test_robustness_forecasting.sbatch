@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="finetune ts2vec forecasting"
+#SBATCH --job-name="test robustness forecasting"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:8G
@@ -9,7 +9,7 @@
 #SBATCH --output=/storage/slurm/logs/slurm-%j.out
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
 source /home/stud/roschman/ECGAnalysis/ecg_env/bin/activate
-srun python3 /home/stud/roschman/ECGAnalysis/finetune_ts2vec.py \
+srun python3 /home/stud/roschman/ECGAnalysis/test_robustness.py \
 --model_name ts2vec \
 --enc_num_layers 4 \
 --enc_num_heads 16 \
@@ -27,8 +27,6 @@ srun python3 /home/stud/roschman/ECGAnalysis/finetune_ts2vec.py \
 --use_patch \
 --patch_len 24 \
 --stride 24 \
---optimizer AdamW \
---lr 0.00001 \
 --weight_decay 0.01 \
 --scheduler CosineAnnealingLR \
 --epochs 100 \
@@ -41,7 +39,9 @@ srun python3 /home/stud/roschman/ECGAnalysis/finetune_ts2vec.py \
 --pred_len 96 \
 --channel_independence \
 --task forecasting \
+--robustness \
 --revin \
 --val_interval 2 \
 --output_dir /home/stud/roschman/ECGAnalysis/output \
---description "from_scratch_robanl_noinit_patstpe"
+--load_model /home/stud/roschman/ECGAnalysis/output/ts2vec/forecasting/weather_sl=720_pl=96_pat=24_str=24_bs=128_sch=CA_lr=1e-05_wd=0.01_revin_enc_l=4_h=16_d=128_drop=0.2_learnpe_norm=LayerNorm_from_scratch_robanl \
+--description "from_scratch_2"

@@ -2,7 +2,7 @@
 #SBATCH --job-name="train patch tst"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:1,VRAM:16G
+#SBATCH --gres=gpu:1,VRAM:8G
 #SBATCH --mem=4G
 #SBATCH --time=120:00:00
 #SBATCH --mail-type=ALL
@@ -30,7 +30,7 @@ srun python3 /usr/stud/roschman/ECGAnalysis/main.py \
 --scheduler CosineAnnealingLR \
 --weight_decay 0.1 \
 --epochs 100 \
---batch_size 64 \
+--batch_size 32 \
 --num_workers 4 \
 --patience 100 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \

@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --job-name="pretrain ts2vec forecasting"
+#SBATCH --job-name="pretrain ts2vec classification"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:1,VRAM:8G
+#SBATCH --gres=gpu:1,VRAM:16G
 #SBATCH --mem=16G
 #SBATCH --time=96:00:00
 #SBATCH --mail-type=BEGIN,END,FAIL,REQUEUE
@@ -11,10 +11,14 @@
 source /home/stud/roschman/ECGAnalysis/ecg_env/bin/activate
 srun python3 /home/stud/roschman/ECGAnalysis/pretrain_ts2vec.py \
 --model_name ts2vec \
---enc_num_layers 4 \
+--enc_num_layers 8 \
 --enc_num_heads 16 \
---enc_d_model 128 \
+--enc_d_model 256 \
 --enc_mlp_ratio 2 \
+--dec_num_layers 2 \
+--dec_num_heads 16 \
+--dec_d_model 128 \
+--dec_mlp_ratio 2 \
 --predictor linear \
 --mask_noise_std 0.02 \
 --kernel_size 5 \
@@ -36,22 +40,18 @@ srun python3 /home/stud/roschman/ECGAnalysis/pretrain_ts2vec.py \
 --masking random \
 --masking_ratio 0.5 \
 --use_patch \
---patch_len 24 \
---stride 24 \
+--patch_len 8 \
+--stride 8 \
 --optimizer AdamW \
 --lr 0.00001 \
 --epochs 2000 \
 --weight_decay 0.01 \
---batch_size 1024 \
+--batch_size 512 \
 --num_workers 4 \
 --patience 2000 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/electricity.yaml \
---seq_len 720 \
---label_len 0 \
---pred_len 0 \
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
 --channel_independence \
 --task pretraining \
---revin \
 --output_dir /home/stud/roschman/ECGAnalysis/output \
 --val_interval 10 \
 --plot_interval 50 \
@@ -60,4 +60,5 @@ srun python3 /home/stud/roschman/ECGAnalysis/pretrain_ts2vec.py \
 --cov_weight 0 \
 --loss smoothl1 \
 --smoothl1_beta 0.5 \
---description "rep=encout_mask=rand0.5_linear_smoothl1=0.5_std=0_cov=0_ema_8gb"
+--no_ema \
+--description "rep=encout_mask=rand0.5_linear_smoothl1=0.5_std=1_cov=0.2_noema"
