@@ -2,7 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .ema import EMA
-from models.patch_tst.layers.heads import ClassificationPoolHead
+from models.patch_tst.layers.heads import (
+    ClassificationPoolHead,
+    ClassificationTokenHead,
+)
 
 
 class TS2VecEMA(nn.Module):
@@ -438,12 +441,22 @@ class TS2VecClassifier(nn.Module):
         super(TS2VecClassifier, self).__init__()
         self.encoder = encoder
 
-        self.head = ClassificationPoolHead(
-            n_vars=n_vars,
-            d_model=d_model,
-            n_classes=n_classes,
-            head_dropout=head_dropout,
-        )
+        self.cls_token = True if encoder.cls_token is not None else False
+
+        if self.cls_token:
+            self.head = ClassificationTokenHead(
+                n_vars=n_vars,
+                d_model=d_model,
+                n_classes=n_classes,
+                head_dropout=head_dropout,
+            )
+        else:
+            self.head = ClassificationPoolHead(
+                n_vars=n_vars,
+                d_model=d_model,
+                n_classes=n_classes,
+                head_dropout=head_dropout,
+            )
 
     def forward(self, X):
         """
@@ -467,6 +480,7 @@ class TS2VecClassifier(nn.Module):
         X = self.encoder(X)["encoder_out"]
 
         # channel independence
+        num_patch = num_patch + 1 if self.cls_token else num_patch
         X = X.reshape(bs, ch, num_patch, -1)
         X = X.transpose(2, 3)
 

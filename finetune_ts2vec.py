@@ -109,6 +109,7 @@ def main(config):
     encoder = TransformerEncoder(
         seq_len=max_seq_len,
         patch_size=config.patch_len,
+        num_patch=num_patch,
         in_chans=config.feat_dim,
         embed_dim=config.enc_d_model,
         depth=config.enc_num_layers,
@@ -121,6 +122,7 @@ def main(config):
         norm=config.norm,
         layer_norm_first=config.layer_norm_first,
         learn_pe=config.learn_pe,
+        cls_token=config.cls_token,
     )
     if config.task == "forecasting":
         model = TS2VecForecaster(
