@@ -498,7 +498,7 @@ class TS2VecForecastingRunner(BaseRunner):
 
         return self.epoch_metrics
 
-    def evaluate(self, epoch_num=None):
+    def evaluate(self, epoch_num=None, perturbation_std=None):
         self.model.eval()
 
         loss_meter = AverageMeter()
@@ -509,6 +509,9 @@ class TS2VecForecastingRunner(BaseRunner):
             X, y = batch
             X = X.to(self.device)
             y = y.to(self.device)
+
+            if perturbation_std is not None:
+                X = X + torch.randn_like(X) * perturbation_std
 
             # X: (bs x seq_len x n_vars)
             if self.revin is not None:
