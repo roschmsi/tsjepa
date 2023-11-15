@@ -7,7 +7,7 @@ import torch.nn as nn
 from models.patch_tst.layers.heads import PredictionHead
 from models.patch_tst.layers.pos_encoding import positional_encoding
 from models.patch_tst.model import (
-    ClassificationHead,
+    ClassificationTokenHead,
     TSTEncoder,
 )
 
@@ -112,6 +112,7 @@ class MAEEncoder(nn.Module):
                 bs * n_vars, -1, self.enc_d_model
             )
 
+        # TODO with and without input dropout
         x = self.dropout(x + encoder_pos_embed)
 
         x = x.reshape(bs, n_vars, num_patch, self.enc_d_model)
@@ -388,7 +389,7 @@ class MaskedAutoencoderPredictor(nn.Module):
         )
 
         if task == "classification":
-            self.head = ClassificationHead(
+            self.head = ClassificationTokenHead(
                 n_vars=c_in,
                 d_model=enc_d_model,
                 n_classes=c_out,

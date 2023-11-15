@@ -5,7 +5,7 @@ from torch import Tensor, nn
 
 from models.patch_tst.layers.encoder import TSTEncoder
 from models.patch_tst.layers.heads import (
-    ClassificationHead,
+    ClassificationTokenHead,
     PredictionHead,
     PatchRevinHead,
     PretrainHead,
@@ -45,7 +45,7 @@ class PatchTST(nn.Module):
         cls_token=False,
         ch_token=False,
         attn_dropout: float = 0.0,
-        res_attention: bool = True,
+        res_attention: bool = False,
         store_attn: bool = False,
         task=None,
         head_dropout=0,
@@ -108,7 +108,7 @@ class PatchTST(nn.Module):
                     head_dropout=head_dropout,
                 )
         elif task == "classification":
-            self.head = ClassificationHead(
+            self.head = ClassificationTokenHead(
                 n_vars=c_in,
                 d_model=d_model,
                 n_patch=num_patch,
@@ -187,7 +187,7 @@ class PatchTSTEncoder(nn.Module):
         ch_token=False,
         attn_dropout=0.0,
         store_attn=False,
-        res_attention=True,
+        res_attention=False,
         task=None,
     ):
         super().__init__()

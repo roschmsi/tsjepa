@@ -5,7 +5,7 @@ from torch import Tensor, nn
 from models.cross_patch_tst.encoder import CrossEncoder
 
 from models.patch_tst.layers.heads import (
-    ClassificationHead,
+    ClassificationTokenHead,
     PredictionHead,
     PretrainHead,
 )
@@ -91,7 +91,7 @@ class CrossPatchTST(nn.Module):
                 head_dropout=head_dropout,
             )
         elif task == "classification":
-            self.head = ClassificationHead(
+            self.head = ClassificationTokenHead(
                 n_vars=c_in,
                 d_model=d_model,
                 n_patch=num_patch,

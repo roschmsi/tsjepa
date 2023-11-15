@@ -7,7 +7,7 @@ import torch.nn as nn
 from models.hierarchical_patch_tst.mlp import DownsamplingMLP, UpsamplingMLP
 from models.patch_tst.layers.pos_encoding import positional_encoding
 from models.patch_tst.model import (
-    ClassificationHead,
+    ClassificationTokenHead,
     TSTEncoder,
 )
 
@@ -543,7 +543,7 @@ class HierarchicalMaskedAutoencoderPredictor(nn.Module):
         )
 
         if task == "classification":
-            self.head = ClassificationHead(
+            self.head = ClassificationTokenHead(
                 n_vars=c_in,
                 d_model=enc_d_model,
                 n_classes=c_out,

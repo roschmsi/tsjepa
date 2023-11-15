@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 
-class ClassificationHead(nn.Module):
+class ClassificationTokenHead(nn.Module):
     def __init__(self, n_vars, d_model, n_classes, head_dropout, n_patch=None):
         super().__init__()
         self.flatten = nn.Flatten(start_dim=1)
