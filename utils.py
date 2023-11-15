@@ -183,6 +183,8 @@ def create_output_directory(config):
         output_dir = os.path.join(
             output_dir, config.model_name, f"{config.task}_finetuning"
         )
+    if config.robustness:
+        output_dir = os.path.join(output_dir, "robustness")
 
     config_description = check_config(config)
     if not config.description == "":
