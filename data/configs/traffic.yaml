@@ -1,6 +1,6 @@
 dataset: "traffic"
 dataset_class: "custom"
-root_path: "/storage/user/roschman/datasets/forecasting_datasets/traffic"
+root_path: "/home/stud/roschman/forecasting_datasets/traffic"
 data_path: "traffic.csv"
 feat_dim: 862
 features: "M"
