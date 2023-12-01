@@ -19,13 +19,13 @@ srun python3 /home/stud/roschman/ECGAnalysis/finetune_ts2vec.py \
 --activation_drop_rate 0.2 \
 --attn_drop_rate 0 \
 --head_type linear \
---head_dropout 0.1 \
+--head_dropout 0 \
 --norm LayerNorm \
 --layer_norm_first \
 --activation gelu \
 --learn_pe \
 --use_patch \
---patch_len 8 \
+--patch_len 16 \
 --stride 8 \
 --optimizer AdamW \
 --lr 0.0001 \
@@ -40,4 +40,4 @@ srun python3 /home/stud/roschman/ECGAnalysis/finetune_ts2vec.py \
 --task classification \
 --val_interval 2 \
 --output_dir /home/stud/roschman/ECGAnalysis/output \
---description "reuse_ts2vec_init"
+--description "from_scratch_no_init_baseline_ijepa_pe"

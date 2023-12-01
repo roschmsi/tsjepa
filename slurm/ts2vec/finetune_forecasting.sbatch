@@ -2,7 +2,7 @@
 #SBATCH --job-name="finetune ts2vec forecasting"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:1,VRAM:8G
+#SBATCH --gres=gpu:1,VRAM:16G
 #SBATCH --mem=4G
 #SBATCH --time=48:00:00
 #SBATCH --mail-type=BEGIN,END,FAIL,REQUEUE
@@ -23,25 +23,24 @@ srun python3 /home/stud/roschman/ECGAnalysis/finetune_ts2vec.py \
 --norm LayerNorm \
 --layer_norm_first \
 --activation gelu \
---learn_pe \
 --use_patch \
 --patch_len 24 \
---stride 24 \
+--stride 12 \
 --optimizer AdamW \
 --lr 0.00001 \
 --weight_decay 0.01 \
 --scheduler CosineAnnealingLR \
 --epochs 100 \
---batch_size 64 \
+--batch_size 32 \
 --num_workers 4 \
---patience 10 \
+--patience 20 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/weather.yaml \
 --seq_len 720 \
 --label_len 0 \
---pred_len 96 \
+--pred_len 336 \
 --channel_independence \
 --task forecasting \
 --revin \
 --val_interval 2 \
 --output_dir /home/stud/roschman/ECGAnalysis/output \
---description "from_scratch_robanl_noinit_patstpe"
+--description "baseline_from_scratch"y

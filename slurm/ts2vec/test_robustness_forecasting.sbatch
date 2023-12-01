@@ -43,5 +43,5 @@ srun python3 /home/stud/roschman/ECGAnalysis/test_robustness.py \
 --revin \
 --val_interval 2 \
 --output_dir /home/stud/roschman/ECGAnalysis/output \
---load_model /home/stud/roschman/ECGAnalysis/output/ts2vec/forecasting/weather_sl=720_pl=96_pat=24_str=24_bs=128_sch=CA_lr=1e-05_wd=0.01_revin_enc_l=4_h=16_d=128_drop=0.2_learnpe_norm=LayerNorm_from_scratch_robanl \
---description "from_scratch_2"
+--load_model /home/stud/roschman/ECGAnalysis/output/ts2vec/forecasting/electricity_sl=720_pl=96_pat=24_str=24_bs=64_sch=CA_lr=0.0001_wd=0.01_fr=100_ema_revin_enc_l=4_h=16_d=128_drop=0.2_learnpe_norm=LayerNorm_only_ema_full_freeze_load_correct_model_flly \
+--description "electricity robustness test"
