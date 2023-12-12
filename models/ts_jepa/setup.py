@@ -340,6 +340,11 @@ def init_scheduler(optimizer, config):
             schedulers=[scheduler_1, scheduler_2],
             milestones=[config.warmup],
         )
+    elif config.scheduler == "StepLR":
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer=optimizer, step_size=config.step_size, gamma=0.1
+        )
+
     else:
         scheduler = None
 

@@ -18,7 +18,7 @@ from tqdm import tqdm
 
 from data.dataset import JEPADataset, load_dataset, ConcatenatedDataset, CIDataset
 from models.ts_jepa.mask import RandomMaskCollator, BlockMaskCollator
-from models.ts_jepa.setup import init_model_pretraining, init_opt
+from models.ts_jepa.setup import init_model_pretraining, init_optimizer_enc_pred
 from models.ts_jepa.utils import (
     load_checkpoint,
     plot_2d,
@@ -192,7 +192,7 @@ def main(config):
     )
 
     # create optimizer and scheduler
-    optimizer = init_opt(
+    optimizer = init_optimizer_enc_pred(
         encoder, predictor, lr=config.lr, weight_decay=config.weight_decay
     )
     scheduler = setup_scheduler(

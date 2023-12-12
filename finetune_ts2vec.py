@@ -31,6 +31,13 @@ from models.ts2vec.utils import (
     load_checkpoint,
 )
 from data.dataset import JEPADataset
+from evaluation.evaluate_12ECG_score import (
+    compute_challenge_metric,
+    load_weights,
+)
+from data.ecg_dataset import classes, normal_class
+import numpy as np
+from data.dataset import create_patch
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO
@@ -241,6 +248,30 @@ def main(config):
 
         return
 
+    elif config.robustness:
+        df = pd.DataFrame()
+
+        with torch.no_grad():
+            for i, perturbation_std in enumerate(
+                np.arange(start=0, stop=1.1, step=0.1)
+            ):
+                print("perturbation std: ", perturbation_std)
+                aggr_metrics_test = test_evaluator.evaluate(
+                    perturbation_std=perturbation_std
+                )
+
+                logger.info(
+                    f"Test performance with perturbation std {perturbation_std}:"
+                )
+                for k, v in aggr_metrics_test.items():
+                    logger.info(f"{k}: {v}")
+
+                aggr_metrics_test["perturbation_std"] = perturbation_std
+                df = pd.concat([df, pd.DataFrame(aggr_metrics_test, index=[i])])
+
+        df.to_csv(os.path.join(config.output_dir, "robustness.csv"))
+        return
+
     tb_writer = SummaryWriter(config.output_dir)
 
     patience_count = 0
@@ -322,6 +353,72 @@ def main(config):
     logger.info("Best test performance:")
     for k, v in aggr_metrics_test.items():
         logger.info(f"{k}: {v}")
+
+    # load best model, compute physionet challenge metric
+    if config.dataset == "ecg" and config.task == "classification":
+        logger.info("Compute PhysioNet 2020 challenge metric")
+        step = 0.02
+        scores = []
+        weights = load_weights(config.weights_file, classes)
+
+        for thr in np.arange(0.0, 1.0, step):
+            lbls = []
+            probs = []
+
+            for batch in val_loader:
+                X, targets = batch
+                X = X.to(device)
+                X = create_patch(X, patch_len=config.patch_len, stride=config.stride)
+                targets = targets.to(device)
+
+                with torch.no_grad():
+                    predictions = model(X)
+                    prob = predictions.sigmoid().cpu().numpy()
+                    probs.append(prob)
+                    lbls.append(targets.cpu().numpy())
+
+            lbls = np.concatenate(lbls)
+            probs = np.concatenate(probs)
+
+            preds = (probs > thr).astype(np.int)
+            challenge_metric = compute_challenge_metric(
+                weights, lbls, preds, classes, normal_class
+            )
+            scores.append(challenge_metric)
+
+        # best thrs and preds
+        scores = np.array(scores)
+        idxs = np.argmax(scores, axis=0)
+        thr_final = idxs * step
+
+        logger.info(f"Validation challenge score: {scores[idxs]}")
+        logger.info(f"Threshold: {thr_final}")
+
+        # physionet 2020 challenge
+        lbls = []
+        probs = []
+
+        for batch in test_loader:
+            X, targets = batch
+            X = X.to(device)
+            X = create_patch(X, patch_len=config.patch_len, stride=config.stride)
+            targets = targets.to(device)
+
+            with torch.no_grad():
+                predictions = model(X)
+                prob = predictions.sigmoid().cpu().numpy()
+                probs.append(prob)
+                lbls.append(targets.cpu().numpy())
+
+        lbls = np.concatenate(lbls)
+        probs = np.concatenate(probs)
+
+        preds = (probs > thr_final).astype(np.int)
+        challenge_metric_test = compute_challenge_metric(
+            weights, lbls, preds, classes, normal_class
+        )
+
+        logger.info(f"Test challenge score: {challenge_metric_test}")
 
     total_runtime = time.time() - total_start_time
     logger.info(

@@ -15,7 +15,7 @@ python3 -m pip install -r requirements.txt
 ```
 
 ## Data
-We conduct most experiments on the ECG classification dataset provided for the PhysioNet Challenge 2020. However, our models can also be evaluated on eight popular forecasting datasets.
+We conduct experiments on the ECG classification dataset provided for the PhysioNet Challenge 2020 and on eight popular forecasting datasets.
 For each dataset, you can find a configuration file under `data/configs/`.
 
 ### ECG Classification

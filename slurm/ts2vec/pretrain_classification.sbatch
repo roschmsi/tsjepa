@@ -2,9 +2,9 @@
 #SBATCH --job-name="pretrain ts2vec classification"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:1,VRAM:16G
+#SBATCH --gres=gpu:1,VRAM:32G
 #SBATCH --mem=16G
-#SBATCH --time=144:00:00
+#SBATCH --time=160:00:00
 #SBATCH --mail-type=BEGIN,END,FAIL,REQUEUE
 #SBATCH --output=/storage/slurm/logs/slurm-%j.out
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
@@ -19,7 +19,7 @@ srun python3 /home/stud/roschman/ECGAnalysis/pretrain_ts2vec.py \
 --dec_num_heads 16 \
 --dec_d_model 128 \
 --dec_mlp_ratio 2 \
---predictor transformer \
+--predictor linear \
 --dropout 0.2 \
 --activation_drop_rate 0.2 \
 --attn_drop_rate 0 \
@@ -40,7 +40,7 @@ srun python3 /home/stud/roschman/ECGAnalysis/pretrain_ts2vec.py \
 --patch_len 8 \
 --stride 8 \
 --optimizer AdamW \
---lr 0.0001 \
+--lr 0.00001 \
 --scheduler CosineAnnealingLR \
 --epochs 2000 \
 --weight_decay 0.01 \
@@ -59,4 +59,4 @@ srun python3 /home/stud/roschman/ECGAnalysis/pretrain_ts2vec.py \
 --cov_weight 0 \
 --loss smoothl1 \
 --smoothl1_beta 0.5 \
---description "from_scratch_ema_only_transformer_noinit"
+--description "from_scratch_ema_only_linear_noinit_3"

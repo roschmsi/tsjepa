@@ -15,7 +15,12 @@ from tqdm import tqdm
 
 from data.dataset import JEPADataset, load_dataset, ConcatenatedDataset
 from models.ts_jepa.mask import RandomMaskCollator
-from models.ts_jepa.setup import init_classifier, init_forecaster
+from models.ts_jepa.setup import (
+    init_classifier,
+    init_forecaster,
+    init_optimizer,
+    init_scheduler,
+)
 from models.ts_jepa.utils import (
     load_classifier_checkpoint,
     load_encoder_from_tsjepa,
@@ -54,8 +59,6 @@ def main(config):
 
     # build data
     train_dataset, val_dataset, test_dataset = load_dataset(config)
-    # if config.channel_independence:
-    #     config.feat_dim = 1
 
     if config.seq_len is not None:
         max_seq_len = config.seq_len
@@ -79,6 +82,9 @@ def main(config):
             drop_rate=config.dropout,
             n_classes=config.num_classes,
             head_dropout=config.head_dropout,
+            learn_pe=config.learn_pe,
+            norm_layer=config.norm,
+            output_norm=not config.no_output_norm,
         )
     elif config.task == "forecasting":
         model = init_forecaster(
@@ -91,17 +97,22 @@ def main(config):
             enc_num_heads=config.enc_num_heads,
             enc_mlp_ratio=config.enc_mlp_ratio,
             drop_rate=config.dropout,
+            attn_drop_rate=config.attn_drop_rate,
+            drop_path_rate=config.drop_path_rate,
             head_dropout=config.head_dropout,
             num_patch=num_patch,
             forecast_len=config.pred_len,
+            norm_layer=config.norm,
+            learn_pe=config.learn_pe,
+            head=config.head,
         )
 
-    # -- make data transforms
+    # collation without actual masking
     mask_collator = RandomMaskCollator(
         ratio=config.masking_ratio,
         input_size=max_seq_len,
         patch_size=config.patch_len,
-        channel_independence=False,  # config.channel_independence,
+        channel_independence=False,
     )
 
     # initialize data generator and runner
@@ -147,21 +158,26 @@ def main(config):
     )
 
     # create optimizer and scheduler
-    optimizer = torch.optim.AdamW(
-        model.parameters(), lr=config.lr, weight_decay=config.weight_decay
+    optimizer = init_optimizer(
+        model=model,
+        lr=config.lr,
+        weight_decay=config.weight_decay,
+        epochs=config.epochs,
     )
+    scheduler = init_scheduler(optimizer, config)
 
     start_epoch = 0
 
-    # load pretrained weights
-    if config.checkpoint_last:
-        path = os.path.join(config.load_model, "checkpoints", "model_last.pth")
-    else:
-        path = os.path.join(config.load_model, "checkpoints", "model_best.pth")
+    if config.load_model:
+        # load pretrained weights
+        if config.checkpoint_last:
+            path = os.path.join(config.load_model, "checkpoints", "model_last.pth")
+        else:
+            path = os.path.join(config.load_model, "checkpoints", "model_best.pth")
 
-    encoder = load_encoder_from_tsjepa(path=path, encoder=model.encoder)
+        encoder = load_encoder_from_tsjepa(path=path, encoder=model.encoder)
 
-    model.encoder = encoder
+        model.encoder = encoder
 
     if config.freeze:
         for _, param in model.encoder.named_parameters():
@@ -173,43 +189,43 @@ def main(config):
         else:
             criterion = nn.CrossEntropyLoss(reduction="mean")
     elif config.task == "forecasting":
-        criterion = nn.MSELoss(reduction="mean")
+        if config.loss == "mae":
+            criterion = nn.L1Loss(reduction="mean")
+        elif config.loss == "smooth_l1":
+            criterion = nn.SmoothL1Loss(reduction="mean")
+        else:
+            criterion = nn.MSELoss(reduction="mean")
     else:
         raise ValueError(f"Task {config.task} not recognized.")
 
     if config.revin:
         revin = RevIN(
             num_features=1,  # config.feat_dim,
-            affine=False,
+            affine=config.revin_affine,
             subtract_last=False,
         )
+        revin = revin.to(device)
     else:
         revin = None
 
+    runner_class = TS2VecForecaster
+    runner_class = partial(
+        runner_class,
+        model=model,
+        revin=revin,
+        device=device,
+        patch_len=config.patch_len,
+        stride=config.stride,
+        masking_ratio=config.masking_ratio,
+        debug=config.debug,
+    )
     trainer = runner_class(
-        model=model,
-        revin=revin,
         dataloader=train_loader,
-        device=device,
-        criterion=criterion,
         optimizer=optimizer,
+        scheduler=scheduler,
     )
-
-    val_evaluator = runner_class(
-        model=model,
-        revin=revin,
-        dataloader=val_loader,
-        device=device,
-        criterion=criterion,
-    )
-
-    test_evaluator = runner_class(
-        model=model,
-        revin=revin,
-        dataloader=test_loader,
-        device=device,
-        criterion=criterion,
-    )
+    val_evaluator = runner_class(dataloader=val_loader)
+    test_evaluator = runner_class(dataloader=test_loader)
 
     if config.test:
         logger.info("Test performance:")
@@ -232,10 +248,10 @@ def main(config):
         leave=False,
     ):
         # option to unfreeze entire model after initial linear probing
-        # if "freeze" in config.keys():
-        #     if config.freeze and epoch > config.freeze_epochs:
-        #         for name, param in model.named_parameters():
-        #             param.requires_grad = True
+        if "freeze" in config.keys():
+            if config.freeze and epoch > config.freeze_epochs:
+                for name, param in model.named_parameters():
+                    param.requires_grad = True
 
         # train model
         epoch_start_time = time.time()

@@ -77,10 +77,18 @@ def check_config(config):
         dir += f"_fr={config.freeze_epochs}"
 
     # vic regularization loss weights
-    if config.vic_reg:
+    if config.pred_weight is not None:
         dir += f"_pred={config.pred_weight}"
+    if config.std_weight is not None:
         dir += f"_std={config.std_weight}"
+    if config.cov_weight is not None:
         dir += f"_cov={config.cov_weight}"
+
+    if config.model_name == "ts2vec":
+        if config.no_ema:
+            dir += "_noema"
+        else:
+            dir += f"_ema"
 
     # reverse instance normalization
     if config.revin:

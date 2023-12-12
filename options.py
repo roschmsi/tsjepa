@@ -57,7 +57,7 @@ class Options(object):
         self.parser.add_argument("--ema_start", type=float)
         self.parser.add_argument("--ema_end", type=float)
         self.parser.add_argument("--no_ema", action="store_true")
-        self.parser.add_argument("--load_classifier", type=str)
+        self.parser.add_argument("--load_encoder", type=str)
         self.parser.add_argument("--no_output_norm", action="store_true")
         self.parser.add_argument("--head_type", type=str)
         # self.parser.add_argument("--no_momentum", action="store_true")
@@ -81,6 +81,8 @@ class Options(object):
         self.parser.add_argument("--kernel_size", type=int)
         self.parser.add_argument("--mask_noise_std", type=float)
 
+        self.parser.add_argument("--step_size", type=int)
+
         self.parser.add_argument("--robustness", action="store_true")
 
         # stationarity
@@ -88,8 +90,8 @@ class Options(object):
         self.parser.add_argument("--lag", type=int, default=0)
 
         # vic regularization
-        self.parser.add_argument("--vic_reg", action="store_true")
-        self.parser.add_argument("--vibc_reg", action="store_true")
+        self.parser.add_argument("--vcreg", action="store_true")
+        self.parser.add_argument("--vbcreg", action="store_true")
         self.parser.add_argument("--vic_reg_enc", action="store_true")
         self.parser.add_argument("--pred_weight", type=float)
         self.parser.add_argument("--std_weight", type=float)
@@ -116,6 +118,8 @@ class Options(object):
         self.parser.add_argument("--ch_token", action="store_true")
 
         self.parser.add_argument("--masking", type=str)
+
+        self.parser.add_argument("--bert", action="store_true")
 
         # hierarchical
         self.parser.add_argument("--hierarchical", action="store_true")

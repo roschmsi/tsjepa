@@ -226,20 +226,24 @@ class TSTPredictor(nn.Module):
         drop_path_rate=0.0,
         norm_layer=nn.LayerNorm,
         init_std=0.02,
+        output_norm=True,
+        learn_pe=False,
         **kwargs
     ):
         super().__init__()
+        self.embed_dim = predictor_embed_dim
         self.predictor_embed = nn.Linear(
             encoder_embed_dim, predictor_embed_dim, bias=True
         )
         self.mask_token = nn.Parameter(torch.zeros(1, 1, predictor_embed_dim))
+        self.output_norm = output_norm
         dpr = [
             x.item() for x in torch.linspace(0, drop_path_rate, depth)
         ]  # stochastic depth decay rule
 
         # 1d pos embed
         self.predictor_pos_embed = nn.Parameter(
-            torch.zeros(1, num_patches, predictor_embed_dim), requires_grad=False
+            torch.zeros(1, num_patches, predictor_embed_dim), requires_grad=learn_pe
         )
         predictor_pos_embed = get_1d_sincos_pos_embed(
             self.predictor_pos_embed.shape[-1], num_patches, cls_token=False
@@ -336,7 +340,9 @@ class TSTPredictor(nn.Module):
         # -- fwd prop
         for blk in self.predictor_blocks:
             x = blk(x)
-        x = self.predictor_norm(x)
+
+        if self.output_norm:
+            x = self.predictor_norm(x)
 
         # -- return preds for mask tokens
         x = x[:, enc_num_patches:]
@@ -364,11 +370,14 @@ class TSTEncoder(nn.Module):
         drop_path_rate=0.0,
         norm_layer=nn.LayerNorm,
         init_std=0.02,
+        output_norm=True,
+        learn_pe=False,
         **kwargs
     ):
         super().__init__()
         self.num_heads = num_heads
         self.embed_dim = embed_dim
+        self.output_norm = output_norm
 
         self.patch_embed = PatchEmbed(
             ts_length=seq_len,
@@ -381,7 +390,7 @@ class TSTEncoder(nn.Module):
 
         # 1d pos embed
         self.pos_embed = nn.Parameter(
-            torch.zeros(1, num_patches, embed_dim), requires_grad=False
+            torch.zeros(1, num_patches, embed_dim), requires_grad=learn_pe
         )
         pos_embed = get_1d_sincos_pos_embed(
             self.pos_embed.shape[-1], num_patches, cls_token=False
@@ -436,7 +445,7 @@ class TSTEncoder(nn.Module):
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x, masks=None):
+    def forward(self, x, masks=None, return_layerwise_representations=False):
         # x: [bs x seq_len x n_vars]
         if masks is not None:
             if not isinstance(masks, list):
@@ -455,14 +464,20 @@ class TSTEncoder(nn.Module):
         if masks is not None:
             x = apply_masks(x, masks)
 
+        layer_results = []
+
         # fwd prop
         for i, blk in enumerate(self.blocks):
             x = blk(x)
+            layer_results.append(x)
 
-        if self.norm is not None:
+        if self.output_norm:
             x = self.norm(x)
 
-        return x
+        if return_layerwise_representations:
+            return x, layer_results
+        else:
+            return x
 
     def interpolate_pos_encoding(self, x, pos_embed):
         npatch = x.shape[1] - 1
@@ -533,7 +548,7 @@ class PredictionHead(nn.Module):
         return x.transpose(2, 1)  # [bs x forecast_len x nvars]
 
 
-class TSTForecaster(nn.Module):
+class LinearForecaster(nn.Module):
     """Time Series Transformer with channel independence"""
 
     def __init__(
@@ -545,11 +560,14 @@ class TSTForecaster(nn.Module):
         enc_depth,
         enc_num_heads,
         enc_mlp_ratio,
+        norm_layer,
         drop_rate,
         attn_drop_rate,
+        drop_path_rate,
         head_dropout,
         num_patch,
         forecast_len,
+        learn_pe,
     ):
         super().__init__()
         self.encoder = TSTEncoder(
@@ -561,9 +579,10 @@ class TSTForecaster(nn.Module):
             num_heads=enc_num_heads,
             mlp_ratio=enc_mlp_ratio,
             qkv_bias=True,
-            norm_layer=partial(nn.LayerNorm, eps=1e-6),
+            norm_layer=norm_layer,
             drop_rate=drop_rate,
             attn_drop_rate=attn_drop_rate,
+            learn_pe=learn_pe,
         )
         self.head = PredictionHead(
             individual=False,
@@ -588,6 +607,78 @@ class TSTForecaster(nn.Module):
         x = self.head(x)
 
         return x
+
+
+class PETForecaster(nn.Module):
+    """Time Series Transformer with channel independence"""
+
+    def __init__(
+        self,
+        seq_len,
+        patch_size,
+        in_chans,
+        enc_embed_dim,
+        enc_depth,
+        enc_num_heads,
+        enc_mlp_ratio,
+        norm_layer,
+        drop_rate,
+        attn_drop_rate,
+        drop_path_rate,
+        head_dropout,
+        num_patch,
+        forecast_len,
+        learn_pe,
+    ):
+        super().__init__()
+        self.encoder = TSTEncoder(
+            seq_len=seq_len,
+            patch_size=patch_size,
+            in_chans=in_chans,
+            embed_dim=enc_embed_dim,
+            depth=enc_depth,
+            num_heads=enc_num_heads,
+            mlp_ratio=enc_mlp_ratio,
+            qkv_bias=True,
+            norm_layer=norm_layer,
+            drop_rate=drop_rate,
+            attn_drop_rate=attn_drop_rate,
+            learn_pe=learn_pe,
+        )
+        # self.decoder =
+
+    def forward(self, x, masks=None):
+        bs, seq_len, n_vars = x.shape
+        x = x.transpose(1, 2)
+        x = x.reshape(bs * n_vars, seq_len).unsqueeze(-1)
+        # x: [bs * n_vars x seq_len x 1] for channel independence
+        x = self.encoder(x)
+        # x: [bs * n_vars x num_patch x d_model]
+        _, num_patch, d_model = x.shape
+        x = x.reshape(bs, n_vars, num_patch, d_model)
+        x = x.transpose(2, 3)
+
+        x = self.head(x)
+
+        return x
+
+    def interpolate_pos_encoding(self, x, pos_embed):
+        npatch = x.shape[1] - 1
+        N = pos_embed.shape[1] - 1
+        if npatch == N:
+            return pos_embed
+        class_emb = pos_embed[:, 0]
+        pos_embed = pos_embed[:, 1:]
+        dim = x.shape[-1]
+        pos_embed = nn.functional.interpolate(
+            pos_embed.reshape(1, int(math.sqrt(N)), int(math.sqrt(N)), dim).permute(
+                0, 3, 1, 2
+            ),
+            scale_factor=math.sqrt(npatch / N),
+            mode="bicubic",
+        )
+        pos_embed = pos_embed.permute(0, 2, 3, 1).view(1, -1, dim)
+        return torch.cat((class_emb.unsqueeze(0), pos_embed), dim=1)
 
 
 class ClassificationHead(nn.Module):
@@ -621,10 +712,14 @@ class TSTClassifier(nn.Module):
         enc_depth,
         enc_num_heads,
         enc_mlp_ratio,
+        norm_layer,
         drop_rate,
         attn_drop_rate,
+        drop_path_rate,
         n_classes,
         head_dropout,
+        learn_pe,
+        output_norm,
     ):
         super().__init__()
         self.encoder = TSTEncoder(
@@ -636,9 +731,12 @@ class TSTClassifier(nn.Module):
             num_heads=enc_num_heads,
             mlp_ratio=enc_mlp_ratio,
             qkv_bias=True,
-            norm_layer=partial(nn.LayerNorm, eps=1e-6),
+            norm_layer=norm_layer,
             drop_rate=drop_rate,
             attn_drop_rate=attn_drop_rate,
+            drop_path_rate=drop_path_rate,
+            learn_pe=learn_pe,
+            output_norm=output_norm,
         )
         self.head = ClassificationHead(
             seq_len=seq_len,

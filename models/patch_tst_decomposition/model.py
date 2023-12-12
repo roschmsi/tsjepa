@@ -5,7 +5,7 @@ from torch import Tensor, nn
 
 from models.patch_tst.layers.encoder import TSTEncoder
 from models.patch_tst.layers.heads import (
-    ClassificationHead,
+    ClassificationTokenHead,
     PredictionHead,
     PretrainHead,
 )

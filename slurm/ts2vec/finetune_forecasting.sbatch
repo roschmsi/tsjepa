@@ -25,22 +25,25 @@ srun python3 /home/stud/roschman/ECGAnalysis/finetune_ts2vec.py \
 --activation gelu \
 --use_patch \
 --patch_len 24 \
---stride 12 \
+--stride 24 \
 --optimizer AdamW \
 --lr 0.00001 \
 --weight_decay 0.01 \
 --scheduler CosineAnnealingLR \
 --epochs 100 \
---batch_size 32 \
+--batch_size 64 \
 --num_workers 4 \
---patience 20 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/weather.yaml \
+--patience 10 \
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/ettm1.yaml \
 --seq_len 720 \
 --label_len 0 \
---pred_len 336 \
+--pred_len 96 \
 --channel_independence \
 --task forecasting \
 --revin \
 --val_interval 2 \
 --output_dir /home/stud/roschman/ECGAnalysis/output \
---description "baseline_from_scratch"y
+--load_model /home/stud/roschman/ECGAnalysis/output/ts2vec/pretraining/electricity_sl=720_pl=0_pat=24_str=24_mratio=0.5_bs=1024_sch=CA_lr=1e-05_wd=0.01_pred=1.0_std=0.0_cov=0.0_ema_revin_enc_l=4_h=16_d=128_dec_l=1_h=16_d=128_drop=0.2_norm=LayerNorm_from_scratch_ema_only_transformer_noinit \
+--freeze \
+--freeze_epochs 100 \
+--description "transformer_pretrained_electr_lin_prob_result"

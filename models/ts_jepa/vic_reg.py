@@ -91,10 +91,9 @@ def vibcreg(z):
     std_mean = std.mean()
     std_loss = torch.mean(F.relu(1 - std))
 
-    z_norm = F.normalize(z_norm, p=2, dim=0)
+    z_norm = F.normalize(z, p=2, dim=0)
     cov = z_norm.T @ z_norm
-    cov.fill_diagonal_(0)
-    cov_loss = (cov**2).mean()
+    cov_loss = off_diagonal(cov).pow_(2).mean()
 
     return std_loss, cov_loss, std_mean, cov
 

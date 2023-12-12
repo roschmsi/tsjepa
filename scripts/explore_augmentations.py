@@ -9,6 +9,7 @@ from data.ecg_dataset import load_ecg_dataset
 from data.fc_dataset import load_fc_dataset
 from options import Options
 from utils import seed_everything, setup
+from tsaug import AddNoise, Dropout, Pool
 
 if __name__ == "__main__":
     args = Options().parse()

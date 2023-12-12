@@ -2,7 +2,7 @@
 #SBATCH --job-name="finetune ts2vec classification"
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:1,VRAM:8G
+#SBATCH --gres=gpu:1,VRAM:16G
 #SBATCH --mem=4G
 #SBATCH --time=48:00:00
 #SBATCH --mail-type=BEGIN,END,FAIL,REQUEUE
@@ -25,11 +25,11 @@ srun python3 /home/stud/roschman/ECGAnalysis/finetune_ts2vec.py \
 --activation gelu \
 --learn_pe \
 --use_patch \
---patch_len 16 \
+--patch_len 8 \
 --stride 8 \
 --optimizer AdamW \
 --lr 0.0001 \
---weight_decay 0.05 \
+--weight_decay 0.01 \
 --scheduler CosineAnnealingLR \
 --epochs 100 \
 --batch_size 32 \
@@ -40,4 +40,5 @@ srun python3 /home/stud/roschman/ECGAnalysis/finetune_ts2vec.py \
 --task classification \
 --val_interval 2 \
 --output_dir /home/stud/roschman/ECGAnalysis/output \
---description "from_scratch_no_init_baseline_ijepa_pe"
+--load_model /home/stud/roschman/ECGAnalysis/output/ts2vec/pretraining/ecg_pat=8_str=8_mratio=0.5_bs=1024_sch=CA_lr=0.0001_wd=0.01_pred=1.0_std=0.0_cov=0.0_ema_enc_l=8_h=16_d=128_dec_l=2_h=16_d=128_drop=0.2_norm=LayerNorm_mae \
+--description "mae_finetune_result_physionet"

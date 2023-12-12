@@ -98,19 +98,19 @@ class TS2VecEMA(nn.Module):
 
         return X_enc, y_pred
 
-    def forward_transformer_predictor(self, X_kept, mask, ids_restore):
-        X_enc = self.encoder(X_kept, mask)["encoder_out"]
+    def forward_transformer_predictor(self, X_kept, ids_kept, ids_restore):
+        X_enc = self.encoder(X_kept, ids_kept)["encoder_out"]
         y_pred = self.predictor(X_enc, ids_restore)
 
         return X_enc, y_pred
 
-    def forward_cnn_predictor(self, X_kept, mask, ids_restore):
-        X_enc = self.encoder(X_kept, mask)["encoder_out"]
+    def forward_cnn_predictor(self, X_kept, ids_kept, ids_restore):
+        X_enc = self.encoder(X_kept, ids_kept)["encoder_out"]
         y_pred = self.predictor(X_enc, ids_restore)
 
         return X_enc, y_pred
 
-    def forward(self, X_full, X_masked, X_kept, mask, ids_restore):
+    def forward(self, X_full, X_masked, X_kept, ids_kept, ids_restore):
         """
         Data2Vec forward method.
 
@@ -128,20 +128,14 @@ class TS2VecEMA(nn.Module):
             X_enc, y_pred = self.forward_mlp_predictor(X_masked=X_masked)
         elif self.predictor_type == "transformer":
             X_enc, y_pred = self.forward_transformer_predictor(
-                X_kept=X_kept, mask=mask, ids_restore=ids_restore
+                X_kept=X_kept, ids_kept=ids_kept, ids_restore=ids_restore
             )
         elif self.predictor_type == "cnn":
             X_enc, y_pred = self.forward_cnn_predictor(
-                X_kept=X_kept, mask=mask, ids_restore=ids_restore
+                X_kept=X_kept, ids_kept=ids_kept, ids_restore=ids_restore
             )
         else:
             raise NotImplementedError
-
-        # if self.normalize_pred:
-        #     if self.pred_norm == "LayerNorm":
-        #         y_pred = F.layer_norm(y_pred.float(), y_pred.shape[-1:])
-        #     elif self.pred_norm == "InstanceNorm":
-        #         y_pred = F.instance_norm(y_pred.float().transpose(1, 2)).transpose(1, 2)
 
         # model forward in offline mode (teacher)
         with torch.no_grad():
@@ -168,19 +162,86 @@ class TS2VecEMA(nn.Module):
                     y = sum(y) / len(y)
                     if self.normalize_targets:
                         y = F.instance_norm(y.transpose(1, 2)).transpose(1, 2)
-                # elif self.target_norm == "BatchNorm":
-                #     y = [
-                #         F.instance_norm(tl.float().transpose(1, 2)).transpose(1, 2)
-                #         for tl in y
-                #     ]
-                #     y = sum(y) / len(y)
-                #     if self.normalize_targets:
-                #         y = F.instance_norm(y.transpose(1, 2)).transpose(1, 2)
+
             elif self.targets_rep == "encoder_out":
                 y = self.ema.model(X_full)["encoder_out"]
                 y = F.layer_norm(y.float(), y.shape[-1:])
 
         return X_enc, y_pred, y
+
+
+class BERT(nn.Module):
+    """
+    Data2Vec main module.
+
+    Args:
+         encoder (nn.Module): The encoder module like BEiT, ViT, etc.
+         cfg (omegaconf.DictConfig): The config containing model properties
+    """
+
+    def __init__(
+        self,
+        encoder,
+        predictor,
+        predictor_type,
+        embed_dim,
+    ):
+        super(BERT, self).__init__()
+        self.encoder = encoder
+        self.predictor = predictor
+        self.predictor_type = predictor_type
+        self.embed_dim = embed_dim
+
+    def forward_mlp_predictor(self, X_masked):
+        # model forward in online mode (student)
+        # X_kept with masked tokens
+        X_enc = self.encoder(X_masked)["encoder_out"]  # fetch the last layer outputs
+        y_pred = self.predictor(X_enc)
+
+        return X_enc, y_pred
+
+    def forward_transformer_predictor(self, X_kept, ids_kept, ids_restore):
+        X_enc = self.encoder(X_kept, ids_kept)["encoder_out"]
+        y_pred = self.predictor(X_enc, ids_restore)
+
+        return X_enc, y_pred
+
+    def forward_cnn_predictor(self, X_kept, ids_kept, ids_restore):
+        X_enc = self.encoder(X_kept, ids_kept)["encoder_out"]
+        y_pred = self.predictor(X_enc, ids_restore)
+
+        return X_enc, y_pred
+
+    def forward(self, X_full, X_masked, X_kept, ids_kept, ids_restore):
+        """
+        Data2Vec forward method.
+
+        Args:
+            src: src tokens (masked inputs for training)
+            trg: trg tokens (unmasked inputs for training but left as `None` otherwise)
+            mask: bool masked indices, Note: if a modality requires the inputs to be masked before forward this param
+            has no effect. (see the Encoder for each modality to see if it uses mask or not)
+
+        Returns:
+            Either encoder outputs or a tuple of encoder + EMA outputs
+
+        """
+        if self.predictor_type in ["mlp", "linear"]:
+            X_enc, y_pred = self.forward_mlp_predictor(X_masked=X_masked)
+        elif self.predictor_type == "transformer":
+            X_enc, y_pred = self.forward_transformer_predictor(
+                X_kept=X_kept, ids_kept=ids_kept, ids_restore=ids_restore
+            )
+        elif self.predictor_type == "cnn":
+            X_enc, y_pred = self.forward_cnn_predictor(
+                X_kept=X_kept, ids_kept=ids_kept, ids_restore=ids_restore
+            )
+        else:
+            raise NotImplementedError
+
+        # model forward in offline mode (teacher)
+
+        return X_enc, y_pred, X_full
 
 
 class TS2VecNoEMA(nn.Module):
@@ -223,19 +284,19 @@ class TS2VecNoEMA(nn.Module):
 
         return X_enc, y_pred
 
-    def forward_transformer_predictor(self, X_kept, mask, ids_restore):
-        X_enc = self.encoder(X_kept, mask)["encoder_out"]
+    def forward_transformer_predictor(self, X_kept, ids_kept, ids_restore):
+        X_enc = self.encoder(X_kept, ids_kept)["encoder_out"]
         y_pred = self.predictor(X_enc, ids_restore)
 
         return X_enc, y_pred
 
-    def forward_cnn_predictor(self, X_kept, mask, ids_restore):
-        X_enc = self.encoder(X_kept, mask)["encoder_out"]
+    def forward_cnn_predictor(self, X_kept, ids_kept, ids_restore):
+        X_enc = self.encoder(X_kept, ids_kept)["encoder_out"]
         y_pred = self.predictor(X_enc, ids_restore)
 
         return X_enc, y_pred
 
-    def forward(self, X_full, X_masked, X_kept, mask, ids_restore):
+    def forward(self, X_full, X_masked, X_kept, ids_kept, ids_restore):
         """
         Data2Vec forward method.
 
@@ -253,11 +314,11 @@ class TS2VecNoEMA(nn.Module):
             X_enc, y_pred = self.forward_mlp_predictor(X_masked=X_masked)
         elif self.predictor_type == "transformer":
             X_enc, y_pred = self.forward_transformer_predictor(
-                X_kept=X_kept, mask=mask, ids_restore=ids_restore
+                X_kept=X_kept, ids_kept=ids_kept, ids_restore=ids_restore
             )
         elif self.predictor_type == "cnn":
             X_enc, y_pred = self.forward_cnn_predictor(
-                X_kept=X_kept, mask=mask, ids_restore=ids_restore
+                X_kept=X_kept, ids_kept=ids_kept, ids_restore=ids_restore
             )
         else:
             raise NotImplementedError
@@ -441,22 +502,22 @@ class TS2VecClassifier(nn.Module):
         super(TS2VecClassifier, self).__init__()
         self.encoder = encoder
 
-        self.cls_token = True if encoder.cls_token is not None else False
+        # self.cls_token = True if encoder.cls_token is not None else False
 
-        if self.cls_token:
-            self.head = ClassificationTokenHead(
-                n_vars=n_vars,
-                d_model=d_model,
-                n_classes=n_classes,
-                head_dropout=head_dropout,
-            )
-        else:
-            self.head = ClassificationPoolHead(
-                n_vars=n_vars,
-                d_model=d_model,
-                n_classes=n_classes,
-                head_dropout=head_dropout,
-            )
+        # if self.cls_token:
+        #     self.head = ClassificationTokenHead(
+        #         n_vars=n_vars,
+        #         d_model=d_model,
+        #         n_classes=n_classes,
+        #         head_dropout=head_dropout,
+        #     )
+        # else:
+        self.head = ClassificationPoolHead(
+            n_vars=n_vars,
+            d_model=d_model,
+            n_classes=n_classes,
+            head_dropout=head_dropout,
+        )
 
     def forward(self, X):
         """
@@ -480,7 +541,7 @@ class TS2VecClassifier(nn.Module):
         X = self.encoder(X)["encoder_out"]
 
         # channel independence
-        num_patch = num_patch + 1 if self.cls_token else num_patch
+        # num_patch = num_patch + 1 if self.cls_token else num_patch
         X = X.reshape(bs, ch, num_patch, -1)
         X = X.transpose(2, 3)
 

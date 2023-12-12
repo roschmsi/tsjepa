@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1,VRAM:16G
 #SBATCH --mem=16G
-#SBATCH --time=180:00:00
+#SBATCH --time=144:00:00
 #SBATCH --mail-type=BEGIN,END,FAIL,REQUEUE
 #SBATCH --output=/storage/slurm/logs/slurm-%j.out
 #SBATCH --error=/storage/slurm/logs/slurm-%j.out
@@ -15,11 +15,11 @@ srun python3 /home/stud/roschman/ECGAnalysis/pretrain_ts2vec.py \
 --enc_num_heads 16 \
 --enc_d_model 128 \
 --enc_mlp_ratio 2 \
+--predictor transformer \
 --dec_num_layers 1 \
 --dec_num_heads 16 \
 --dec_d_model 128 \
 --dec_mlp_ratio 2 \
---predictor mlp \
 --dropout 0.2 \
 --activation_drop_rate 0.2 \
 --attn_drop_rate 0 \
@@ -27,13 +27,6 @@ srun python3 /home/stud/roschman/ECGAnalysis/pretrain_ts2vec.py \
 --norm LayerNorm \
 --layer_norm_first \
 --activation gelu \
---ema_decay 0.9999 \
---ema_end_decay 1.0 \
---ema_anneal_end_step 2000 \
---average_top_k_layers 4 \
---normalize_targets \
---targets_norm LayerNorm \
---targets_rep ffn \
 --masking random \
 --masking_ratio 0.5 \
 --use_patch \
@@ -47,7 +40,7 @@ srun python3 /home/stud/roschman/ECGAnalysis/pretrain_ts2vec.py \
 --batch_size 1024 \
 --num_workers 4 \
 --patience 2000 \
---data_config /home/stud/roschman/ECGAnalysis/data/configs/weather.yaml \
+--data_config /home/stud/roschman/ECGAnalysis/data/configs/traffic.yaml \
 --seq_len 720 \
 --label_len 0 \
 --pred_len 0 \
@@ -60,6 +53,6 @@ srun python3 /home/stud/roschman/ECGAnalysis/pretrain_ts2vec.py \
 --pred_weight 1 \
 --std_weight 0 \
 --cov_weight 0 \
---loss smoothl1 \
---smoothl1_beta 0.5 \
---description "ema_only_mlp_ffn"
+--loss mse \
+--bert \
+--description "mae_lower_lr"

@@ -58,25 +58,28 @@ class PatchTST(nn.Module):
         if self.revin:
             self.revin_layer = RevIN(c_in, affine=True, subtract_last=False)
 
-        self.encoder = TransformerEncoder(
-            seq_len=max_seq_len,
+        self.backbone = PatchTSTEncoder(
+            c_in=c_in,
             num_patch=num_patch,
-            patch_size=config.patch_len,
-            in_chans=config.feat_dim,
-            embed_dim=config.enc_d_model,
-            depth=config.enc_num_layers,
-            num_heads=config.enc_num_heads,
-            mlp_ratio=config.enc_mlp_ratio,
-            drop_rate=config.dropout,
-            attn_drop_rate=config.attn_drop_rate,
-            activation=config.activation,
-            activation_drop_rate=config.activation_drop_rate,
-            norm=config.norm,
-            layer_norm_first=config.layer_norm_first,
-            learn_pe=config.learn_pe,
+            patch_len=patch_len,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            d_model=d_model,
+            d_ff=d_ff,
+            dropout=dropout,
+            shared_embedding=shared_embedding,
+            norm=norm,
+            pre_norm=pre_norm,
+            activation=activation,
+            pe=pe,
+            learn_pe=learn_pe,
+            cls_token=cls_token,
+            ch_token=ch_token,
+            attn_dropout=attn_dropout,
+            res_attention=res_attention,
+            store_attn=store_attn,
+            task=task,
         )
-
-        self.predictor = 
 
         if task == "pretraining":
             self.head = PretrainHead(
@@ -161,3 +164,122 @@ class PatchTST(nn.Module):
             return pred, z
         else:
             return pred
+
+
+class PatchTSTEncoder(nn.Module):
+    def __init__(
+        self,
+        c_in,
+        num_patch,
+        patch_len,
+        num_layers,
+        num_heads,
+        d_model,
+        d_ff,
+        dropout,
+        shared_embedding=True,
+        norm="BatchNorm",
+        pre_norm=False,
+        activation="gelu",
+        pe="zeros",
+        learn_pe=False,
+        cls_token=False,
+        ch_token=False,
+        attn_dropout=0.0,
+        store_attn=False,
+        res_attention=False,
+        task=None,
+    ):
+        super().__init__()
+        self.d_model = d_model
+        self.shared_embedding = shared_embedding
+        self.task = task
+
+        # input encoding
+        if not shared_embedding:
+            self.W_P = nn.ModuleList()
+            for _ in range(c_in):
+                self.W_P.append(nn.Linear(patch_len, d_model))
+        else:
+            self.W_P = nn.Linear(patch_len, d_model)
+
+        # class and channel tokens
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, d_model)) if cls_token else None
+        self.ch_token = (
+            nn.Parameter(torch.zeros(c_in, 1, d_model)) if ch_token else None
+        )
+
+        # positional encoding
+        self.W_pos = positional_encoding(pe, learn_pe, num_patch, d_model)
+
+        # residual dropout
+        self.dropout = nn.Dropout(dropout)
+
+        # encoder
+        self.encoder = TSTEncoder(
+            num_layers=num_layers,
+            num_heads=num_heads,
+            d_model=d_model,
+            d_ff=d_ff,
+            dropout=dropout,
+            norm=norm,
+            pre_norm=pre_norm,
+            activation=activation,
+            attn_dropout=attn_dropout,
+            res_attention=res_attention,
+            store_attn=store_attn,
+        )
+
+    def forward(self, x) -> Tensor:
+        bs, num_patch, n_vars, patch_len = x.shape
+
+        # input encoding
+        if not self.shared_embedding:
+            x_out = []
+            for i in range(n_vars):
+                z = self.W_P[i](x[:, :, i, :])
+                x_out.append(z)
+            x = torch.stack(x_out, dim=2)
+        else:
+            x = self.W_P(x)
+
+        # x: [bs x num_patch x nvars x d_model]
+        x = x.transpose(1, 2)
+        # x: [bs x nvars x num_patch x d_model]
+        x = x.reshape(bs * n_vars, num_patch, self.d_model)
+        # x: [bs * nvars x num_patch x d_model]
+
+        # add positional encoding
+        # x = self.dropout(x + self.W_pos)
+        x = x + self.W_pos
+
+        x = x.reshape(bs, n_vars, num_patch, self.d_model)
+
+        # append channel and class token
+        if self.ch_token is not None:
+            ch_token = self.ch_token.expand(bs, -1, -1, -1)
+            x = torch.cat((x, ch_token), dim=2)
+            num_patch += 1
+        if self.cls_token is not None:
+            cls_token = self.cls_token.expand(bs, n_vars, -1, -1)
+            x = torch.cat((cls_token, x), dim=2)
+            num_patch += 1
+
+        x = x.reshape(bs * n_vars, num_patch, self.d_model)
+
+        # apply transformer encoder
+        z = self.encoder(x)
+
+        z = z.reshape(bs, n_vars, num_patch, self.d_model)
+        # z: [bs x nvars x num_patch x d_model]
+
+        # prepare output, remove class and channel token
+        if self.ch_token is not None:
+            z = z[:, :, :-1, :]
+        if self.task != "classification" and self.cls_token is not None:
+            z = z[:, :, 1:, :]
+
+        z = z.transpose(2, 3)
+        # z: [bs x nvars x d_model x num_patch]
+
+        return z

@@ -6,7 +6,7 @@ from runner.base import BaseRunner
 from models.ts_jepa.vic_reg import vicreg
 import matplotlib.pyplot as plt
 import torch.nn as nn
-from data.dataset import create_patch, random_patch_masking
+from data.dataset import create_patch, random_patch_masking, block_patch_masking
 from evaluation.evaluate_12ECG_score import compute_auc
 import torch
 import numpy as np
@@ -39,11 +39,14 @@ class TS2VecRunner(BaseRunner):
         device,
         debug,
         criterion,
+        embedding_space=True,
         no_ema=False,
         optimizer=None,
         scheduler=None,
+        regfn=None,
     ):
         self.model = model
+        self.embedding_space = embedding_space
 
         self.revin = revin
         self.dataloader = dataloader
@@ -69,6 +72,8 @@ class TS2VecRunner(BaseRunner):
         self.pred_weight = pred_weight
         self.std_weight = std_weight
         self.cov_weight = cov_weight
+
+        self.regfn = regfn
 
     def train_epoch(self, epoch_num=None):
         self.model.train()
@@ -125,7 +130,7 @@ class TS2VecRunner(BaseRunner):
             X_masked = X_masked.to(self.device)
             X_kept = X_kept.to(self.device)
             mask = mask.to(self.device)
-            # ids_keep = ids_keep.to(self.device)
+            ids_keep = ids_keep.to(self.device)
             ids_restore = ids_restore.to(self.device)
 
             # channel independence
@@ -138,12 +143,12 @@ class TS2VecRunner(BaseRunner):
                 X_full=X,
                 X_masked=X_masked,
                 X_kept=X_kept,
-                mask=~mask,
+                ids_kept=ids_keep,
                 ids_restore=ids_restore,
             )
 
             mask = mask.unsqueeze(-1).repeat_interleave(
-                repeats=self.model.embed_dim, dim=-1
+                repeats=target.shape[-1], dim=-1
             )
             masked_pred = torch.masked_select(pred, mask)
             masked_target = torch.masked_select(target, mask)
@@ -155,19 +160,19 @@ class TS2VecRunner(BaseRunner):
                 enc_cov_loss,
                 enc_std,
                 enc_cov,
-            ) = vicreg(X_enc)
+            ) = self.regfn(X_enc)
             (
                 pred_std_loss,
                 pred_cov_loss,
                 pred_std,
                 pred_cov,
-            ) = vicreg(pred)
+            ) = self.regfn(pred)
             (
                 target_std_loss,
                 target_cov_loss,
                 target_std,
                 target_cov,
-            ) = vicreg(target)
+            ) = self.regfn(target)
 
             # TODO we should only track that shit for the masked parts, the others arent interesting
 
@@ -176,11 +181,14 @@ class TS2VecRunner(BaseRunner):
 
             if self.no_ema:
                 std_loss = (enc_std_loss + pred_std_loss + target_std_loss) / 3
-                cov_loss = (enc_cov_loss + pred_cov_loss + target_std_loss) / 3
+                cov_loss = (enc_cov_loss + pred_cov_loss + target_cov_loss) / 3
             else:
-                # TODO currently only optimize encoder representations, however predictor representations could also be optimized
-                std_loss = enc_std_loss
-                cov_loss = enc_cov_loss
+                std_loss = (enc_std_loss + pred_std_loss) / 2
+                cov_loss = (enc_cov_loss + pred_cov_loss) / 2
+            # else:
+            #     # TODO currently only optimize encoder representations, however predictor representations could also be optimized
+            #     std_loss = enc_std_loss
+            #     cov_loss = enc_cov_loss
 
             if self.pred_weight > 0:
                 loss = self.pred_weight * loss
@@ -209,11 +217,12 @@ class TS2VecRunner(BaseRunner):
             target_cov_meter.update(target_cov_loss.item(), n=X.shape[0])
 
             enc_cov_matrix += enc_cov.detach().cpu()
-            pred_cov_matrix += pred_cov.detach().cpu()
-            target_cov_matrix += target_cov.detach().cpu()
+            if self.embedding_space:
+                pred_cov_matrix += pred_cov.detach().cpu()
+                target_cov_matrix += target_cov.detach().cpu()
 
             # ema teacher step
-            if not self.no_ema:
+            if self.embedding_space and not self.no_ema:
                 self.model.ema_step()
 
         # scheduler for learning rate change every epoch
@@ -300,7 +309,7 @@ class TS2VecRunner(BaseRunner):
             X_masked = X_masked.to(self.device)
             X_kept = X_kept.to(self.device)
             mask = mask.to(self.device)
-            # ids_keep = ids_keep.to(self.device)
+            ids_keep = ids_keep.to(self.device)
             ids_restore = ids_restore.to(self.device)
 
             # channel independence
@@ -313,12 +322,12 @@ class TS2VecRunner(BaseRunner):
                 X_full=X,
                 X_masked=X_masked,
                 X_kept=X_kept,
-                mask=~mask,
+                ids_kept=ids_keep,
                 ids_restore=ids_restore,
             )
 
             mask = mask.unsqueeze(-1).repeat_interleave(
-                repeats=self.model.embed_dim, dim=-1
+                repeats=target.shape[-1], dim=-1
             )
             masked_pred = torch.masked_select(pred, mask)
             masked_target = torch.masked_select(target, mask)
@@ -330,31 +339,35 @@ class TS2VecRunner(BaseRunner):
                 enc_cov_loss,
                 enc_std,
                 enc_cov,
-            ) = vicreg(X_enc)
+            ) = self.regfn(X_enc)
             (
                 pred_std_loss,
                 pred_cov_loss,
                 pred_std,
                 pred_cov,
-            ) = vicreg(pred)
+            ) = self.regfn(pred)
             (
                 target_std_loss,
                 target_cov_loss,
                 target_std,
                 target_cov,
-            ) = vicreg(target)
+            ) = self.regfn(target)
 
             # TODO we should only track that shit for the masked parts, the others arent interesting
 
             pred_loss = loss
 
+            # if self.no_ema:
             if self.no_ema:
                 std_loss = (enc_std_loss + pred_std_loss + target_std_loss) / 3
-                cov_loss = (enc_cov_loss + pred_cov_loss + target_std_loss) / 3
+                cov_loss = (enc_cov_loss + pred_cov_loss + target_cov_loss) / 3
             else:
-                # TODO currently only optimize encoder representations, however predictor representations could also be optimized
-                std_loss = enc_std_loss
-                cov_loss = enc_cov_loss
+                std_loss = (enc_std_loss + pred_std_loss) / 2
+                cov_loss = (enc_cov_loss + pred_cov_loss) / 2
+            # else:
+            #     # TODO currently only optimize encoder representations, however predictor representations could also be optimized
+            #     std_loss = enc_std_loss
+            #     cov_loss = enc_cov_loss
 
             if self.pred_weight > 0:
                 loss = self.pred_weight * loss
@@ -378,8 +391,9 @@ class TS2VecRunner(BaseRunner):
             target_cov_meter.update(target_cov_loss.item(), n=X.shape[0])
 
             enc_cov_matrix += enc_cov.detach().cpu()
-            pred_cov_matrix += pred_cov.detach().cpu()
-            target_cov_matrix += target_cov.detach().cpu()
+            if self.embedding_space:
+                pred_cov_matrix += pred_cov.detach().cpu()
+                target_cov_matrix += target_cov.detach().cpu()
 
         # average loss per sample for whole epoch
         self.epoch_metrics["loss"] = loss_meter.avg
@@ -498,7 +512,7 @@ class TS2VecForecastingRunner(BaseRunner):
 
         return self.epoch_metrics
 
-    def evaluate(self, epoch_num=None, perturbation_std=None):
+    def evaluate(self, epoch_num=None, perturbation_std=None, plot_forecast=False):
         self.model.eval()
 
         loss_meter = AverageMeter()

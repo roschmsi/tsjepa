@@ -15,7 +15,11 @@ from tqdm import tqdm
 
 from data.dataset import JEPADataset, load_dataset, ConcatenatedDataset, CIDataset
 from models.ts_jepa.mask import RandomMaskCollator, BlockMaskCollator
-from models.ts_jepa.setup import init_model_pretraining, init_opt
+from models.ts_jepa.setup import (
+    init_model_pretraining,
+    init_optimizer_enc_pred,
+    init_scheduler,
+)
 from models.ts_jepa.utils import (
     load_checkpoint,
     plot_2d,
@@ -25,7 +29,6 @@ from models.ts_jepa.utils import (
 from options import Options
 from runner.tsjepa import JEPARunner
 from utils import log_training, readable_time, seed_everything, setup
-from factory import setup_scheduler
 from models.patch_tst.layers.revin import RevIN
 
 logging.basicConfig(
@@ -66,22 +69,30 @@ def main(config):
     encoder, predictor = init_model_pretraining(
         device=device,
         seq_len=max_seq_len,
-        in_chans=1 if config.channel_independence else config.feat_dim,
         patch_size=config.patch_len,
+        in_chans=1 if config.channel_independence else config.feat_dim,
         enc_embed_dim=config.enc_d_model,
         enc_depth=config.enc_num_layers,
         enc_num_heads=config.enc_num_heads,
         enc_mlp_ratio=config.enc_mlp_ratio,
+        pred_embed_dim=config.dec_d_model,
         pred_depth=config.dec_num_layers,
         pred_num_heads=config.dec_num_heads,
-        pred_embed_dim=config.dec_d_model,
         pred_mlp_ratio=config.dec_mlp_ratio,
+        norm_layer=config.norm,
         drop_rate=config.dropout,
+        attn_drop_rate=config.attn_drop_rate,
+        drop_path_rate=config.drop_path_rate,
+        output_norm=not config.no_output_norm,
+        learn_pe=config.learn_pe,
     )
 
-    target_encoder = copy.deepcopy(encoder)
-    for p in target_encoder.parameters():
-        p.requires_grad = False
+    if config.ema:
+        target_encoder = copy.deepcopy(encoder)
+        for p in target_encoder.parameters():
+            p.requires_grad = False
+    else:
+        target_encoder = None
 
     # -- make data transforms
     if config.masking == "random":
@@ -109,8 +120,6 @@ def main(config):
     else:
         dataset_class = JEPADataset
 
-    runner_class = JEPARunner
-
     # start model training
     train_dataset = dataset_class(train_dataset)
     train_loader = DataLoader(
@@ -120,7 +129,6 @@ def main(config):
         num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=mask_collator,
-        # discard_last=True,
     )
     val_dataset = dataset_class(val_dataset)
     val_loader = DataLoader(
@@ -130,7 +138,6 @@ def main(config):
         num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=mask_collator,
-        # discard_last=True,
     )
     test_dataset = dataset_class(test_dataset)
     test_loader = DataLoader(
@@ -140,25 +147,28 @@ def main(config):
         num_workers=config.num_workers,
         pin_memory=True,
         collate_fn=mask_collator,
-        # discard_last=True,
     )
 
     # create optimizer and scheduler
-    optimizer = init_opt(
-        encoder, predictor, lr=config.lr, weight_decay=config.weight_decay
+    optimizer = init_optimizer_enc_pred(
+        encoder,
+        predictor,
+        lr=config.lr,
+        weight_decay=config.weight_decay,
+        epochs=config.epochs,
     )
-    scheduler = setup_scheduler(
-        config=config, optimizer=optimizer, iters_per_epoch=len(train_loader)
-    )
+    scheduler = init_scheduler(optimizer, config)
 
     ipe = len(train_loader)
-    ipe_scale = 1.0
 
-    momentum_scheduler = (
-        config.ema_start
-        + i * (config.ema_end - config.ema_start) / (ipe * config.epochs * ipe_scale)
-        for i in range(int(ipe * config.epochs * ipe_scale) + 1)
-    )
+    if config.ema:
+        momentum_scheduler = (
+            config.ema_start
+            + i * (config.ema_end - config.ema_start) / (ipe * config.epochs)
+            for i in range(int(ipe * config.epochs) + 1)
+        )
+    else:
+        momentum_scheduler = None
 
     start_epoch = 0
 
@@ -177,92 +187,48 @@ def main(config):
         )
         if config.resume:
             start_epoch = epoch
-
-    # if config.load_classifier is not None:
-    #     path = os.path.join(config.load_classifier, "checkpoints", "model_best.pth")
-    #     classifier = init_classifier(
-    #         device=device,
-    #         seq_len=max_seq_len,
-    #         in_chans=config.feat_dim,
-    #         patch_size=config.patch_len,
-    #         enc_embed_dim=config.enc_d_model,
-    #         enc_depth=config.enc_num_layers,
-    #         enc_num_heads=config.enc_num_heads,
-    #         enc_mlp_ratio=config.enc_mlp_ratio,
-    #         drop_rate=config.dropout,
-    #         n_classes=config.num_classes,
-    #         head_dropout=config.head_dropout,
-    #     )
-    #     _, target_encoder = load_encoder_from_classifier(path, classifier)
+            if scheduler is not None:
+                for _ in range(start_epoch):
+                    scheduler.step()
+            if momentum_scheduler is not None:
+                for _ in range(start_epoch * ipe):
+                    next(momentum_scheduler)
 
     if config.revin:
         revin = RevIN(
-            num_features=1 if config.channel_independence else config.feat_dim,
-            affine=False,
+            num_features=1,  # channel independence
+            affine=True if config.revin_affine else False,
             subtract_last=False,
         )
     else:
         revin = None
 
-    trainer = runner_class(
+    runner_class = JEPARunner
+
+    runner_class = partial(
+        runner_class,
         encoder=encoder,
         predictor=predictor,
         target_encoder=target_encoder,
         revin=revin,
-        dataloader=train_loader,
         device=device,
+        ema=config.ema,
+        vic_reg=config.vic_reg,
+        pred_weight=config.pred_weight,
+        std_weight=config.std_weight,
+        cov_weight=config.cov_weight,
+    )
+
+    trainer = runner_class(
+        dataloader=train_loader,
         optimizer=optimizer,
         momentum_scheduler=momentum_scheduler,
-        mixup=config.mixup,
-        print_interval=config["print_interval"],
-        console=config["console"],
-        multilabel=config.multilabel,
         scheduler=scheduler,
-        vic_reg=config.vic_reg,
-        vibc_reg=config.vibc_reg,
-        vic_reg_enc=config.vic_reg_enc,
-        pred_weight=config.pred_weight,
-        std_weight=config.std_weight,
-        cov_weight=config.cov_weight,
     )
 
-    val_evaluator = runner_class(
-        encoder=encoder,
-        predictor=predictor,
-        target_encoder=target_encoder,
-        revin=revin,
-        dataloader=val_loader,
-        device=device,
-        mixup=config.mixup,
-        print_interval=config["print_interval"],
-        console=config["console"],
-        multilabel=config.multilabel,
-        vic_reg=config.vic_reg,
-        vibc_reg=config.vibc_reg,
-        vic_reg_enc=config.vic_reg_enc,
-        pred_weight=config.pred_weight,
-        std_weight=config.std_weight,
-        cov_weight=config.cov_weight,
-    )
+    val_evaluator = runner_class(dataloader=val_loader)
 
-    test_evaluator = runner_class(
-        encoder=encoder,
-        predictor=predictor,
-        target_encoder=target_encoder,
-        revin=revin,
-        dataloader=test_loader,
-        device=device,
-        mixup=config.mixup,
-        print_interval=config["print_interval"],
-        console=config["console"],
-        multilabel=config.multilabel,
-        vic_reg=config.vic_reg,
-        vibc_reg=config.vibc_reg,
-        vic_reg_enc=config.vic_reg_enc,
-        pred_weight=config.pred_weight,
-        std_weight=config.std_weight,
-        cov_weight=config.cov_weight,
-    )
+    test_evaluator = runner_class(dataloader=test_loader)
 
     if config.test:
         logger.info("Test performance:")
@@ -284,20 +250,15 @@ def main(config):
         desc="Training Epoch",
         leave=False,
     ):
-        # option to unfreeze entire model after initial linear probing
-        # if "freeze" in config.keys():
-        #     if config.freeze and epoch > config.freeze_epochs:
-        #         for name, param in model.named_parameters():
-        #             param.requires_grad = True
-
         # train model
         epoch_start_time = time.time()
-        aggr_metrics_train = trainer.train_epoch(epoch)
+        aggr_metrics_train, aggr_imgs_train = trainer.train_epoch(epoch)
         epoch_end_time = time.time()
 
         log_training(
             epoch=epoch,
             aggr_metrics_train=aggr_metrics_train,
+            aggr_imgs_train=aggr_imgs_train,
             tb_writer=tb_writer,
             start_epoch=start_epoch,
             total_epoch_time=total_epoch_time,
@@ -310,10 +271,14 @@ def main(config):
         # evaluate model
         if epoch % config["val_interval"] == 0:
             with torch.no_grad():
-                aggr_metrics_val = val_evaluator.evaluate(epoch)
+                aggr_metrics_val, aggr_imgs_val = val_evaluator.evaluate(epoch)
 
             for k, v in aggr_metrics_val.items():
                 tb_writer.add_scalar(f"{k}/val", v, epoch)
+
+            # plot covariance matrix
+            for k, v in aggr_imgs_val.items():
+                tb_writer.add_figure(f"{k}/val", v, epoch)
 
             if aggr_metrics_val["loss"] < best_loss_val:
                 best_loss_val = aggr_metrics_val["loss"]
@@ -333,6 +298,7 @@ def main(config):
                 better=better,
             )
 
+        if epoch % config["plot_interval"] == 0:
             plot_2d(
                 method="pca",
                 encoder=encoder,
@@ -403,27 +369,27 @@ def main(config):
     # load best model, iterate over test loader, get representations
     # mean over time axis, apply pca, then plot
 
-    if not config.debug:
-        path = os.path.join(config["output_dir"], "checkpoints", "model_best.pth")
-        encoder, predictor, target_encoder, optimizer, _ = load_checkpoint(
-            path,
-            encoder=encoder,
-            predictor=predictor,
-            target_encoder=target_encoder,
-            optimizer=optimizer,
-        )
+    # if not config.debug:
+    #     path = os.path.join(config["output_dir"], "checkpoints", "model_best.pth")
+    #     encoder, predictor, target_encoder, optimizer, _ = load_checkpoint(
+    #         path,
+    #         encoder=encoder,
+    #         predictor=predictor,
+    #         target_encoder=target_encoder,
+    #         optimizer=optimizer,
+    #     )
 
-        plot_2d(
-            method="pca",
-            encoder=encoder,
-            data_loader=test_loader,
-            device=device,
-            config=config,
-            fname="pca_test.png",
-            num_classes=config.num_classes
-            if "num_classes" in config.keys() and config.multilabel is False
-            else 1,
-        )
+    #     plot_2d(
+    #         method="pca",
+    #         encoder=encoder,
+    #         data_loader=test_loader,
+    #         device=device,
+    #         config=config,
+    #         fname="pca_test.png",
+    #         num_classes=config.num_classes
+    #         if "num_classes" in config.keys() and config.multilabel is False
+    #         else 1,
+    #     )
 
     total_runtime = time.time() - total_start_time
     logger.info(

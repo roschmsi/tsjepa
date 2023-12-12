@@ -19,6 +19,7 @@ def save_checkpoint(
     save_dict = {
         "epoch": epoch,
         "model": model.state_dict(),
+        # "teacher": model.ema.model.state_dict(),
         "optimizer": optimizer.state_dict(),
         "scheduler": scheduler.state_dict() if scheduler is not None else None,
     }
@@ -44,6 +45,50 @@ def load_checkpoint(
 
         # -- loading encoder
         pretrained_dict = checkpoint["model"]
+        msg = model.load_state_dict(pretrained_dict)
+        logger.info(f"loaded pretrained model from epoch {epoch} with msg: {msg}")
+
+        # if "teacher" in checkpoint.keys():
+        #     teacher_dict = checkpoint["teacher"]
+        #     msg = model.ema.model.load_state_dict(teacher_dict)
+        #     logger.info(f"loaded pretrained teacher from epoch {epoch} with msg: {msg}")
+        # else:
+        #     msg = model.ema.model.load_state_dict(pretrained_dict)
+
+        # -- loading optimizer
+        if optimizer is not None:
+            msg = optimizer.load_state_dict(checkpoint["optimizer"])
+            logger.info(f"loaded optimizer from epoch {epoch} with msg: {msg}")
+            # optimizer_to(optimizer, device=device)
+
+        if scheduler is not None:
+            msg = scheduler.load_state_dict(checkpoint["scheduler"])
+            logger.info(f"loaded scheduler from epoch {epoch} with msg: {msg}")
+
+    except Exception as e:
+        logger.info(f"Encountered exception when loading checkpoint {e}")
+        epoch = 0
+
+    return model, optimizer, scheduler, epoch
+
+
+def load_checkpoint_encoder(
+    path,
+    model,
+    optimizer=None,
+    scheduler=None,
+):
+    try:
+        checkpoint = torch.load(path)
+        epoch = checkpoint["epoch"]
+
+        # -- loading encoder
+        pretrained_dict = {}
+
+        for k, v in checkpoint["model"].items():
+            if k.startswith("encoder"):
+                pretrained_dict[k.replace("encoder.", "")] = v
+
         msg = model.load_state_dict(pretrained_dict)
         logger.info(f"loaded pretrained model from epoch {epoch} with msg: {msg}")
 
@@ -77,9 +122,9 @@ def load_encoder_from_ts2vec(path, encoder):
         }
         # drop k, v if k starts with "regression head"
         pretrained_dict = {
-            k: v for k, v in pretrained_dict.items() if not k.startswith("regression")
+            k: v for k, v in pretrained_dict.items() if not k.startswith("predictor")
         }
-        msg = encoder.load_state_dict(pretrained_dict)
+        msg = encoder.load_state_dict(pretrained_dict, strict=False)
         logger.info(f"loaded pretrained model from epoch {epoch} with msg: {msg}")
 
     except Exception as e:

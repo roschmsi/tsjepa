@@ -8,6 +8,7 @@ import time
 from functools import partial
 import torch.nn as nn
 
+from models.ts_jepa.vic_reg import vicreg, vibcreg
 
 import torch
 from torch.utils.data import DataLoader
@@ -27,13 +28,17 @@ from models.ts_jepa.utils import (
     plot_2d,
     plot_classwise_distribution,
 )
-from models.ts2vec.utils import save_checkpoint, load_checkpoint
+from models.ts2vec.utils import (
+    save_checkpoint,
+    load_checkpoint,
+    load_checkpoint_encoder,
+)
 from options import Options
 from runner.ts2vec import TS2VecRunner
 from utils import log_training, readable_time, seed_everything, setup
 from models.patch_tst.layers.revin import RevIN, BlockRevIN
 
-from models.ts2vec.ts2vec import TS2VecEMA, TS2VecNoEMA
+from models.ts2vec.ts2vec import TS2VecEMA, TS2VecNoEMA, BERT
 from models.ts2vec.encoder import TransformerEncoder
 
 logging.basicConfig(
@@ -73,6 +78,9 @@ def main(config):
     else:
         max_seq_len = config.window * config.fs
 
+    if config.use_patch:
+        num_patch = (max_seq_len - config.patch_len) // config.stride + 1
+
     # initialize data generator and runner
     # channel independence, TODO solve for forecasting all dataset
     dataset_class = partial(CIDataset, num_channels=config.feat_dim, debug=config.debug)
@@ -111,6 +119,7 @@ def main(config):
     # create model
     encoder = TransformerEncoder(
         seq_len=max_seq_len,
+        num_patch=num_patch,
         patch_size=config.patch_len,
         in_chans=config.feat_dim,
         embed_dim=config.enc_d_model,
@@ -128,7 +137,19 @@ def main(config):
 
     predictor = get_predictor(config, max_seq_len=max_seq_len)
 
-    if config.no_ema:
+    if config.vbcreg:
+        regfn = vibcreg
+    else:
+        regfn = vicreg
+
+    if config.bert:
+        model = BERT(
+            encoder=encoder,
+            predictor=predictor,
+            predictor_type=config.predictor,
+            embed_dim=config.enc_d_model,
+        )
+    elif config.no_ema:
         model = TS2VecNoEMA(
             encoder=encoder,
             predictor=predictor,
@@ -173,7 +194,12 @@ def main(config):
     # load pretrained weights
     if config.resume or config.load_model:
         if config.resume:
-            path = os.path.join(config["output_dir"], "checkpoints", "model_last.pth")
+            if config.load_model is None:
+                path = os.path.join(
+                    config["output_dir"], "checkpoints", "model_last.pth"
+                )
+            else:
+                path = os.path.join(config.load_model, "checkpoints", "model_last.pth")
         elif config.load_model:
             path = os.path.join(config.load_model, "checkpoints", "model_best.pth")
         # TODO load checkpoint
@@ -185,9 +211,26 @@ def main(config):
         )
         if config.resume:
             start_epoch = epoch
+
+            for i in range(start_epoch * ipe):
+                decay = model.ema.get_annealed_rate(
+                    model.ema_decay,
+                    model.ema_end_decay,
+                    model.ema.num_updates,
+                    model.ema_anneal_end_step,
+                )
+                model.ema.num_updates += 1
+                model.ema.decay = decay
+
+            # set decay rate
         #     if scheduler is not None:
         #         for _ in range(start_epoch):
         #             scheduler.step()
+
+    # if config.load_encoder:
+    #     path = os.path.join(config.load_encoder, "checkpoints", "model_best.pth")
+    #     model.encoder, _, _, _ = load_checkpoint_encoder(path, model=model.encoder)
+    #     model.ema.model, _, _, _ = load_checkpoint_encoder(path, model=model.ema.model)
 
     if config.revin:
         if config.masking == "random":
@@ -235,6 +278,8 @@ def main(config):
         cov_weight=config.cov_weight,
         criterion=criterion,
         no_ema=config.no_ema,
+        regfn=regfn,
+        embedding_space=not config.bert,
     )
     trainer = runner_class(
         dataloader=train_loader,

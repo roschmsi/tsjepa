@@ -11,8 +11,8 @@ class TemporalEmbedding(nn.Module):
         minute_size = 4
         hour_size = 24
         weekday_size = 7
-        day_size = 32
-        month_size = 13
+        day_size = 31
+        month_size = 12
 
         if freq == "t":
             self.minute_embed = nn.Embedding(minute_size, d_model)
@@ -49,7 +49,7 @@ class TimeFeatureEmbedding(nn.Module):
 
 # newly invented
 class Time2Vec(nn.Module):
-    def __init__(self, d_model, freq="h"):
+    def __init__(self, individual=False):
         super(Time2Vec, self).__init__()
 
         minute_size = 4
@@ -58,24 +58,64 @@ class Time2Vec(nn.Module):
         day_size = 31
         month_size = 12
 
+        self.individual = individual
+
     def forward(self, x):
         x = x.long()
 
         # minute_x = (
         #     self.minute_embed(x[:, :, 4]) if hasattr(self, "minute_embed") else 0.0
         # )
-        hour_x = F.one_hot(x[:, :, 3], num_classes=24)
-        weekday_x = F.one_hot(x[:, :, 2], num_classes=7)
-        day_x = F.one_hot(x[:, :, 1], num_classes=31)
-        month_x = F.one_hot(x[:, :, 0], num_classes=12)
+        hour_x = F.one_hot(x[:, :, 3], num_classes=24).to(torch.float32)
+        weekday_x = F.one_hot(x[:, :, 2], num_classes=7).to(torch.float32)
+        day_x = F.one_hot(x[:, :, 1], num_classes=31).to(torch.float32)
+        month_x = F.one_hot(x[:, :, 0], num_classes=12).to(torch.float32)
 
-        timestamp = torch.cat([hour_x, weekday_x, day_x, month_x], dim=-1).to(
-            torch.float32
-        )
+        # timestamp = torch.cat([hour_x, weekday_x, day_x, month_x], dim=-1).to(
+        #     torch.float32
+        # )
+        if self.individual:
+            hour_x = F.normalize(hour_x.mean(dim=2), p=2, dim=-1)
+            weekday_x = F.normalize(weekday_x.mean(dim=2), p=2, dim=-1)
+            day_x = F.normalize(day_x.mean(dim=2), p=2, dim=-1)
+            month_x = F.normalize(month_x.mean(dim=2), p=2, dim=-1)
+            timestamp = torch.cat([hour_x, weekday_x, day_x, month_x], dim=-1)
+            return timestamp
+        else:
+            # hour_x missing here
+            timestamp = torch.cat([hour_x, weekday_x, day_x, month_x], dim=-1)
+            # mean over patch, then normalize for scalar product
+            timestamp = timestamp.mean(dim=2)
+            timestamp = F.normalize(timestamp.float(), p=2, dim=-1)
+            return timestamp
 
-        # mean over patch, then normalize for scalar product
-        timestamp = timestamp.mean(dim=2)
 
-        timestamp = F.normalize(timestamp.float(), p=2, dim=-1)
+# newly invented
+class TimeProjectionAllInOne(nn.Module):
+    def __init__(self, d_model, patch_mode, individual=False):
+        super(TimeProjectionAllInOne, self).__init__()
+
+        self.projection = nn.Linear(4 + 24 + 7 + 31 + 12, d_model)
+        self.patch_mode = patch_mode
+
+    def forward(self, x):
+        x = x.long()
+
+        minute_x = F.one_hot(x[:, :, 4], num_classes=4).to(torch.float32)
+        hour_x = F.one_hot(x[:, :, 3], num_classes=24).to(torch.float32)
+        weekday_x = F.one_hot(x[:, :, 2], num_classes=7).to(torch.float32)
+        day_x = F.one_hot(x[:, :, 1], num_classes=31).to(torch.float32)
+        month_x = F.one_hot(x[:, :, 0], num_classes=12).to(torch.float32)
+
+        timestamp = torch.cat([minute_x, hour_x, weekday_x, day_x, month_x], dim=-1)
+
+        timestamp = self.projection(timestamp)
+
+        if self.patch_mode:
+            timestamp = timestamp.mean(dim=2)
+
+        # normalize
+        timestamp = timestamp - timestamp.mean()
+        timestamp = timestamp / timestamp.std()
 
         return timestamp

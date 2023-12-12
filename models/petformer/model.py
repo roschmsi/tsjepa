@@ -2,10 +2,14 @@
 import torch
 from torch import Tensor, nn
 
-from models.patch_tst.layers.encoder import TSTEncoder
+from models.patch_tst.layers.encoder import TSTEncoder, TSTSignalTimeEncoder
 from models.patch_tst.layers.pos_encoding import positional_encoding
 from models.patch_tst.layers.revin import RevIN
-from models.petformer.temporal_embedding import TemporalEmbedding, Time2Vec
+from models.petformer.temporal_embedding import (
+    TemporalEmbedding,
+    Time2Vec,
+    TimeProjectionAllInOne,
+)
 
 
 class PETformer(nn.Module):
@@ -36,13 +40,18 @@ class PETformer(nn.Module):
         pe: str = "zeros",
         learn_pe: bool = False,
         attn_dropout: float = 0.0,
-        res_attention: bool = True,
+        res_attention: bool = False,
         store_attn: bool = False,
         task=None,
         head_dropout=0,
         individual=False,
         use_time_features=False,
         revin=False,
+        temporal_attention=False,
+        add_time_encoding=False,
+        concat_time_encoding=False,
+        input_time=False,
+        patch_time=False,
     ):
         super().__init__()
         self.c_in = c_in
@@ -78,6 +87,12 @@ class PETformer(nn.Module):
             res_attention=res_attention,
             store_attn=store_attn,
             task=task,
+            use_time_features=use_time_features,
+            temporal_attention=temporal_attention,
+            add_time_encoding=add_time_encoding,
+            concat_time_encoding=concat_time_encoding,
+            input_time=input_time,
+            patch_time=patch_time,
         )
 
         self.projection = nn.Linear(d_model + d_temp, patch_len)
@@ -146,14 +161,25 @@ class PETformerEncoder(nn.Module):
         learn_pe=False,
         attn_dropout=0.0,
         store_attn=False,
-        res_attention=True,
+        res_attention=False,
         task=None,
+        use_time_features=False,
+        temporal_attention=False,
+        add_time_encoding=False,
+        concat_time_encoding=False,
+        input_time=False,
+        patch_time=False,
     ):
         super().__init__()
         self.d_model = d_model
         self.d_temp = d_temp
         self.shared_embedding = shared_embedding
         self.task = task
+        self.temporal_attention = temporal_attention
+        self.add_time_encoding = add_time_encoding
+        self.concat_time_encoding = concat_time_encoding
+        self.input_time = input_time
+        self.patch_time = patch_time
 
         # input encoding
         if not shared_embedding:
@@ -164,7 +190,7 @@ class PETformerEncoder(nn.Module):
             self.W_P = nn.Linear(patch_len, d_model)
 
         # positional encoding
-        self.W_pos = positional_encoding(pe, learn_pe, num_patch, d_model)
+        self.W_pos = positional_encoding(pe, learn_pe, num_patch, d_model + d_temp)
 
         self.placeholder = nn.Parameter(torch.randn(1, 1, d_model))
         self.pred_num_patch = pred_num_patch
@@ -172,29 +198,61 @@ class PETformerEncoder(nn.Module):
         # residual dropout
         self.dropout = nn.Dropout(dropout)
 
-        self.pos_enc_weight = nn.Parameter(torch.ones(1))
-        self.temp_enc_weight = nn.Parameter(torch.ones(1))
-
         # self.temporal_embedding = TemporalEmbedding(d_model=d_temp)
-        self.temporal_embedding = Time2Vec(d_model=d_temp)
+        if self.add_time_encoding:
+            self.temporal_embedding = TimeProjectionAllInOne(
+                d_model=d_model, patch_mode=self.patch_time
+            )
+        elif self.concat_time_encoding:
+            self.temporal_embedding = TimeProjectionAllInOne(
+                d_model=d_temp, patch_mode=self.patch_time
+            )
 
         # encoder
-        self.encoder = TSTEncoder(
-            num_layers=num_layers,
-            num_heads=num_heads,
-            d_model=d_model + d_temp,
-            d_ff=d_ff,
-            dropout=dropout,
-            norm=norm,
-            pre_norm=pre_norm,
-            activation=activation,
-            attn_dropout=attn_dropout,
-            res_attention=res_attention,
-            store_attn=store_attn,
-        )
+        if self.temporal_attention:
+            self.encoder = TSTSignalTimeEncoder(
+                num_layers=num_layers,
+                num_heads=num_heads,
+                d_model=d_model,
+                d_temp=d_temp,
+                d_ff=d_ff,
+                dropout=dropout,
+                norm=norm,
+                pre_norm=pre_norm,
+                activation=activation,
+                attn_dropout=attn_dropout,
+                res_attention=res_attention,
+                store_attn=store_attn,
+            )
+        else:
+            d_model = d_model + d_temp
+            self.encoder = TSTEncoder(
+                num_layers=num_layers,
+                num_heads=num_heads,
+                d_model=d_model,
+                d_ff=d_ff,
+                dropout=dropout,
+                norm=norm,
+                pre_norm=pre_norm,
+                activation=activation,
+                attn_dropout=attn_dropout,
+                res_attention=res_attention,
+                store_attn=store_attn,
+            )
 
     def forward(self, x, X_time, y_time) -> Tensor:
         bs, num_patch, n_vars, patch_len = x.shape
+
+        if self.input_time:
+            if X_time is not None and y_time is not None:
+                X_y_time = torch.cat([X_time, y_time], dim=1)
+                temp_enc = self.temporal_embedding(X_y_time)
+                temp_enc = temp_enc.unsqueeze(1)
+                temp_enc = temp_enc.repeat_interleave(dim=1, repeats=n_vars)
+                temp_enc = temp_enc.reshape(
+                    bs * n_vars, num_patch + self.pred_num_patch, self.d_model
+                )
+                x = torch.cat([x, temp_enc], dim=2)
 
         # input encoding
         if not self.shared_embedding:
@@ -222,28 +280,46 @@ class PETformerEncoder(nn.Module):
 
         # add positional encoding
         # x = self.dropout(x + self.W_pos)
-        x = x + self.W_pos
+        # x = x + self.W_pos
 
-        if X_time is not None and y_time is not None:
+        if X_time is not None and y_time is not None and self.patch_time:
             X_y_time = torch.cat([X_time, y_time], dim=1)
             temp_enc = self.temporal_embedding(X_y_time)
             # temp_enc = temp_enc.mean(dim=2)
 
             temp_enc = temp_enc.unsqueeze(1)
             temp_enc = temp_enc.repeat_interleave(dim=1, repeats=n_vars)
-            temp_enc = temp_enc.reshape(
-                bs * n_vars, num_patch + self.pred_num_patch, self.d_temp
-            )
 
-            # x = x + self.temp_enc_weight * temp_enc
+            if self.add_time_encoding:
+                temp_enc = temp_enc.reshape(
+                    bs * n_vars, num_patch + self.pred_num_patch, self.d_model
+                )
+                x = x + temp_enc
+                x = x + self.W_pos
+                z = self.encoder(x)
 
-            x = torch.cat([x, temp_enc], dim=2)
+            elif self.concat_time_encoding:
+                temp_enc = temp_enc.reshape(
+                    bs * n_vars, num_patch + self.pred_num_patch, self.d_temp
+                )
+                x = torch.cat([x, temp_enc], dim=2)
+                x = x + self.W_pos
+                z = self.encoder(x)
 
-        # x = torch.cat([x + self.W_pos, self.temporal_embedding(X_y_time)])
+            elif self.temporal_attention:
+                # apply transformer encoder
+                x = x + self.W_pos
+                z = self.encoder(x, temp_enc)
 
-        # apply transformer encoder
-        z = self.encoder(x)
+        else:
+            # x = self.dropout(x + self.W_pos)
+            x = x + self.W_pos
+            z = self.encoder(x)
 
+        # for adding or appending temporal encoding
+        # z = z.reshape(
+        #     bs, n_vars, num_patch + self.pred_num_patch, self.d_model + self.d_temp
+        # )
         z = z.reshape(
             bs, n_vars, num_patch + self.pred_num_patch, self.d_model + self.d_temp
         )

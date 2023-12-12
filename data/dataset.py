@@ -281,10 +281,11 @@ class ClassificationPatchDataset(Dataset):
 
     def __getitem__(self, ind):
         X, y = self.dataset.__getitem__(ind)
-        X = torch.from_numpy(X).unsqueeze(0)
+        # X = torch.from_numpy(X).
+        X = X.unsqueeze(0)
         X = create_patch(X, self.patch_len, self.stride)
         # TODO consistency of class labels coming from datasets, either plain value or np.array
-        return X.squeeze(), torch.tensor(y).to(torch.int64)
+        return X.squeeze(), y  # torch.tensor(y).to(torch.int64)
 
     def __len__(self):
         return len(self.dataset)

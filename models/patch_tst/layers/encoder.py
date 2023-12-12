@@ -220,6 +220,7 @@ class TSTEncoderLayer(nn.Module):
         src: tensor [bs x q_len x d_model]
         """
         # Multi-Head attention sublayer
+        # TODO undo again, just for comparison with ts2vec model
         if self.pre_norm:
             src = self.norm_attn(src)
         # Multi-Head attention
@@ -256,6 +257,23 @@ class TSTEncoderLayer(nn.Module):
             return src, scores
         else:
             return src
+
+        # x = src
+
+        # residual = x
+
+        # x = self.norm_attn(x)
+        # x, attn = self.self_attn(x, x, x, key_padding_mask=key_padding_mask)
+        # x = self.dropout_attn(x)
+        # x = residual + x
+
+        # residual = x
+        # x = self.norm_ffn(x)
+        # x = self.ff(x)
+        # x = self.dropout_ffn(x)
+        # x = residual + x
+
+        # return src
 
 
 # for different temporal encoding per unit

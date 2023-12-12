@@ -4,11 +4,30 @@ import math
 from models.ts_jepa.model import get_1d_sincos_pos_embed
 from models.ts_jepa.mask import apply_masks
 from models.ts_jepa.tensors import trunc_normal_
-from models.ts2vec.encoder import TransformerEncoderLayer, BatchNorm, LayerNorm
+from models.ts2vec.encoder import TransformerEncoderLayer  # , BatchNorm, LayerNorm
 
 
 def get_predictor(config, max_seq_len):
-    if config.predictor == "linear":
+    if config.predictor == "linear" and config.bert:
+        predictor = nn.Linear(config.enc_d_model, config.patch_len)
+    elif config.predictor == "transformer" and config.bert:
+        predictor = TransformerPredictor(
+            num_patches=int(max_seq_len // config.patch_len),
+            encoder_embed_dim=config.enc_d_model,
+            predictor_embed_dim=config.dec_d_model,
+            depth=config.dec_num_layers,
+            num_heads=config.dec_num_heads,
+            mlp_ratio=config.dec_mlp_ratio,
+            drop_rate=config.dropout,
+            attn_drop_rate=config.attn_drop_rate,
+            activation=config.activation,
+            activation_drop_rate=config.activation_drop_rate,
+            norm=config.norm,
+            layer_norm_first=config.layer_norm_first,
+            learn_pe=config.learn_pe,
+            target_dim=config.patch_len,
+        )
+    elif config.predictor == "linear":
         predictor = nn.Linear(config.enc_d_model, config.enc_d_model)
     elif config.predictor == "mlp":
         predictor = nn.Sequential(
@@ -44,6 +63,7 @@ def get_predictor(config, max_seq_len):
             norm=config.norm,
             layer_norm_first=config.layer_norm_first,
             learn_pe=config.learn_pe,
+            target_dim=config.enc_d_model,
         )
     else:
         raise NotImplementedError
@@ -62,6 +82,7 @@ class TransformerPredictor(nn.Module):
         depth,
         num_heads,
         mlp_ratio,
+        target_dim,
         qkv_bias=True,
         qk_scale=None,
         drop_rate=0.0,
@@ -76,18 +97,13 @@ class TransformerPredictor(nn.Module):
     ):
         super().__init__()
         self.embed_dim = predictor_embed_dim
+        self.layer_norm_first = layer_norm_first
+
         self.predictor_embed = nn.Linear(
             encoder_embed_dim, predictor_embed_dim, bias=True
         )
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, predictor_embed_dim))
 
-        # norm layer
-        if norm == "LayerNorm":
-            norm_layer = LayerNorm
-        elif norm == "BatchNorm":
-            norm_layer = BatchNorm
-        else:
-            raise NotImplementedError(f"Norm type {norm} not supported")
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, predictor_embed_dim))
 
         # 1d pos embed
         self.predictor_pos_embed = nn.Parameter(
@@ -110,45 +126,16 @@ class TransformerPredictor(nn.Module):
                     attention_dropout=attn_drop_rate,
                     activation_dropout=activation_drop_rate,
                     activation_fn=activation,
-                    norm_layer=norm_layer,
+                    # norm_layer=norm_layer,
                     layer_norm_first=layer_norm_first,
                 )
                 for i in range(depth)
             ]
         )
 
-        self.layer_norm_first = layer_norm_first
-        self.predictor_norm = norm_layer(predictor_embed_dim)
+        self.predictor_norm = nn.LayerNorm(predictor_embed_dim)
 
-        self.predictor_proj = nn.Linear(
-            predictor_embed_dim, encoder_embed_dim, bias=True
-        )
-
-        self.init_std = init_std
-        trunc_normal_(self.mask_token, std=self.init_std)
-        self.apply(self._init_weights)
-        self.fix_init_weight()
-
-    def fix_init_weight(self):
-        def rescale(param, layer_id):
-            param.div_(math.sqrt(2.0 * layer_id))
-
-        for layer_id, layer in enumerate(self.predictor_blocks):
-            rescale(layer.self_attn.proj.weight.data, layer_id + 1)
-            rescale(layer.fc2.weight.data, layer_id + 1)
-
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=self.init_std)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
-        elif isinstance(m, nn.Conv2d):
-            trunc_normal_(m.weight, std=self.init_std)
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
+        self.predictor_proj = nn.Linear(predictor_embed_dim, target_dim)
 
     def forward(self, x, ids_restore):
         # x: [bs x enc_num_patches x feature_dim]

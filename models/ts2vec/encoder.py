@@ -1,3 +1,4 @@
+from models.patch_tst.layers.pos_encoding import positional_encoding
 import torch
 import torch.nn as nn
 import math
@@ -5,39 +6,7 @@ from models.ts_jepa.model import get_1d_sincos_pos_embed
 from models.ts_jepa.mask import apply_masks
 from models.ts_jepa.tensors import trunc_normal_
 from models.patch_tst.layers.basics import Transpose
-
-
-def init_bert_params(module):
-    """
-    Initialize the weights specific to the BERT Model.
-    This overrides the default initializations depending on the specified arguments.
-        1. If normal_init_linear_weights is set then weights of linear
-           layer will be initialized using the normal distribution and
-           bais will be set to the specified value.
-        2. If normal_init_embed_weights is set then weights of embedding
-           layer will be initialized using the normal distribution.
-        3. If normal_init_proj_weights is set then weights of
-           in_project_weight for MultiHeadAttention initialized using
-           the normal distribution (to be validated).
-    """
-
-    def normal_(data):
-        # with FSDP, module params will be on CUDA, so we cast them back to CPU
-        # so that the RNG is consistent with and without FSDP
-        data.copy_(data.cpu().normal_(mean=0.0, std=0.02).to(data.device))
-
-    if isinstance(module, nn.Linear):
-        normal_(module.weight.data)
-        if module.bias is not None:
-            module.bias.data.zero_()
-    if isinstance(module, nn.Embedding):
-        normal_(module.weight.data)
-        if module.padding_idx is not None:
-            module.weight.data[module.padding_idx].zero_()
-    if isinstance(module, MultiheadAttention):
-        normal_(module.q_proj.weight.data)
-        normal_(module.k_proj.weight.data)
-        normal_(module.v_proj.weight.data)
+from models.patch_tst.layers.encoder import TSTEncoderLayer
 
 
 def get_activation_fn(activation):
@@ -50,33 +19,6 @@ def get_activation_fn(activation):
     )
 
 
-class PatchEmbed(nn.Module):
-    """1D Time Series to Patch Embedding"""
-
-    def __init__(
-        self,
-        ts_length: int,
-        patch_size: int,
-        in_chans: int,
-        embed_dim: int,
-    ):
-        super().__init__()
-
-        self.num_patches = ts_length // patch_size
-
-        self.proj = nn.Conv1d(
-            in_channels=in_chans,
-            out_channels=embed_dim,
-            kernel_size=patch_size,
-            stride=patch_size,
-        )
-
-    def forward(self, x):
-        x = self.proj(x).transpose(1, 2)
-        return x
-
-
-# from I-JEPA
 class MultiheadAttention(nn.Module):
     def __init__(
         self,
@@ -124,15 +66,14 @@ class TransformerEncoderLayer(nn.Module):
 
     def __init__(
         self,
-        embedding_dim,
-        ffn_embedding_dim,
-        num_attention_heads,
-        dropout,
-        attention_dropout,
-        activation_dropout,
-        activation_fn,
-        norm_layer,
-        layer_norm_first,
+        embedding_dim: float = 768,
+        ffn_embedding_dim: float = 3072,
+        num_attention_heads: int = 8,
+        dropout: float = 0.1,
+        attention_dropout: float = 0.1,
+        activation_dropout: float = 0.1,
+        activation_fn: str = "relu",
+        layer_norm_first: bool = False,
     ) -> None:
         super().__init__()
         # Initialize parameters
@@ -155,12 +96,12 @@ class TransformerEncoderLayer(nn.Module):
         self.layer_norm_first = layer_norm_first
 
         # layer norm associated with the self attention layer
-        self.self_attn_layer_norm = norm_layer(self.embedding_dim)
+        self.self_attn_layer_norm = nn.LayerNorm(self.embedding_dim)
         self.fc1 = nn.Linear(self.embedding_dim, ffn_embedding_dim)
         self.fc2 = nn.Linear(ffn_embedding_dim, self.embedding_dim)
 
         # layer norm associated with the position wise feed-forward NN
-        self.final_layer_norm = norm_layer(self.embedding_dim)
+        self.final_layer_norm = nn.LayerNorm(self.embedding_dim)
 
     def forward(
         self,
@@ -220,29 +161,6 @@ class TransformerEncoderLayer(nn.Module):
         return x, attn, layer_result
 
 
-class LayerNorm(nn.Module):
-    def __init__(self, dim):
-        super().__init__()
-        self.norm = nn.LayerNorm(dim)
-
-    def forward(self, x):
-        return self.norm(x)
-
-
-class BatchNorm(nn.Module):
-    def __init__(self, dim):
-        super().__init__()
-        self.norm = nn.Sequential(
-            Transpose(1, 2),
-            nn.BatchNorm1d(dim),
-            Transpose(1, 2),
-        )
-
-    def forward(self, x):
-        return self.norm(x)
-
-
-# based on I-JEPA
 class TransformerEncoder(nn.Module):
     """Time Series Transformer with channel independence"""
 
@@ -250,6 +168,7 @@ class TransformerEncoder(nn.Module):
         self,
         seq_len,
         patch_size,
+        num_patch,
         in_chans,
         embed_dim,
         depth,
@@ -264,28 +183,16 @@ class TransformerEncoder(nn.Module):
         layer_norm_first=True,
         learn_pe=False,
         use_mask_tokens=False,
+        cls_token=False,
         **kwargs,
     ):
         super().__init__()
-        self.num_heads = num_heads
         self.embed_dim = embed_dim
         self.layer_norm_first = layer_norm_first
-
         self.patch_embed = nn.Linear(patch_size, embed_dim)
 
-        num_patches = int(seq_len // patch_size)
+        num_patches = num_patch
 
-        # norm layer
-        if norm == "LayerNorm":
-            norm_layer = LayerNorm
-        elif norm == "BatchNorm":
-            norm_layer = BatchNorm
-        else:
-            raise NotImplementedError(f"Norm type {norm} not supported")
-
-        # 1d pos embed
-        # absolute position encoding
-        # TODO add option for relative position encoding
         self.pos_embed = nn.Parameter(
             torch.zeros(1, num_patches, embed_dim), requires_grad=learn_pe
         )
@@ -304,59 +211,28 @@ class TransformerEncoder(nn.Module):
                     attention_dropout=attn_drop_rate,
                     activation_dropout=activation_drop_rate,
                     activation_fn=activation,
-                    norm_layer=norm_layer,
+                    # norm_layer=norm_layer,
                     layer_norm_first=layer_norm_first,
                 )
                 for i in range(depth)
             ]
         )
-        self.norm = norm_layer(embed_dim)
+        self.norm = nn.LayerNorm(embed_dim)
 
-        # ------
-        self.init_std = init_std
-        self.apply(self._init_weights)
-        self.fix_init_weight()
-
-    def fix_init_weight(self):
-        def rescale(param, layer_id):
-            param.div_(math.sqrt(2.0 * layer_id))
-
-        for layer_id, layer in enumerate(self.blocks):
-            rescale(layer.self_attn.proj.weight.data, layer_id + 1)
-            rescale(layer.fc2.weight.data, layer_id + 1)
-
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=self.init_std)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
-        elif isinstance(m, nn.Conv2d):
-            trunc_normal_(m.weight, std=self.init_std)
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-
-    def forward(self, x, mask=None):
-        # x: [bs x seq_len x n_vars]
-
-        # patchify x
-        # x: [bs x n_vars x seq_len]
+    def forward(self, x, ids_kept=None):
         x = self.patch_embed(x)
-        # x: [bs x num_patches x embed_dim]
 
-        # add positional embedding to x
-        # TODO potentially add input dropout
-        pos_embed = self.pos_embed.repeat_interleave(dim=0, repeats=x.shape[0])
-        if mask is not None:
-            mask = mask.unsqueeze(-1).repeat_interleave(dim=-1, repeats=self.embed_dim)
-            pos_embed = pos_embed[mask]
-            pos_embed = pos_embed.reshape(x.shape[0], x.shape[1], self.embed_dim)
+        pos_embed = self.pos_embed
+
+        if ids_kept is not None:
+            pos_embed = pos_embed.repeat_interleave(dim=0, repeats=x.shape[0])
+            pos_embed = torch.gather(
+                pos_embed, dim=1, index=ids_kept.repeat(1, 1, self.embed_dim)
+            )
 
         x += pos_embed
 
-        # TODO interpolation only for finetuning if necessary
+        # interpolation only for finetuning if necessary
         # x = x + self.interpolate_pos_encoding(x, self.pos_embed)
 
         # layer results after ffn in every block
