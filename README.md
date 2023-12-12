@@ -1,9 +1,5 @@
 # Self-Supervised Representation Learning for Time Series Analysis
 
-Time series data is prevalent across various domains including healthcare, transportation and manufacturing. The development of supervised machine learning models has lead to significant advancements in time series forecasting and classification. 
-However, recent studies have shown that the self-supervised pre-training of a model can surpass fully supervised approaches in downstream tasks. 
-A popular paradigm of self-supervised representation learning (SSL) is masked modeling where parts of the input signal are masked and the model is pre-trained to predict the masked parts given the unmasked context.
-
 We propose a Time Series Joint Embedding Predictive Architecture (TS-JEPA), utilizing a self-distillation student-teacher setup.
 While prior work has performed masked modeling in the input space, we are the first to investigate masked modeling for time series in the embedding space. A teacher encoder operates on the full input to generate contextualized target embeddings for the masked parts. Subsequently, a student encoder extracts meaningful representations from the unmasked input for the prediction of these target embeddings.
 
@@ -47,7 +43,7 @@ To efficiently pre-train large Transformer models on images, [He et al.](https:/
   <img src="img/tsjepa.png" alt="image" width="50%" height="auto">
 </p>
 
-Time Series Joint Embedding Predictive Architecture (TS-JEPA). Each univariate time series is standard normalized and divided into a sequence of patches. 
+**Time Series Joint Embedding Predictive Architecture (TS-JEPA)**. Each univariate time series is standard normalized and divided into a sequence of patches. 
 The teacher network $f_\lambda$ is provided with the original sequence to compute contextualized representations for the masked patches.
 The student network $f_\theta$ operates on the sequence of masked and unmasked patches and extracts characteristic representations. These representations are used by the predictor $g_\phi$ to regress the contextualized targets. To prevent a mode collapse, the teacher encoder is parameterized as an exponential moving average of the student encoder. TS-JEPA can be trained with a Smooth L1 loss. 
 
