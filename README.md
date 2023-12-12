@@ -39,14 +39,17 @@ Following [Wu et al.](https://arxiv.org/abs/2106.13008), the datasets are split 
 
 
 ## Models
-Inspired by the success of masked modeling in NLP and CV, [Nie et al.](https://arxiv.org/pdf/2211.14730.pdf) proposed the **Patch Time Series Transformer (PatchTST)**. Pre-training this Transformer model on time series patches according to the masked modeling paradigm yields state-of-the-art results in time series forecasting with a notable improvement over the fully supervised approach.
+Inspired by the success of masked modeling in NLP and CV, [Nie et al.](https://arxiv.org/pdf/2211.14730.pdf) proposed the **Patch Time Series Transformer (PatchTST)**. Pre-training this Transformer model on time series patches according to the masked modeling paradigm yields state-of-the-art results in time series forecasting with a notable improvement over the fully supervised approach. PatchTST can also be pre-trained in a BERT-like manner with masked modeling.
 
-To efficiently pre-train large Transformer models on images, [He et al.](https://arxiv.org/abs/2111.06377) recently introduced **Masked Autoencoders (MAE)**. This methods involves dividing an image into patches, with a substantial portion of patches being masked during pre-training. The encoder only operates on the visible subset of patches while the decoder reconstructs the original image from the latent representation and mask tokens. 
+To efficiently pre-train large Transformer models on images, [He et al.](https://arxiv.org/abs/2111.06377) introduced **Masked Autoencoders (MAE)**. This methods involves dividing an image into patches, with a substantial portion of patches being masked during pre-training. The encoder only operates on the visible subset of patches while the decoder reconstructs the original image from the latent representation and mask tokens. We adopt their approach for time series.
 
+<p align="center">
+  <img src="img/tsjepa.png" alt="image" width="50%" height="auto">
+</p>
 
-![](img/tsjepa.png)
-Pre-training setup of **PatchTST** and **MAE**. PatchTST (left, adapted from [Nie et al.](https://arxiv.org/abs/2211.14730)) initially segments the time series signal into patches. A significant amount of these patches is masked (grey). All patches are linearly projected into an embedding space and provided with a positional encoding. The sequence is processed by a Transformer block. A final linear projection predicts the signal of the masked patches. 
-MAE (right, inspired by [He et al.](https://arxiv.org/abs/2111.06377)) is an encoder-decoder architecture. In contrast to PatchTST, the masked patches are discarded and only the unmasked patches (green) are forwarded through the MAE encoder. We obtain a latent representation of the visible patches. This latent representation is unshuffled and refilled with learnable mask tokens (orange) which indicate the presence of masked patches. The entire sequence is fed into the MAE decoder, which is trained to predict the signal of the masked patches.
+Time Series Joint Embedding Predictive Architecture (TS-JEPA). Each univariate time series is standard normalized and divided into a sequence of patches. 
+The teacher network $f_\lambda$ is provided with the original sequence to compute contextualized representations for the masked patches.
+The student network $f_\theta$ operates on the sequence of masked and unmasked patches and extracts characteristic representations. These representations are used by the predictor $g_\phi$ to regress the contextualized targets. To prevent a mode collapse, the teacher encoder is parameterized as an exponential moving average of the student encoder. TS-JEPA can be trained with a Smooth L1 loss. 
 
 
 ## Training
@@ -58,7 +61,7 @@ To patch the time series input, please set the `--use_patch` flag and specify `-
 
 
 ### Pre-training
-The pre-training of our MAE for time series with a masking ratio of 50 % and non-overlapping patches of size 8 can be initiated as follows:
+The pre-training of our TS-JEPA model on time series with a masking ratio of 50 % and non-overlapping patches of size 8 can be initiated as follows:
 
 ```bash
 python3 main.py \
@@ -95,7 +98,7 @@ python3 main.py \
 ```
 
 ### Finetuning
-To finetune the pre-trained MAE for ECG classification, please adapt the following command:
+To finetune a pre-trained TS-JEPA model for ECG classification, please adapt the following command:
 
 ```bash
 python3 main.py \
