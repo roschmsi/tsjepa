@@ -1,9 +1,14 @@
-# Unsupervised Representation Learning for ECG Analysis
+# Self-Supervised Representation Learning for Time Series Analysis
 
-Machine learning algorithms can be trained to automatically detect and classify cardiac abnormalities given a patient's electrocardiogram (ECG).
-Recent studies on multivariate time series have shown that the unsupervised pre-training of a model and its subsequent application in downstream tasks can outperform fully supervised approaches.
+Time series data is prevalent across various domains including healthcare, transportation and manufacturing. The development of supervised machine learning models has lead to significant advancements in time series forecasting and classification. 
+However, recent studies have shown that the self-supervised pre-training of a model can surpass fully supervised approaches in downstream tasks. 
+A popular paradigm of self-supervised representation learning (SSL) is masked modeling where parts of the input signal are masked and the model is pre-trained to predict the masked parts given the unmasked context.
 
-In this work, we investigate the effectiveness of unsupervised pre-training for ECG analysis. We identify the pivotal elements of masked time series modeling with Transformers and achieve state-of-the-art classification results on a large-scale ECG dataset. Additionally, we propose masked autoencoders for time series and demonstrate their applicability in time series representation learning, classification and forecasting.
+We propose a Time Series Joint Embedding Predictive Architecture (TS-JEPA), utilizing a self-distillation student-teacher setup.
+While prior work has performed masked modeling in the input space, we are the first to investigate masked modeling for time series in the embedding space. A teacher encoder operates on the full input to generate contextualized target embeddings for the masked parts. Subsequently, a student encoder extracts meaningful representations from the unmasked input for the prediction of these target embeddings.
+
+We investigate the parameterization of the teacher as a moving average of the student, apply different masking strategies during pre-training and explore the efficacy of variance-covariance regularization to prevent mode collapse.
+We report the performance of our SSL approach in time series forecasting and classification on four public benchmarks. Additionally, we check the robustness of the extracted representations against input perturbation and the utility of TS-JEPA for transfer learning.
 
 ## Dependencies
 This repository works with Python 3.10 and PyTorch 1.13. Please create a virtual environment and install the dependencies specified in requirements.txt.
@@ -35,20 +40,14 @@ Following [Wu et al.](https://arxiv.org/abs/2106.13008), the datasets are split 
 
 ## Models
 Inspired by the success of masked modeling in NLP and CV, [Nie et al.](https://arxiv.org/pdf/2211.14730.pdf) proposed the **Patch Time Series Transformer (PatchTST)**. Pre-training this Transformer model on time series patches according to the masked modeling paradigm yields state-of-the-art results in time series forecasting with a notable improvement over the fully supervised approach.
-We are the first to conduct an in-depth investigation of the PatchTST components for time series classification. While Nie et al. assume channel independence in their time series forecasting experiments, we attempt to model inter-channel dependencies. Therefore, we introduce channel tokens to the PatchTST architecture and examine the utility of different patching strategies (patch_tst, patch_tst_t, patch_tst_tc) across time and channel dimension.
 
 To efficiently pre-train large Transformer models on images, [He et al.](https://arxiv.org/abs/2111.06377) recently introduced **Masked Autoencoders (MAE)**. This methods involves dividing an image into patches, with a substantial portion of patches being masked during pre-training. The encoder only operates on the visible subset of patches while the decoder reconstructs the original image from the latent representation and mask tokens. 
-To the best of our knowledge, we are the first to propose MAE for pre-training on time series patches. We investigate the modeling of inter-channel dependencies with our MAE (masked_autoencoder, masked_autoencoder_t, masked_autoencoder_tc) and evaluate its performance in large-scale ECG classification and time series forecasting.
 
-![](img/masked_autoencoder.png)
+
+![](img/tsjepa.png)
 Pre-training setup of **PatchTST** and **MAE**. PatchTST (left, adapted from [Nie et al.](https://arxiv.org/abs/2211.14730)) initially segments the time series signal into patches. A significant amount of these patches is masked (grey). All patches are linearly projected into an embedding space and provided with a positional encoding. The sequence is processed by a Transformer block. A final linear projection predicts the signal of the masked patches. 
 MAE (right, inspired by [He et al.](https://arxiv.org/abs/2111.06377)) is an encoder-decoder architecture. In contrast to PatchTST, the masked patches are discarded and only the unmasked patches (green) are forwarded through the MAE encoder. We obtain a latent representation of the visible patches. This latent representation is unshuffled and refilled with learnable mask tokens (orange) which indicate the presence of masked patches. The entire sequence is fed into the MAE decoder, which is trained to predict the signal of the masked patches.
 
-The performance of these Patch Transformers can be compared to a strong baseline of supervised classification approaches.
-- **CNN Classifier**: We provide a simple CNN classifier comprising two convolutional layers with kernel size 11 and stride 3, two convolutional layers with kernel size 7 and stride 2 and one convolutional layer with kernel size 3 and stride 1.
-- **CNN Transformer**: Inspired by the [winning approach](https://www.cinc.org/2020/Program/accepted/107_CinCFinalPDF.pdf) of the PhysioNet Challenge 2020, this model utilizes a CNN Encoder with the above-mentioned configuration and applies an additional Transformer on the extracted features for feature enhancement.
-- **Transformer**: [Zerveas et al.](https://github.com/gzerveas/mvts_transformer) were the first to investigate unsupervised representation learning of multivariate time series with a Transformer. While PatchTST and MAE apply patching, this approach directly masks parts of the raw time series input during pre-training. The model can also be trained on the raw time series input in a supervised manner.
-- **FEDformer**: [Zhou et al.](https://proceedings.mlr.press/v162/zhou22g/zhou22g.pdf) have proposed FEDformer (Frequency Enhanced Decomposed Transformer) for time series forecasting. The model incorporates seasonal-trend decomposition and applies self-attention in the frequency domain rather than the time domain to better capture global properties. We adapt the FEDformer encoder and append a classification head to perform ECG classification.
 
 ## Training
 The `slurm/` folder contains scripts to train the models on a SLURM-compatible compute system. Check out `options.py` to gain an overview of the training parameters.
