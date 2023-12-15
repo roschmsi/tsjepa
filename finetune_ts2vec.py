@@ -246,7 +246,7 @@ def main(config):
             for i, perturbation_std in enumerate(
                 np.arange(start=0, stop=1.1, step=0.1)
             ):
-                print("Perturbation std: ", perturbation_std)
+                logger.info("Perturbation std: ", perturbation_std)
                 aggr_metrics_test = test_evaluator.evaluate(
                     perturbation_std=perturbation_std
                 )
