@@ -1,5 +1,3 @@
-# Reference: https://github.com/gzerveas/mvts_transformer
-
 import logging
 import os
 import sys
