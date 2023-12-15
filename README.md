@@ -51,7 +51,7 @@ The student network $f_\theta$ operates on the sequence of masked and unmasked p
 ## Training
 The `slurm/` folder contains scripts to train the models on a SLURM-compatible compute system. Check out `options.py` to gain an overview of the training parameters.
 
-To train a particular model, you have to provide the `--model_name` and define its configuration. Supervised models can be trained for two tasks: `classification` or `forecasting`. If you are interested in unsupervised models, you can pre-train them by selecting the task `pretraining`. Once you have a pre-trained model, you can fine-tune it for a supervised task. You need to load the pre-trained model with `--load_model` and set the `--finetuning` flag.
+To train a particular model, you have to provide the `--model_name` and define its configuration. Supervised models can be trained for two tasks: `classification` or `forecasting`. If you are interested in unsupervised models, you can pre-train them by selecting the task `pretraining`. Once you have a pre-trained model, you can fine-tune it for a supervised task. You need to load the pre-trained model with `--load_model` flag.
 
 To patch the time series input, please set the `--use_patch` flag and specify `--patch_len` and `--stride`.
 
