@@ -80,10 +80,10 @@ def load_checkpoint(
         checkpoint = torch.load(path)
         epoch = checkpoint["epoch"]
 
-        # -- loading encoder
+        # loading encoder
         pretrained_dict = checkpoint["model"]
         msg = model.load_state_dict(pretrained_dict)
-        logger.info(f"loaded pretrained model from epoch {epoch} with msg: {msg}")
+        logger.info(f"Loaded pretrained model from epoch {epoch} with msg: {msg}")
 
         # if "teacher" in checkpoint.keys():
         #     teacher_dict = checkpoint["teacher"]
@@ -92,15 +92,14 @@ def load_checkpoint(
         # else:
         #     msg = model.ema.model.load_state_dict(pretrained_dict)
 
-        # -- loading optimizer
+        # loading optimizer and scheduler
         if optimizer is not None:
             msg = optimizer.load_state_dict(checkpoint["optimizer"])
-            logger.info(f"loaded optimizer from epoch {epoch} with msg: {msg}")
-            # optimizer_to(optimizer, device=device)
+            logger.info(f"Loaded optimizer from epoch {epoch} with msg: {msg}")
 
         if scheduler is not None:
             msg = scheduler.load_state_dict(checkpoint["scheduler"])
-            logger.info(f"loaded scheduler from epoch {epoch} with msg: {msg}")
+            logger.info(f"Loaded scheduler from epoch {epoch} with msg: {msg}")
 
     except Exception as e:
         logger.info(f"Encountered exception when loading checkpoint {e}")
@@ -119,7 +118,7 @@ def load_checkpoint_encoder(
         checkpoint = torch.load(path)
         epoch = checkpoint["epoch"]
 
-        # -- loading encoder
+        # loading encoder
         pretrained_dict = {}
 
         for k, v in checkpoint["model"].items():
@@ -127,17 +126,16 @@ def load_checkpoint_encoder(
                 pretrained_dict[k.replace("encoder.", "")] = v
 
         msg = model.load_state_dict(pretrained_dict)
-        logger.info(f"loaded pretrained model from epoch {epoch} with msg: {msg}")
+        logger.info(f"Loaded pretrained model from epoch {epoch} with msg: {msg}")
 
-        # -- loading optimizer
+        # loading optimizer and scheduler
         if optimizer is not None:
             msg = optimizer.load_state_dict(checkpoint["optimizer"])
-            logger.info(f"loaded optimizer from epoch {epoch} with msg: {msg}")
-            # optimizer_to(optimizer, device=device)
+            logger.info(f"Loaded optimizer from epoch {epoch} with msg: {msg}")
 
         if scheduler is not None:
             msg = scheduler.load_state_dict(checkpoint["scheduler"])
-            logger.info(f"loaded scheduler from epoch {epoch} with msg: {msg}")
+            logger.info(f"Loaded scheduler from epoch {epoch} with msg: {msg}")
 
     except Exception as e:
         logger.info(f"Encountered exception when loading checkpoint {e}")
@@ -151,18 +149,20 @@ def load_encoder_from_tsjepa(path, encoder):
         checkpoint = torch.load(path, map_location=torch.device("cpu"))
         epoch = checkpoint["epoch"]
 
-        # -- loading encoder
+        # loading encoder
         pretrained_dict = checkpoint["model"]
+        
         # remove encoder from keys
         pretrained_dict = {
             k.replace("encoder.", ""): v for k, v in pretrained_dict.items()
         }
-        # drop k, v if k starts with "regression head"
+        
+        # drop predictor
         pretrained_dict = {
             k: v for k, v in pretrained_dict.items() if not k.startswith("predictor")
         }
         msg = encoder.load_state_dict(pretrained_dict, strict=False)
-        logger.info(f"loaded pretrained model from epoch {epoch} with msg: {msg}")
+        logger.info(f"Loaded pretrained encoder from epoch {epoch} with msg: {msg}")
 
     except Exception as e:
         logger.info(f"Encountered exception when loading checkpoint {e}")
@@ -211,6 +211,7 @@ def plot_classwise_distribution(
 
                 df_batch = pd.concat([df_y, df_z], axis=1)
                 df = pd.concat([df, df_batch], axis=0)
+
         elif supervised:
             for X, y, _ in data_loader:
                 if df is not None and df.shape[0] > 100000:
@@ -294,10 +295,8 @@ def plot_classwise_distribution(
             fig.set(xlabel=None)
             fig.set(ylabel=None)
 
-        # TODO set xlim again
-        # plt.xlim([-2.0, 2.0])
+        plt.xlim([-2.0, 2.0])
         plt.legend()
-        # plt.savefig(path / f"kde_dim={dim}.jpg", bbox_inches="tight")
         plt.tight_layout()
 
         if tb_writer is not None:

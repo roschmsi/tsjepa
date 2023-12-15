@@ -1,6 +1,5 @@
-# Reference: 
+# Adapted from https://github.com/arxyzan/data2vec-pytorch
 
-import os
 import copy
 
 import torch.nn as nn
@@ -15,7 +14,6 @@ class EMA:
         device (str):
         skip_keys (list): The keys to skip assigning averaged weights to.
     """
-
     def __init__(self, model: nn.Module, device, ema_decay, skip_keys=None):
         self.model = copy.deepcopy(model)
         self.model.requires_grad_(False)

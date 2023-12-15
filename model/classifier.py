@@ -36,7 +36,6 @@ class Classifier(nn.Module):
         d_model,
         n_classes,
         head_dropout,
-        head_type="linear",
     ):
         super(Classifier, self).__init__()
         self.encoder = encoder

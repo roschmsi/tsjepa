@@ -1,7 +1,9 @@
 import torch
 
 
-def init_optimizer(model, lr, weight_decay, epochs):
+def init_optimizer(model, lr, weight_decay):
+    """Adapted from https://github.com/facebookresearch/ijepa"""
+    
     param_groups = [
         {
             "params": (

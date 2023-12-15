@@ -6,11 +6,7 @@ from model.ema import EMA
 
 class TS2VecEMA(nn.Module):
     """
-    Data2Vec main module.
-
-    Args:
-         encoder (nn.Module): The encoder module like BEiT, ViT, etc.
-         cfg (omegaconf.DictConfig): The config containing model properties
+    TS-JEPA with exponential moving average teacher
     """
 
     def __init__(
@@ -101,19 +97,6 @@ class TS2VecEMA(nn.Module):
         return X_enc, y_pred
 
     def forward(self, X_full, X_masked, X_kept, ids_kept, ids_restore):
-        """
-        Data2Vec forward method.
-
-        Args:
-            src: src tokens (masked inputs for training)
-            trg: trg tokens (unmasked inputs for training but left as `None` otherwise)
-            mask: bool masked indices, Note: if a modality requires the inputs to be masked before forward this param
-            has no effect. (see the Encoder for each modality to see if it uses mask or not)
-
-        Returns:
-            Either encoder outputs or a tuple of encoder + EMA outputs
-
-        """
         if self.predictor_type in ["mlp", "linear"]:
             X_enc, y_pred = self.forward_mlp_predictor(X_masked=X_masked)
         elif self.predictor_type == "transformer":

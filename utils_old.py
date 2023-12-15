@@ -23,8 +23,6 @@ logger = logging.getLogger(__name__)
 def check_config(config):
     # check dataset
     dir = f"{config.dataset}"
-    # if "fs" in config.keys():
-    #     dir += f"_fs={config.fs}"
     if config.filter_bandwidth:
         dir += "_fb"
     if config.augment:
@@ -61,8 +59,6 @@ def check_config(config):
     # check training parameters
     if config.batch_size is not None:
         dir += f"_bs={config.batch_size}"
-    # if config.optimizer is not None:
-    #     dir += f"_opt={config.optimizer}"
     if config.scheduler is not None:
         if config.scheduler == "CosineAnnealingLR":
             dir += "_sch=CA"
@@ -93,15 +89,6 @@ def check_config(config):
     # reverse instance normalization
     if config.revin:
         dir += "_revin"
-
-    # hierarchical
-    if config.num_levels is not None:
-        dir += f"_nlevels={config.num_levels}"
-    if config.ch_factor is not None:
-        dir += f"_chf={config.ch_factor}"
-
-    if config.window_size is not None:
-        dir += f"_wsize={config.window_size}"
 
     # check transformer parameters
     if config.enc_num_layers is not None:
@@ -151,12 +138,6 @@ def check_config(config):
     if config.model_name == "tsjepa":
         if config.ema_start is not None:
             dir += f"_emast={config.ema_start}"
-
-    # check fedformer parameters
-    if config.version is not None:
-        dir += f"_vers={config.version}"
-    if config.modes is not None:
-        dir += f"_modes={config.modes}"
 
     return dir
 

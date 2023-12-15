@@ -1,3 +1,5 @@
+# Reference: https://github.com/facebookresearch/ijepa
+
 import torch
 import torch.nn as nn
 from model.positional_encoding import get_1d_sincos_pos_embed
@@ -60,16 +62,17 @@ class TransformerEncoderLayer(nn.Module):
 
     def __init__(
         self,
-        embedding_dim: float = 768,
-        ffn_embedding_dim: float = 3072,
-        num_attention_heads: int = 8,
-        dropout: float = 0.1,
-        attention_dropout: float = 0.1,
-        activation_dropout: float = 0.1,
-        activation_fn: str = "relu",
-        layer_norm_first: bool = False,
+        embedding_dim: float,
+        ffn_embedding_dim: float,
+        num_attention_heads: int,
+        dropout: float,
+        attention_dropout: float,
+        activation_dropout: float,
+        activation_fn: str,
+        layer_norm_first: bool,
     ) -> None:
         super().__init__()
+
         # Initialize parameters
         self.embedding_dim = embedding_dim
         self.dropout = dropout

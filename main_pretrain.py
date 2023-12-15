@@ -159,7 +159,7 @@ def main(config):
 
     # create optimizer and scheduler
     optimizer = init_optimizer(
-        model, lr=config.lr, weight_decay=config.weight_decay, epochs=config.epochs
+        model, lr=config.lr, weight_decay=config.weight_decay,
     )
 
     scheduler = init_scheduler(optimizer, config)
@@ -177,7 +177,7 @@ def main(config):
                 path = os.path.join(config.load_model, "checkpoints", "model_last.pth")
         elif config.load_model:
             path = os.path.join(config.load_model, "checkpoints", "model_best.pth")
-        # TODO load checkpoint
+
         model, optimizer, scheduler, epoch = load_checkpoint(
             path,
             model=model,
@@ -267,7 +267,6 @@ def main(config):
 
     tb_writer = SummaryWriter(config.output_dir)
 
-    # TODO use test_evaluator again
     if config.test:
         logger.info("Test performance:")
         aggr_metrics_test, aggr_imgs_test = test_evaluator.evaluate()

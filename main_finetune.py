@@ -72,7 +72,6 @@ def main(config):
         num_patch = (max_seq_len - config.patch_len) // config.stride + 1
 
     # initialize data generator and runner
-    # channel independence, TODO solve for forecasting all dataset
     dataset_class = SupervisedDataset
 
     # prepare dataloader
@@ -83,7 +82,6 @@ def main(config):
         shuffle=False if config.debug else True,
         num_workers=config.num_workers,
         pin_memory=True,
-        # collate_fn=mask_collator,
     )
     val_dataset = dataset_class(val_dataset)
     val_loader = DataLoader(
@@ -92,7 +90,6 @@ def main(config):
         shuffle=False,
         num_workers=config.num_workers,
         pin_memory=True,
-        # collate_fn=mask_collator,
     )
     test_dataset = dataset_class(test_dataset)
     test_loader = DataLoader(
@@ -101,7 +98,6 @@ def main(config):
         shuffle=False,
         num_workers=config.num_workers,
         pin_memory=True,
-        # collate_fn=mask_collator,
     )
 
     # create Transformer encoder
@@ -148,7 +144,6 @@ def main(config):
         model=model,
         lr=config.lr,
         weight_decay=config.weight_decay,
-        epochs=config.epochs,
     )
     scheduler = init_scheduler(optimizer, config)
 
@@ -335,7 +330,7 @@ def main(config):
     # evaluate on test set
     with torch.no_grad():
         test_evaluator.model = model
-        aggr_metrics_test = test_evaluator.evaluate(epoch_num=epoch)
+        aggr_metrics_test = test_evaluator.evaluate()
 
     logger.info("Best test performance:")
     for k, v in aggr_metrics_test.items():

@@ -1,39 +1,11 @@
 # Reference: https://github.com/gzerveas/mvts_transformer
 
 import logging
-import os
 from collections import OrderedDict
-import torch
-from utils_old import Printer, save_model
+
+from utils_old import Printer
 
 logger = logging.getLogger("__main__")
-
-
-def validate(
-    val_evaluator,
-    tensorboard_writer,
-    config,
-    best_metrics,
-    best_loss,
-    epoch,
-):
-    with torch.no_grad():
-        aggr_metrics = val_evaluator.evaluate(epoch)
-
-    for k, v in aggr_metrics.items():
-        tensorboard_writer.add_scalar(f"{k}/val", v, epoch)
-
-    if aggr_metrics["loss"] < best_loss:
-        best_loss = aggr_metrics["loss"]
-        save_model(
-            path=os.path.join(config["checkpoint_dir"], "model_best.pth"),
-            epoch=epoch,
-            model=val_evaluator.model,
-        )
-        best_metrics = aggr_metrics.copy()
-
-    return best_metrics, best_loss
-
 
 class BaseRunner(object):
     def __init__(
@@ -73,10 +45,10 @@ class BaseRunner(object):
         self.vibc_reg = False
         self.vic_reg_enc = False
 
-    def train_epoch(self, epoch_num=None):
+    def train_epoch(self):
         raise NotImplementedError("Please override in child class")
 
-    def evaluate(self, epoch_num=None):
+    def evaluate(self):
         raise NotImplementedError("Please override in child class")
 
     def print_callback(self, i_batch, metrics, prefix=""):

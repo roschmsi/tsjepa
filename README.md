@@ -142,10 +142,12 @@ We appreciate the following websites and repositories for their valuable code ba
 
 * https://physionet.org/content/challenge-2020/1.0.2/
 * https://github.com/physionetchallenges/evaluation-2020
+* https://github.com/thuml/Autoformer
 * https://github.com/yuqinie98/PatchTST
 * https://github.com/facebookresearch/mae
 * https://github.com/facebookresearch/ijepa
 * https://github.com/facebookresearch/fairseq/tree/main/examples/data2vec
+* https://github.com/arxyzan/data2vec-pytorch
 
 
 ## Contact

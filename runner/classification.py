@@ -4,8 +4,8 @@ import numpy as np
 
 from data.dataset import create_patch
 from evaluation.evaluate_12ECG_score import compute_auc
-from utils import AverageMeter
 from runner.base import BaseRunner
+from utils import AverageMeter
 
 
 class ClassificationRunner(BaseRunner):
@@ -32,15 +32,15 @@ class ClassificationRunner(BaseRunner):
 
         self.epoch_metrics = OrderedDict()
 
-    def train_epoch(self, epoch_num=None):
+    def train_epoch(self):
         self.model.train()
         return self.forward()
 
-    def evaluate(self, epoch_num=None):
+    def evaluate(self):
         self.model.eval()
         return self.forward()
 
-    def forward(self, epoch_num=None):
+    def forward(self):
         loss_meter = AverageMeter()
         probs = []
         lbls = []

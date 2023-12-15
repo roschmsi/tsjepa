@@ -1,4 +1,4 @@
-# Reference: https://github.com/physionetchallenges/evaluation-2020
+"""Reference: https://github.com/physionetchallenges/evaluation-2020"""
 
 #!/usr/bin/env python
 

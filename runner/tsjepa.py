@@ -76,7 +76,7 @@ class TS2VecRunner(BaseRunner):
 
         self.regfn = regfn
 
-    def train_epoch(self, epoch_num=None):
+    def train_epoch(self):
         self.model.train()
 
         # track loss
@@ -246,7 +246,7 @@ class TS2VecRunner(BaseRunner):
 
         return self.epoch_metrics, self.epoch_imgs
 
-    def evaluate(self, epoch_num=None):
+    def evaluate(self):
         self.model.eval()
 
         # track loss
@@ -344,8 +344,6 @@ class TS2VecRunner(BaseRunner):
                 target_cov,
             ) = self.regfn(target)
 
-            # TODO we should only track that shit for the masked parts, the others arent interesting
-
             pred_loss = loss
 
             # if self.no_ema:
@@ -355,10 +353,6 @@ class TS2VecRunner(BaseRunner):
             else:
                 std_loss = (enc_std_loss + pred_std_loss) / 2
                 cov_loss = (enc_cov_loss + pred_cov_loss) / 2
-            # else:
-            #     # TODO currently only optimize encoder representations, however predictor representations could also be optimized
-            #     std_loss = enc_std_loss
-            #     cov_loss = enc_cov_loss
 
             if self.pred_weight > 0:
                 loss = self.pred_weight * loss

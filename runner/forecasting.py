@@ -36,15 +36,15 @@ class ForecastingRunner(BaseRunner):
 
         self.epoch_metrics = OrderedDict()
 
-    def train_epoch(self, epoch_num=None):
+    def train_epoch(self):
         self.model.train()
         return self.forward()
 
-    def evaluate(self, epoch_num=None, perturbation_std=None):
+    def evaluate(self, perturbation_std=None):
         self.model.eval()
-        return self.forward()
+        return self.forward(perturbation_std=perturbation_std)
 
-    def forward(self, epoch_num=None, perturbation_std=None):
+    def forward(self, perturbation_std=None):
         loss_meter = AverageMeter()
         mse_meter = AverageMeter()
         mae_meter = AverageMeter()

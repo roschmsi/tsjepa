@@ -58,7 +58,7 @@ def get_predictor(config, max_seq_len):
 
 
 class TransformerPredictor(nn.Module):
-    """Time Series Transformer with channel independence"""
+    """Adapted from """
 
     def __init__(
         self,
