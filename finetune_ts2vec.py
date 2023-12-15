@@ -7,7 +7,7 @@ import time
 from functools import partial
 
 import numpy as np
-from model.forecaster import TS2VecForecaster
+from model.forecaster import Forecaster
 from runner.forecasting import ForecastingRunner
 import torch
 import torch.nn as nn
@@ -21,7 +21,7 @@ from data.ecg_dataset import classes, normal_class
 from evaluation.evaluate_12ECG_score import compute_challenge_metric, load_weights
 from model.revin import RevIN
 from model.encoder import TransformerEncoder
-from model.classifier import TS2VecClassifier
+from model.classifier import Classifier
 from utils import (
     load_encoder_from_tsjepa,
 )
@@ -123,16 +123,15 @@ def main(config):
 
     # create model for downstream task
     if config.task == "forecasting":
-        model = TS2VecForecaster(
+        model = Forecaster(
             encoder=encoder,
-            n_vars=config.feat_dim,
             d_model=config.enc_d_model,
             num_patch=num_patch,
             forecast_len=config.pred_len,
             head_dropout=config.head_dropout,
         )
     elif config.task == "classification":
-        model = TS2VecClassifier(
+        model = Classifier(
             encoder=encoder,
             n_vars=config.feat_dim,
             d_model=config.enc_d_model,

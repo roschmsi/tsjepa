@@ -16,7 +16,7 @@ from data.dataset import CIDataset, load_dataset
 from model.revin import BlockRevIN, RevIN
 from model.encoder import TransformerEncoder
 from model.predictor import get_predictor
-from modes.ts2vec.ts2vec import BERT, TS2VecEMA, TS2VecNoEMA
+from model.tsjepa import BERT, TS2VecEMA, TS2VecNoEMA
 from utils import load_checkpoint
 from model.setup import init_optimizer, init_scheduler
 from utils import plot_classwise_distribution

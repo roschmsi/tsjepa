@@ -61,7 +61,7 @@ class Options(object):
         self.parser.add_argument("--head_type", type=str)
         # self.parser.add_argument("--no_momentum", action="store_true")
 
-        # ts2vec
+        # tsjepa
         self.parser.add_argument("--activation_drop_rate", type=float)
         self.parser.add_argument("--layer_norm_first", action="store_true")
         self.parser.add_argument("--average_top_k_layers", type=int)

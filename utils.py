@@ -11,8 +11,9 @@ from data.dataset import create_patch
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-from model.ts2vec.utils import logger
+
 import logging
+import torch
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger()
