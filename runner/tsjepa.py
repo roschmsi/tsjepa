@@ -338,7 +338,6 @@ class TSJepaRunner(BaseRunner):
 
             pred_loss = loss
 
-            # if self.no_ema:
             if self.no_ema:
                 std_loss = (enc_std_loss + pred_std_loss + target_std_loss) / 3
                 cov_loss = (enc_cov_loss + pred_cov_loss + target_cov_loss) / 3

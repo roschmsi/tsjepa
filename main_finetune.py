@@ -295,7 +295,7 @@ def main(config):
         # evaluate model
         if epoch % config.val_interval == 0:
             with torch.no_grad():
-                aggr_metrics_val = val_evaluator.evaluate(epoch)
+                aggr_metrics_val = val_evaluator.evaluate()
 
             for k, v in aggr_metrics_val.items():
                 tb_writer.add_scalar(f"{k}/val", v, epoch)

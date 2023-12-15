@@ -16,6 +16,10 @@ def get_activation_fn(activation):
 
 
 class MultiheadAttention(nn.Module):
+    """
+    Adapted from https://github.com/facebookresearch/ijepa
+    """
+
     def __init__(
         self,
         dim,
@@ -56,8 +60,8 @@ class MultiheadAttention(nn.Module):
 
 class TransformerEncoderLayer(nn.Module):
     """
-    Implements a Transformer Encoder Layer used in BERT/XLM style pre-trained
-    models.
+    Transformer Encoder Layer
+    Adapted from https://github.com/facebookresearch/fairseq
     """
 
     def __init__(
@@ -159,7 +163,10 @@ class TransformerEncoderLayer(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    """Time Series Transformer with channel independence"""
+    """
+    TS-JEPA studen and teacher encoder
+    Adapted from https://github.com/facebookresearch/ijepa
+    """
 
     def __init__(
         self,

@@ -1,4 +1,4 @@
-# Reference: https://github.com/gzerveas/mvts_transformer
+"""Adapted from https://github.com/gzerveas/mvts_transformer"""
 
 import builtins
 import json

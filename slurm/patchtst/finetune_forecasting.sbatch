@@ -40,4 +40,4 @@ srun python3 /home/stud/roschman/ECGAnalysis/main_finetune.py \
 --task forecasting \
 --revin \
 --val_interval 2 \
---output_dir /home/stud/roschman/ECGAnalysis/output_test
+--output_dir output

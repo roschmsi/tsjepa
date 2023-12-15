@@ -2,8 +2,6 @@ from utils.setup import logger
 
 
 def readable_time(time_difference):
-    """Convert a float measuring time difference in seconds into a tuple of (hours, minutes, seconds)"""
-
     hours = time_difference // 3600
     minutes = (time_difference // 60) % 60
     seconds = time_difference % 60
@@ -23,6 +21,10 @@ def log_training(
     num_samples,
     aggr_imgs_train={},
 ):
+    """
+    Adapted from https://github.com/gzerveas/mvts_transformer
+    """
+
     print()
     epoch_runtime = epoch_end_time - epoch_start_time
     print_str = "Epoch {} Training Summary: ".format(epoch)
@@ -54,7 +56,10 @@ def log_training(
 
 
 class AverageMeter(object):
-    """computes and stores the average and current value"""
+    """
+    Computes and stores the average and current value
+    Adapted from https://github.com/facebookresearch/ijepa
+    """
 
     def __init__(self):
         self.reset()

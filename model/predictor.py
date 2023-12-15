@@ -112,7 +112,6 @@ class TransformerPredictor(nn.Module):
                     attention_dropout=attn_drop_rate,
                     activation_dropout=activation_drop_rate,
                     activation_fn=activation,
-                    # norm_layer=norm_layer,
                     layer_norm_first=layer_norm_first,
                 )
                 for i in range(depth)

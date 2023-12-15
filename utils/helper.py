@@ -25,7 +25,7 @@ def save_checkpoint(
     }
 
     torch.save(save_dict, os.path.join(path, "model_last.pth"))
-    # torch.save(save_dict, os.path.join(path, f"model_{epoch}.pth"))
+
     if better:
         torch.save(save_dict, os.path.join(path, "model_best.pth"))
 

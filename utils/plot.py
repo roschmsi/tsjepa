@@ -37,7 +37,6 @@ def plot_classwise_distribution(
             X_enc = encoder(X)["encoder_out"]
             bs, seq_len, d_model = X_enc.shape
             X_enc = X_enc.reshape(bs * seq_len, d_model)
-            # X_enc = X_enc.mean(dim=1)
 
             df_z = pd.DataFrame(X_enc.cpu()).astype("float")
 
