@@ -57,84 +57,93 @@ To patch the time series input, please set the `--use_patch` flag and specify `-
 
 
 ### Pre-training
-The pre-training of our TS-JEPA model on time series with a masking ratio of 50 % and non-overlapping patches of size 8 can be initiated with the following command.
+The pre-training of our TS-JEPA model with an MLP predictor on time series with a masking ratio of 50 % and non-overlapping patches of size 8 can be initiated with the following command.
 
 ```bash
-python3 main.py \
---model_name masked_autoencoder \
---mae \
+python3 main_pretrain.py \
+--model_name tsjepa \  # alternatively: patchtst, mae
 --enc_num_layers 8 \
---enc_num_heads 8 \
---enc_d_model 256 \
---enc_d_ff 512 \
---dec_num_layers 2 \
---dec_num_heads 8 \
---dec_d_model 256 \
---dec_d_ff 512 \
+--enc_num_heads 16 \
+--enc_d_model 128 \
+--enc_mlp_ratio 2 \
+--predictor mlp \  # alternatively: linear, transformer
+--dec_d_model 128 \
+--dec_mlp_ratio 2 \
 --dropout 0.2 \
---shared_embedding \
---norm BatchNorm \
+--activation_drop_rate 0.2 \
+--attn_drop_rate 0 \
+--head_dropout 0 \
+--norm LayerNorm \
+--layer_norm_first \
 --activation gelu \
---head_dropout 0.1 \
+--ema_decay 0.9999 \
+--ema_end_decay 1.0 \
+--ema_anneal_end_step 2000 \
+--targets_rep encoder_out \  # altenatively: ffn
+--normalize_targets \
+--targets_norm LayerNorm \
+--masking random \  # alternatively: block
 --masking_ratio 0.5 \
 --use_patch \
 --patch_len 8 \
 --stride 8 \
---cls_token \
 --optimizer AdamW \
---lr 0.0001 \
+--lr 0.00001 \
 --scheduler CosineAnnealingLR \
+--epochs 2000 \
 --weight_decay 0.01 \
---epochs 500 \
---batch_size 64 \
+--batch_size 1024 \
 --num_workers 4 \
---patience 50 \
+--patience 2000 \
 --data_config data/configs/ecg.yaml \
---task pretraining
+--task pretraining \
+--output_dir output \
+--val_interval 10 \
+--plot_interval 50 \
+--vbcreg \
+--pred_weight 1 \
+--std_weight 0 \
+--cov_weight 0 \
+--loss smoothl1 \  # alternatively: mse
+--smoothl1_beta 0.5
 ```
 
-TS-JEPA can be trained with three different predictors (`mlp`, `linear`, `transformer`) by setting the `--predictor` flag accordingly. Here, the final teacher encoder output is used as contextualized target and the model is trained with a Smooth L1 loss.
+TS-JEPA can be trained with three different predictors (`mlp`, `linear`, `transformer`) by setting the `--predictor` flag accordingly. Here, the teacher encoder output after the final layer (`encoder_out`) is used as contextualized target and the model is trained with a Smooth L1 loss (`smoothl1`).
 
 ### Finetuning
 To finetune a pre-trained TS-JEPA model for ECG classification, please adapt the following command. Without loading a pre-trained model, this command can also be used to start a fully supervised Transformer training. For linear probing, fix the weights of the pre-trained encoder with `--freeze`.
 
 ```bash
-python3 main.py \
---model_name masked_autoencoder \
---mae \
+python3 main_finetune.py \
+--model_name tsjepa \
 --enc_num_layers 8 \
---enc_num_heads 8 \
---enc_d_model 256 \
---enc_d_ff 512 \
---dec_num_layers 2 \
---dec_num_heads 8 \
---dec_d_model 256 \
---dec_d_ff 512 \
---dropout 0.1 \
---shared_embedding \
---norm BatchNorm \
+--enc_num_heads 16 \
+--enc_d_model 128 \
+--enc_mlp_ratio 2 \
+--dropout 0.2 \
+--activation_drop_rate 0.2 \
+--attn_drop_rate 0 \
+--head_dropout 0 \
+--norm LayerNorm \
+--layer_norm_first \
 --activation gelu \
---head_dropout 0.1 \
---masking_ratio 0 \
+--learn_pe \
 --use_patch \
 --patch_len 8 \
 --stride 8 \
---ch_token \
---cls_token \
 --optimizer AdamW \
 --lr 0.0001 \
---scheduler CosineAnnealingLR \
 --weight_decay 0.01 \
+--scheduler CosineAnnealingLR \
 --epochs 100 \
---batch_size 64 \
+--batch_size 32 \
 --num_workers 4 \
---patience 20 \
+--patience 10 \
 --data_config data/configs/ecg.yaml \
 --task classification \
---finetuning \
---freeze \
---freeze_epochs 100 \
---load_model "path to pre-trained model"
+--val_interval 2 \
+--output_dir output \
+--load_model  # provide path to pre-trained model
 ```
 
 

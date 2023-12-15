@@ -18,7 +18,6 @@ srun python3 /home/stud/roschman/ECGAnalysis/main_finetune.py \
 --dropout 0.2 \
 --activation_drop_rate 0.2 \
 --attn_drop_rate 0 \
---head_type linear \
 --head_dropout 0 \
 --norm LayerNorm \
 --layer_norm_first \
@@ -38,7 +37,6 @@ srun python3 /home/stud/roschman/ECGAnalysis/main_finetune.py \
 --seq_len 720 \
 --label_len 0 \
 --pred_len 96 \
---channel_independence \
 --task forecasting \
 --revin \
 --val_interval 2 \

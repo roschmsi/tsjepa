@@ -18,7 +18,6 @@ srun python3 /home/stud/roschman/ECGAnalysis/main_finetune.py \
 --dropout 0.2 \
 --activation_drop_rate 0.2 \
 --attn_drop_rate 0 \
---head_type linear \
 --head_dropout 0 \
 --norm LayerNorm \
 --layer_norm_first \
@@ -36,7 +35,6 @@ srun python3 /home/stud/roschman/ECGAnalysis/main_finetune.py \
 --num_workers 4 \
 --patience 10 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
---channel_independence \
 --task classification \
 --val_interval 2 \
 --output_dir /home/stud/roschman/ECGAnalysis/output

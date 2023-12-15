@@ -1,3 +1,5 @@
+"""Adapted from https://github.com/arxyzan/data2vec-pytorch"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -65,9 +67,6 @@ class TSJepaEMA(nn.Module):
         self.pred_norm = pred_norm
 
     def ema_step(self):
-        """
-        One EMA step for the offline model until the ending decay value is reached
-        """
         if self.ema_decay != self.ema_end_decay:
             if self.ema.num_updates >= self.ema_anneal_end_step:
                 decay = self.ema_end_decay
@@ -83,9 +82,7 @@ class TSJepaEMA(nn.Module):
             self.ema.step(self.encoder)
 
     def forward_mlp_predictor(self, X_masked):
-        # model forward in online mode (student)
-        # X_kept with masked tokens
-        X_enc = self.encoder(X_masked)["encoder_out"]  # fetch the last layer outputs
+        X_enc = self.encoder(X_masked)["encoder_out"]
         y_pred = self.predictor(X_enc)
 
         return X_enc, y_pred
@@ -114,9 +111,9 @@ class TSJepaEMA(nn.Module):
                     y = self.ema.model(X_full)["encoder_states_ffn"]
                 elif self.targets_rep == "block":
                     y = self.ema.model(X_full)["encoder_states"]
-                # fetch the last transformer layers outputs
+
+                # get representation from last K FFN blocks
                 y = y[-self.average_top_k_layers :]
-                # take the last k transformer layers
 
                 if self.targets_norm == "LayerNorm":
                     y = [F.layer_norm(tl.float(), tl.shape[-1:]) for tl in y]
@@ -195,7 +192,9 @@ class MaskedModelingInputSpace(nn.Module):
 
 
 class TSJepaNoEMA(nn.Module):
-    """ """
+    """
+    TS-JEPA without exponential moving average teacher
+    """
 
     def __init__(
         self,
@@ -222,8 +221,7 @@ class TSJepaNoEMA(nn.Module):
         self.targets_rep = targets_rep
 
     def forward_mlp_predictor(self, X_masked):
-        # model forward in online mode (student)
-        X_enc = self.encoder(X_masked)["encoder_out"]  # fetch the last layer outputs
+        X_enc = self.encoder(X_masked)["encoder_out"]
         y_pred = self.predictor(X_enc)
 
         return X_enc, y_pred
@@ -244,15 +242,14 @@ class TSJepaNoEMA(nn.Module):
         else:
             raise NotImplementedError
 
-        # model forward in offline mode (teacher)
         if self.targets_rep in ["ffn", "block"]:
             if self.targets_rep == "ffn":
                 y = self.encoder(X_full)["encoder_states_ffn"]
             elif self.targets_rep == "block":
                 y = self.encoder(X_full)["encoder_states"]
-            # fetch the last transformer layers outputs
+
+            # get representationo from last k FFN blocks
             y = y[-self.average_top_k_layers :]
-            # take the last k transformer layers
 
             if self.targets_norm == "LayerNorm":
                 y = [F.layer_norm(tl.float(), tl.shape[-1:]) for tl in y]

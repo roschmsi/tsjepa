@@ -7,9 +7,6 @@ import time
 from functools import partial
 
 import numpy as np
-from utils.logging import log_training, readable_time
-from model.forecaster import Forecaster
-from runner.forecasting import ForecastingRunner
 import torch
 import torch.nn as nn
 from torch.nn import BCEWithLogitsLoss
@@ -20,16 +17,16 @@ from tqdm import tqdm
 from data.dataset import SupervisedDataset, create_patch, load_dataset
 from data.ecg_dataset import classes, normal_class
 from evaluation.evaluate_12ECG_score import compute_challenge_metric, load_weights
-from model.revin import RevIN
-from model.encoder import TransformerEncoder
 from model.classifier import Classifier
-from utils.helper import (
-    load_encoder_from_tsjepa,
-)
+from model.encoder import TransformerEncoder
+from model.forecaster import Forecaster
+from model.revin import RevIN
 from model.setup import init_optimizer, init_scheduler
-from utils.options import Options
 from runner.classification import ClassificationRunner
-from utils.helper import load_checkpoint, save_checkpoint
+from runner.forecasting import ForecastingRunner
+from utils.helper import load_checkpoint, load_encoder_from_tsjepa, save_checkpoint
+from utils.logging import log_training, readable_time
+from utils.options import Options
 from utils.setup import seed_everything, setup
 
 logging.basicConfig(
@@ -219,7 +216,9 @@ def main(config):
         raise ValueError(f"Task {config.task} not supported.")
 
     trainer = runner_class(
-        dataloader=train_loader, optimizer=optimizer, scheduler=scheduler
+        dataloader=train_loader,
+        optimizer=optimizer,
+        scheduler=scheduler,
     )
     val_evaluator = runner_class(dataloader=val_loader)
     test_evaluator = runner_class(dataloader=test_loader)
@@ -234,7 +233,7 @@ def main(config):
         return
 
     # robustness analysis with perturbations
-    elif config.robustness:
+    if config.robustness:
         df = pd.DataFrame()
 
         with torch.no_grad():

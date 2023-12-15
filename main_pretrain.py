@@ -3,7 +3,6 @@ import os
 import sys
 import time
 from functools import partial
-from utils.logging import log_training, readable_time
 
 import torch
 import torch.nn as nn
@@ -12,17 +11,17 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from data.dataset import CIDataset, load_dataset
-from model.revin import BlockRevIN, RevIN
 from model.encoder import TransformerEncoder
 from model.predictor import get_predictor
-from model.tsjepa import MaskedModelingInputSpace, TSJepaEMA, TSJepaNoEMA
-from utils.helper import load_checkpoint
+from model.revin import BlockRevIN, RevIN
 from model.setup import init_optimizer, init_scheduler
-from utils.plot import plot_classwise_distribution
+from model.tsjepa import MaskedModelingInputSpace, TSJepaEMA, TSJepaNoEMA
 from model.vic_reg import vicreg
-from utils.options import Options
 from runner.tsjepa import TSJepaRunner
-from utils.helper import save_checkpoint
+from utils.helper import load_checkpoint, save_checkpoint
+from utils.logging import log_training, readable_time
+from utils.options import Options
+from utils.plot import plot_classwise_distribution
 from utils.setup import seed_everything, setup
 
 logging.basicConfig(

@@ -41,7 +41,6 @@ srun python3 /home/stud/roschman/ECGAnalysis/main_pretrain.py \
 --num_workers 4 \
 --patience 2000 \
 --data_config /home/stud/roschman/ECGAnalysis/data/configs/ecg.yaml \
---channel_independence \
 --task pretraining \
 --output_dir /home/stud/roschman/ECGAnalysis/output \
 --val_interval 10 \

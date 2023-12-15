@@ -44,7 +44,6 @@ srun python3 /home/stud/roschman/ECGAnalysis/main_pretrain.py \
 --seq_len 720 \
 --label_len 0 \
 --pred_len 0 \
---channel_independence \
 --task pretraining \
 --revin \
 --output_dir /home/stud/roschman/ECGAnalysis/output \

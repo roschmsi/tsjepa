@@ -1,14 +1,7 @@
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-#
-
+import logging
 import os
 import sys
 
-
-import logging
 import torch
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -121,12 +114,12 @@ def load_encoder_from_tsjepa(path, encoder):
 
         # loading encoder
         pretrained_dict = checkpoint["model"]
-        
+
         # remove encoder from keys
         pretrained_dict = {
             k.replace("encoder.", ""): v for k, v in pretrained_dict.items()
         }
-        
+
         # drop predictor
         pretrained_dict = {
             k: v for k, v in pretrained_dict.items() if not k.startswith("predictor")
@@ -139,5 +132,3 @@ def load_encoder_from_tsjepa(path, encoder):
         epoch = 0
 
     return encoder
-
-
