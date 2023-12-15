@@ -18,8 +18,9 @@ from models.ts2vec.encoder import TransformerEncoder
 from models.ts2vec.predictor import get_predictor
 from models.ts2vec.ts2vec import BERT, TS2VecEMA, TS2VecNoEMA
 from models.ts2vec.utils import load_checkpoint, save_checkpoint
-from models.ts_jepa.setup import init_optimizer, init_scheduler
-from models.ts_jepa.utils import plot_2d, plot_classwise_distribution
+from models.ts2vec.setup import init_optimizer, init_scheduler
+from models.ts_jepa.utils import plot_classwise_distribution
+from models.ts_jepa.vic_reg import vicreg
 from options import Options
 from runner.tsjepa import TS2VecRunner
 from utils import log_training, readable_time, seed_everything, setup
@@ -45,7 +46,7 @@ def main(config):
 
     # config for debugging on single sample
     if config.debug:
-        config.batch_size = 1
+        config.batch_size = 2
         config.val_interval = 10
         config.plot_interval = 10
         config.augment = False
@@ -251,10 +252,10 @@ def main(config):
         cov_weight=config.cov_weight,
         criterion=criterion,
         no_ema=config.no_ema,
-        regfn=regfn,
+        regfn=vicreg,
         embedding_space=not config.bert,
     )
-    
+
     trainer = runner_class(
         dataloader=train_loader,
         optimizer=optimizer,
@@ -276,25 +277,6 @@ def main(config):
         for k, v in aggr_imgs_test.items():
             tb_writer.add_figure(f"{k}/test", v, epoch)
 
-        # TODO revin as compulsary argument
-        plot_2d(
-            method="pca",
-            encoder=model.encoder,
-            data_loader=test_loader,
-            device=device,
-            config=config,
-            fname="pca_test.png",
-            revin=revin,
-            tb_writer=tb_writer,
-            mode="test",
-            epoch=epoch,
-            num_classes=config.num_classes
-            if "num_classes" in config.keys() and config.multilabel is False
-            else 1,
-            model="ts2vec",
-            patch_len=config.patch_len,
-            stride=config.stride,
-        )
         plot_classwise_distribution(
             encoder=model.encoder,
             data_loader=test_loader,
