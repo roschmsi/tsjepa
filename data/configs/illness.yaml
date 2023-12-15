@@ -1,7 +1,0 @@
-dataset: "illness"
-dataset_class: "custom"
-root_path: "/storage/user/roschman/datasets/forecasting_datasets/illness"
-data_path: "national_illness.csv"
-feat_dim: 7
-features: "M"
-multilabel: false

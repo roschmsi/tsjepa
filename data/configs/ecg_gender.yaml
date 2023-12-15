@@ -1,7 +1,0 @@
-dataset: "ecg_gender"
-data_dir: "/storage/user/roschman/datasets/physionet_2020"
-window: 10  # sec
-fs: 100  # Hz
-num_classes: 2
-feat_dim: 12
-multilabel: False

@@ -1,3 +1,5 @@
+# Reference: 
+
 import os
 import copy
 
@@ -43,13 +45,6 @@ class EMA:
                 ema_param.add_(param.to(dtype=ema_param.dtype), alpha=1 - self.decay)
             ema_state_dict[key] = ema_param
         self.model.load_state_dict(ema_state_dict, strict=False)
-        # with torch.no_grad():
-        #     for param_q, param_k in zip(
-        #         new_model.parameters(), self.model.parameters()
-        #     ):
-        #         param_k.data.mul_(self.decay).add_(
-        #             (1.0 - self.decay) * param_q.detach().data
-        #         )
 
         self.num_updates += 1
 
