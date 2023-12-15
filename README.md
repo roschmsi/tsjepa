@@ -33,11 +33,11 @@ Following [Wu et al.](https://arxiv.org/abs/2106.13008), the datasets are split 
 
 
 ## Models
-Inspired by the success of masked modeling in NLP and CV, [Nie et al.](https://arxiv.org/pdf/2211.14730.pdf) proposed the **Patch Time Series Transformer (PatchTST)**. Pre-training this Transformer model on time series patches according to the masked modeling paradigm yields state-of-the-art results in time series forecasting with a notable improvement over the fully supervised approach. PatchTST can also be pre-trained in a BERT-like manner [Devlin et al.]() with masked modeling.
+Inspired by the success of masked modeling in NLP and CV, [Nie et al.](https://arxiv.org/pdf/2211.14730.pdf) proposed the **Patch Time Series Transformer (PatchTST)**. Pre-training this Transformer model on time series patches according to the masked modeling paradigm yields state-of-the-art results in time series forecasting with a notable improvement over the fully supervised approach. PatchTST can also be pre-trained in a [BERT](https://arxiv.org/abs/1810.04805)-like manner with masked modeling.
 
 To efficiently pre-train large Transformer models on images, [He et al.](https://arxiv.org/abs/2111.06377) introduced **Masked Autoencoders (MAE)**. This methods involves dividing an image into patches, with a substantial portion of patches being masked during pre-training. The encoder only operates on the visible subset of patches while the decoder reconstructs the original image from the latent representation and mask tokens. We adopt their approach for time series.
 
-we are the first to propose a **Time Series Joint Embedding Predictive Architecture (TS-JEPA)** following [I-JEPA](https://arxiv.org/abs/2301.08243), [data2vec](https://arxiv.org/abs/2202.03555) and [data2vec 2.0](https://arxiv.org/abs/2212.07525). We incorporate the PatchTST channel independence assumption and [RevIN](https://openreview.net/pdf?id=cGDAkQo1C0p) to mitigate temporal distribution shift for non-stationary time series.
+We are the first to propose a **Time Series Joint Embedding Predictive Architecture (TS-JEPA)** following [I-JEPA](https://arxiv.org/abs/2301.08243), [data2vec](https://arxiv.org/abs/2202.03555) and [data2vec 2.0](https://arxiv.org/abs/2212.07525). We incorporate the PatchTST channel independence assumption and [RevIN](https://openreview.net/pdf?id=cGDAkQo1C0p) to mitigate temporal distribution shift for non-stationary time series.
 
 <p align="center">
   <img src="img/tsjepa.png" alt="image" width="50%" height="auto">
