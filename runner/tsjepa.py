@@ -4,9 +4,8 @@ from collections import OrderedDict
 import matplotlib.pyplot as plt
 import torch
 
-from data.dataset import (block_patch_masking, create_patch,
-                          random_patch_masking)
-from models.ts_jepa.logging import AverageMeter
+from data.dataset import block_patch_masking, create_patch, random_patch_masking
+from model.ts_jepa.logging import AverageMeter
 from runner.base import BaseRunner
 
 logger = logging.getLogger("__main__")
@@ -25,6 +24,7 @@ class TS2VecRunner(BaseRunner):
     """
     Trainer and Evaluator for TS-JEPA
     """
+
     def __init__(
         self,
         model,
@@ -410,4 +410,3 @@ class TS2VecRunner(BaseRunner):
         self.epoch_imgs["covariance matrix target"] = plot_cov_matrix(target_cov_matrix)
 
         return self.epoch_metrics, self.epoch_imgs
-

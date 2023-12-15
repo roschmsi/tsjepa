@@ -13,14 +13,14 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from data.dataset import CIDataset, load_dataset
-from models.patch_tst.layers.revin import BlockRevIN, RevIN
-from models.ts2vec.encoder import TransformerEncoder
-from models.ts2vec.predictor import get_predictor
-from models.ts2vec.ts2vec import BERT, TS2VecEMA, TS2VecNoEMA
-from models.ts2vec.utils import load_checkpoint, save_checkpoint
-from models.ts2vec.setup import init_optimizer, init_scheduler
-from models.ts_jepa.utils import plot_classwise_distribution
-from models.ts_jepa.vic_reg import vicreg
+from model.revin import BlockRevIN, RevIN
+from model.encoder import TransformerEncoder
+from model.predictor import get_predictor
+from modes.ts2vec.ts2vec import BERT, TS2VecEMA, TS2VecNoEMA
+from model.ts2vec.utils import load_checkpoint, save_checkpoint
+from model.ts2vec.setup import init_optimizer, init_scheduler
+from model.ts_jepa.utils import plot_classwise_distribution
+from model.ts_jepa.vic_reg import vicreg
 from options import Options
 from runner.tsjepa import TS2VecRunner
 from utils import log_training, readable_time, seed_everything, setup

@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 
-from models.ts2vec.encoder import TransformerEncoderLayer
-from models.ts_jepa.model import get_1d_sincos_pos_embed
+from model.encoder import TransformerEncoderLayer
+from model.positional_encoding import get_1d_sincos_pos_embed
 
 
 def get_predictor(config, max_seq_len):

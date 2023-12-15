@@ -18,15 +18,15 @@ from tqdm import tqdm
 from data.dataset import SupervisedDataset, create_patch, load_dataset
 from data.ecg_dataset import classes, normal_class
 from evaluation.evaluate_12ECG_score import compute_challenge_metric, load_weights
-from models.patch_tst.layers.revin import RevIN
-from models.ts2vec.encoder import TransformerEncoder
-from models.ts2vec.ts2vec import TS2VecClassifier, TS2VecForecaster
-from models.ts2vec.utils import (
+from model.revin import RevIN
+from model.encoder import TransformerEncoder
+from model.ts2vec.ts2vec import TS2VecClassifier, TS2VecForecaster
+from model.ts2vec.utils import (
     load_checkpoint,
     load_encoder_from_tsjepa,
     save_checkpoint,
 )
-from models.ts2vec.setup import init_optimizer, init_scheduler
+from model.ts2vec.setup import init_optimizer, init_scheduler
 from options import Options
 from runner.classification import ClassificationRunner
 from utils import log_training, readable_time, seed_everything, setup

@@ -1,5 +1,5 @@
 from data.dataset import create_patch
-from models.ts_jepa.logging import AverageMeter
+from model.ts_jepa.logging import AverageMeter
 from runner.base import BaseRunner
 import torch
 
@@ -38,7 +38,13 @@ class ForecastingRunner(BaseRunner):
 
     def train_epoch(self, epoch_num=None):
         self.model.train()
+        return self.forward()
 
+    def evaluate(self, epoch_num=None, perturbation_std=None):
+        self.model.eval()
+        return self.forward()
+
+    def forward(self, epoch_num=None, perturbation_std=None):
         loss_meter = AverageMeter()
         mse_meter = AverageMeter()
         mae_meter = AverageMeter()
@@ -47,6 +53,9 @@ class ForecastingRunner(BaseRunner):
             X, y = batch
             X = X.to(self.device)
             y = y.to(self.device)
+
+            if perturbation_std is not None:
+                X = X + torch.randn_like(X) * perturbation_std
 
             # reversible instance normalization
             if self.revin is not None:
@@ -72,9 +81,10 @@ class ForecastingRunner(BaseRunner):
 
             loss = self.criterion(y_pred, y)
 
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+            if self.optimizer:
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
 
             loss_meter.update(loss.item(), n=X.shape[0])
             mse = self.l2_loss(y_pred, y)
@@ -85,48 +95,6 @@ class ForecastingRunner(BaseRunner):
         # scheduler for learning rate change every epoch
         if self.scheduler is not None:
             self.scheduler.step()
-
-        self.epoch_metrics["loss"] = loss_meter.avg
-        self.epoch_metrics["mse"] = mse_meter.avg
-        self.epoch_metrics["mae"] = mae_meter.avg
-
-        return self.epoch_metrics
-
-    def evaluate(self, epoch_num=None, perturbation_std=None, plot_forecast=False):
-        self.model.eval()
-
-        loss_meter = AverageMeter()
-        mse_meter = AverageMeter()
-        mae_meter = AverageMeter()
-
-        for batch in self.dataloader:
-            X, y = batch
-            X = X.to(self.device)
-            y = y.to(self.device)
-
-            if perturbation_std is not None:
-                X = X + torch.randn_like(X) * perturbation_std
-
-            # normalization
-            if self.revin is not None:
-                X = self.revin(X, "norm")
-
-            # create patch
-            X = create_patch(X, patch_len=self.patch_len, stride=self.stride)
-
-            y_pred = self.model(X)
-
-            # denormalization
-            if self.revin is not None:
-                y_pred = self.revin(y_pred, "denorm")
-
-            loss = self.criterion(y_pred, y)
-
-            loss_meter.update(loss.item(), n=X.shape[0])
-            mse = self.l2_loss(y_pred, y)
-            mse_meter.update(mse.item(), n=X.shape[0])
-            mae = self.l1_loss(y_pred, y)
-            mae_meter.update(mae.item(), n=X.shape[0])
 
         self.epoch_metrics["loss"] = loss_meter.avg
         self.epoch_metrics["mse"] = mse_meter.avg

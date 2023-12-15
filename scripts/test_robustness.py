@@ -15,18 +15,18 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from data.dataset import load_dataset
-from models.ts_jepa.setup import (
+from model.setup import (
     init_optimizer,
     init_scheduler,
 )
 from options import Options
 from runner.classification import ClassificationRunner
 from utils import log_training, readable_time, seed_everything, setup
-from models.patch_tst.layers.revin import RevIN
+from model.revin import RevIN
 
-from models.ts2vec.ts2vec import TS2VecForecaster, TS2VecClassifier
-from models.ts2vec.encoder import TransformerEncoder
-from models.ts2vec.utils import (
+from model.ts2vec.ts2vec import TS2VecForecaster, TS2VecClassifier
+from model.encoder import TransformerEncoder
+from model.ts2vec.utils import (
     load_encoder_from_tsjepa,
     save_checkpoint,
     load_checkpoint,

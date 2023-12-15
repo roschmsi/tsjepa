@@ -12,8 +12,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from models.ts_jepa.mask import apply_masks
-
 
 def get_1d_sincos_pos_embed(embed_dim, grid_size, cls_token=False):
     """

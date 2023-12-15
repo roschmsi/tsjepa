@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .ema import EMA
-from models.patch_tst.layers.heads import (
+from model.heads import (
     ClassificationPoolHead,
 )
 

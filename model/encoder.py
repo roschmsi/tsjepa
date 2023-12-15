@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from models.ts_jepa.model import get_1d_sincos_pos_embed
+from model.ts_jepa.model import get_1d_sincos_pos_embed
 
 
 def get_activation_fn(activation):
