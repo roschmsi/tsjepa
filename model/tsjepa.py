@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from model.ema import EMA
 
 
-class TS2VecEMA(nn.Module):
+class TSJepaEMA(nn.Module):
     """
     TS-JEPA with exponential moving average teacher
     """
@@ -28,7 +28,7 @@ class TS2VecEMA(nn.Module):
         skip_pos_embed,
         skip_patch_embed,
     ):
-        super(TS2VecEMA, self).__init__()
+        super(TSJepaEMA, self).__init__()
         self.embed_dim = embed_dim
         self.encoder = encoder
         self.predictor = predictor
@@ -194,7 +194,7 @@ class BERT(nn.Module):
         return X_enc, y_pred, X_full
 
 
-class TS2VecNoEMA(nn.Module):
+class TSJepaNoEMA(nn.Module):
     """ """
 
     def __init__(
@@ -209,7 +209,7 @@ class TS2VecNoEMA(nn.Module):
         targets_norm,
         embed_dim,
     ):
-        super(TS2VecNoEMA, self).__init__()
+        super(TSJepaNoEMA, self).__init__()
         self.embed_dim = embed_dim
         self.encoder = encoder
         self.predictor = predictor

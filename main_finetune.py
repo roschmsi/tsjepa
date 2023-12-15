@@ -7,6 +7,7 @@ import time
 from functools import partial
 
 import numpy as np
+from logging import log_training, readable_time
 from model.forecaster import Forecaster
 from runner.forecasting import ForecastingRunner
 import torch
@@ -22,14 +23,14 @@ from evaluation.evaluate_12ECG_score import compute_challenge_metric, load_weigh
 from model.revin import RevIN
 from model.encoder import TransformerEncoder
 from model.classifier import Classifier
-from utils import (
+from utils.helper import (
     load_encoder_from_tsjepa,
 )
 from model.setup import init_optimizer, init_scheduler
-from options import Options
+from utils.options import Options
 from runner.classification import ClassificationRunner
-from utils import load_checkpoint, save_checkpoint
-from utils_old import log_training, readable_time, seed_everything, setup
+from utils.helper import load_checkpoint, save_checkpoint
+from utils.setup import seed_everything, setup
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO
@@ -48,7 +49,7 @@ def main(config):
     total_start_time = time.time()
 
     # add file logging besides stdout
-    file_handler = logging.FileHandler(os.path.join(config["output_dir"], "output.log"))
+    file_handler = logging.FileHandler(os.path.join(config.output_dir, "output.log"))
     logger.addHandler(file_handler)
     logger.info("Running:\n{}\n".format(" ".join(sys.argv)))
 
@@ -293,7 +294,7 @@ def main(config):
         )
 
         # evaluate model
-        if epoch % config["val_interval"] == 0:
+        if epoch % config.val_interval == 0:
             with torch.no_grad():
                 aggr_metrics_val = val_evaluator.evaluate(epoch)
 
@@ -305,7 +306,7 @@ def main(config):
                 patience_count = 0
                 better = True
             else:
-                patience_count += config["val_interval"]
+                patience_count += config.val_interval
                 better = False
 
             save_checkpoint(
@@ -313,7 +314,7 @@ def main(config):
                 model=trainer.model,
                 optimizer=trainer.optimizer,
                 scheduler=trainer.scheduler,
-                path=config["checkpoint_dir"],
+                path=config.checkpoint_dir,
                 better=better,
             )
 
@@ -321,7 +322,7 @@ def main(config):
             break
 
     # load best model
-    path = os.path.join(config["output_dir"], "checkpoints", "model_best.pth")
+    path = os.path.join(config.output_dir, "checkpoints", "model_best.pth")
     model, _, _, epoch = load_checkpoint(
         path,
         model=model,

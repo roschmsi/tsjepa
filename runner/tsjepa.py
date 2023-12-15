@@ -1,26 +1,18 @@
 import logging
 from collections import OrderedDict
+from data.masking import block_patch_masking, random_patch_masking
+from utils.plot import plot_cov_matrix
 
-import matplotlib.pyplot as plt
 import torch
 
-from data.dataset import block_patch_masking, create_patch, random_patch_masking
-from utils import AverageMeter
+from data.dataset import (create_patch)
 from runner.base import BaseRunner
+from logging import AverageMeter
 
 logger = logging.getLogger("__main__")
 
 
-def plot_cov_matrix(cov_matrix):
-    plt.close()
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    cax = ax.matshow(cov_matrix.detach(), vmin=-1, vmax=1)
-    fig.colorbar(cax)
-    return fig
-
-
-class TS2VecRunner(BaseRunner):
+class TSJepaRunner(BaseRunner):
     """
     Trainer and Evaluator for TS-JEPA
     """

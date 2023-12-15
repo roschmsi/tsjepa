@@ -3,7 +3,7 @@
 import logging
 from collections import OrderedDict
 
-from utils_old import Printer
+from utils.setup import Printer
 
 logger = logging.getLogger("__main__")
 
@@ -20,7 +20,6 @@ class BaseRunner(object):
         console=True,
         multilabel=False,
         mixup=0,
-        mae=False,
         use_time_features=False,
         layer_wise_prediction=False,
         hierarchical_loss=False,
@@ -40,7 +39,6 @@ class BaseRunner(object):
 
         self.epoch_metrics = OrderedDict()
         self.mixup = mixup
-        self.mae = mae
         self.vic_reg = False
         self.vibc_reg = False
         self.vic_reg_enc = False

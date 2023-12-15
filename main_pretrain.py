@@ -1,10 +1,9 @@
-# Reference: https://github.com/gzerveas/mvts_transformer
-
 import logging
 import os
 import sys
 import time
 from functools import partial
+from logging import log_training, readable_time
 
 import torch
 import torch.nn as nn
@@ -16,15 +15,15 @@ from data.dataset import CIDataset, load_dataset
 from model.revin import BlockRevIN, RevIN
 from model.encoder import TransformerEncoder
 from model.predictor import get_predictor
-from model.tsjepa import BERT, TS2VecEMA, TS2VecNoEMA
-from utils import load_checkpoint
+from model.tsjepa import BERT, TSJepaEMA, TSJepaNoEMA
+from utils.helper import load_checkpoint
 from model.setup import init_optimizer, init_scheduler
-from utils import plot_classwise_distribution
+from utils.plot import plot_classwise_distribution
 from model.vic_reg import vicreg
-from options import Options
-from runner.tsjepa import TS2VecRunner
-from utils import save_checkpoint
-from utils_old import log_training, readable_time, seed_everything, setup
+from utils.options import Options
+from runner.tsjepa import TSJepaRunner
+from utils.helper import save_checkpoint
+from utils.setup import seed_everything, setup
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO
@@ -41,7 +40,7 @@ def main(config):
     total_start_time = time.time()
 
     # add file logging besides stdout
-    file_handler = logging.FileHandler(os.path.join(config["output_dir"], "output.log"))
+    file_handler = logging.FileHandler(os.path.join(config.output_dir, "output.log"))
     logger.addHandler(file_handler)
     logger.info("Running:\n{}\n".format(" ".join(sys.argv)))
 
@@ -117,7 +116,7 @@ def main(config):
     ipe = len(train_loader)
 
     # create ts-jepa model
-    if config.bert or config.mae:
+    if config.input_space:
         model = BERT(
             encoder=encoder,
             predictor=predictor,
@@ -125,7 +124,7 @@ def main(config):
             embed_dim=config.enc_d_model,
         )
     elif config.no_ema:
-        model = TS2VecNoEMA(
+        model = TSJepaNoEMA(
             encoder=encoder,
             predictor=predictor,
             predictor_type=config.predictor,
@@ -137,7 +136,7 @@ def main(config):
             embed_dim=config.enc_d_model,
         )
     else:
-        model = TS2VecEMA(
+        model = TSJepaEMA(
             encoder=encoder,
             predictor=predictor,
             predictor_type=config.predictor,
@@ -171,7 +170,7 @@ def main(config):
         if config.resume:
             if config.load_model is None:
                 path = os.path.join(
-                    config["output_dir"], "checkpoints", "model_last.pth"
+                    config.output_dir, "checkpoints", "model_last.pth"
                 )
             else:
                 path = os.path.join(config.load_model, "checkpoints", "model_last.pth")
@@ -196,16 +195,6 @@ def main(config):
                 )
                 model.ema.num_updates += 1
                 model.ema.decay = decay
-
-            # set decay rate
-        #     if scheduler is not None:
-        #         for _ in range(start_epoch):
-        #             scheduler.step()
-
-    # if config.load_encoder:
-    #     path = os.path.join(config.load_encoder, "checkpoints", "model_best.pth")
-    #     model.encoder, _, _, _ = load_checkpoint_encoder(path, model=model.encoder)
-    #     model.ema.model, _, _, _ = load_checkpoint_encoder(path, model=model.ema.model)
 
     if config.revin:
         if config.masking == "random":
@@ -237,7 +226,7 @@ def main(config):
     criterion.to(device)
 
     # initialize runner for training, validation and testing
-    runner_class = TS2VecRunner
+    runner_class = TSJepaRunner
     runner_class = partial(
         runner_class,
         model=model,
@@ -254,7 +243,7 @@ def main(config):
         criterion=criterion,
         no_ema=config.no_ema,
         regfn=vicreg,
-        embedding_space=not config.bert,
+        embedding_space=not config.input_space,
     )
 
     trainer = runner_class(
@@ -289,7 +278,6 @@ def main(config):
             tb_writer=tb_writer,
             mode="test",
             epoch=epoch,
-            model="ts2vec",
             patch_len=config.patch_len,
             stride=config.stride,
         )
@@ -325,7 +313,7 @@ def main(config):
         )
 
         # evaluate model
-        if epoch % config["val_interval"] == 0:
+        if epoch % config.val_interval == 0:
             with torch.no_grad():
                 aggr_metrics_val, aggr_imgs_val = val_evaluator.evaluate(epoch)
 
@@ -341,7 +329,7 @@ def main(config):
                 patience_count = 0
                 better = True
             else:
-                patience_count += config["val_interval"]
+                patience_count += config.val_interval
                 better = False
 
             save_checkpoint(
@@ -349,29 +337,11 @@ def main(config):
                 model=trainer.model,
                 optimizer=trainer.optimizer,
                 scheduler=trainer.scheduler,
-                path=config["checkpoint_dir"],
+                path=config.checkpoint_dir,
                 better=better,
             )
 
-        if epoch % config["plot_interval"] == 0:
-            # plot_2d(
-            #     method="pca",
-            #     encoder=model.encoder,
-            #     data_loader=train_loader,
-            #     device=device,
-            #     config=config,
-            #     fname="pca_train.png",
-            #     tb_writer=tb_writer,
-            #     mode="train",
-            #     epoch=epoch,
-            #     num_classes=config.num_classes
-            #     if "num_classes" in config.keys() and config.multilabel is False
-            #     else 1,
-            #     model="ts2vec",
-            #     patch_len=config.patch_len,
-            #     stride=config.stride,
-            #     revin=revin,
-            # )
+        if epoch % config.plot_interval == 0:
             plot_classwise_distribution(
                 encoder=model.encoder,
                 data_loader=train_loader,
@@ -383,29 +353,10 @@ def main(config):
                 tb_writer=tb_writer,
                 mode="train",
                 epoch=epoch,
-                model="ts2vec",
                 patch_len=config.patch_len,
                 stride=config.stride,
                 revin=revin,
             )
-            # plot_2d(
-            #     method="pca",
-            #     encoder=model.encoder,
-            #     data_loader=val_loader,
-            #     device=device,
-            #     config=config,
-            #     fname="pca_val.png",
-            #     tb_writer=tb_writer,
-            #     mode="val",
-            #     epoch=epoch,
-            #     num_classes=config.num_classes
-            #     if "num_classes" in config.keys() and config.multilabel is False
-            #     else 1,
-            #     model="ts2vec",
-            #     patch_len=config.patch_len,
-            #     stride=config.stride,
-            #     revin=revin,
-            # )
             plot_classwise_distribution(
                 encoder=model.encoder,
                 data_loader=val_loader,
@@ -417,7 +368,6 @@ def main(config):
                 tb_writer=tb_writer,
                 mode="val",
                 epoch=epoch,
-                model="ts2vec",
                 patch_len=config.patch_len,
                 stride=config.stride,
                 revin=revin,
@@ -429,15 +379,12 @@ def main(config):
                 model=trainer.model,
                 optimizer=trainer.optimizer,
                 scheduler=trainer.scheduler,
-                path=config["checkpoint_dir"],
+                path=config.checkpoint_dir,
                 better=False,
             )
 
         if patience_count > config.patience:
             break
-
-    # load best model, iterate over test loader, get representations
-    # mean over time axis, apply pca, then plot
 
     total_runtime = time.time() - total_start_time
     logger.info(

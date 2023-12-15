@@ -6,9 +6,9 @@ from model.positional_encoding import get_1d_sincos_pos_embed
 
 
 def get_predictor(config, max_seq_len):
-    if config.predictor == "linear" and config.bert:
+    if config.predictor == "linear" and config.input_space:
         predictor = nn.Linear(config.enc_d_model, config.patch_len)
-    elif config.predictor == "transformer" and config.bert:
+    elif config.predictor == "transformer" and config.input_space:
         predictor = TransformerPredictor(
             num_patches=int(max_seq_len // config.patch_len),
             encoder_embed_dim=config.enc_d_model,
@@ -58,7 +58,7 @@ def get_predictor(config, max_seq_len):
 
 
 class TransformerPredictor(nn.Module):
-    """Adapted from """
+    """TS-JEPA Transformer Predictor Adapted from """
 
     def __init__(
         self,

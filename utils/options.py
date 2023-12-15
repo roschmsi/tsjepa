@@ -31,7 +31,6 @@ class Options(object):
         self.parser.add_argument("--learn_pe", action="store_true")
 
         # mae
-        self.parser.add_argument("--mae", action="store_true")
         self.parser.add_argument("--enc_d_model", type=int)
         self.parser.add_argument("--enc_d_ff", type=int)
         self.parser.add_argument("--enc_num_heads", type=int)
@@ -47,21 +46,11 @@ class Options(object):
         self.parser.add_argument("--loss", type=str)
         self.parser.add_argument("--smoothl1_beta", type=float)
 
-        # trend-seasonal-residual decomposition
-        self.parser.add_argument("--decomposition", action="store_true")
-        self.parser.add_argument("--period", type=int)
-        self.parser.add_argument("--trend_seasonal_residual", action="store_true")
-
         # tsjepa
         self.parser.add_argument("--ema_start", type=float)
         self.parser.add_argument("--ema_end", type=float)
         self.parser.add_argument("--no_ema", action="store_true")
-        self.parser.add_argument("--load_encoder", type=str)
-        self.parser.add_argument("--no_output_norm", action="store_true")
-        self.parser.add_argument("--head_type", type=str)
-        # self.parser.add_argument("--no_momentum", action="store_true")
 
-        # tsjepa
         self.parser.add_argument("--activation_drop_rate", type=float)
         self.parser.add_argument("--layer_norm_first", action="store_true")
         self.parser.add_argument("--average_top_k_layers", type=int)
@@ -80,18 +69,8 @@ class Options(object):
         self.parser.add_argument("--kernel_size", type=int)
         self.parser.add_argument("--mask_noise_std", type=float)
 
-        self.parser.add_argument("--step_size", type=int)
-
-        self.parser.add_argument("--robustness", action="store_true")
-
-        # stationarity
-        self.parser.add_argument("--differencing", action="store_true")
-        self.parser.add_argument("--lag", type=int, default=0)
-
         # vic regularization
         self.parser.add_argument("--vcreg", action="store_true")
-        self.parser.add_argument("--vbcreg", action="store_true")
-        self.parser.add_argument("--vic_reg_enc", action="store_true")
         self.parser.add_argument("--pred_weight", type=float)
         self.parser.add_argument("--std_weight", type=float)
         self.parser.add_argument("--cov_weight", type=float)
@@ -99,61 +78,20 @@ class Options(object):
         self.parser.add_argument("--checkpoint_last", action="store_true")
         self.parser.add_argument("--checkpoint", type=int)
 
-        # revserse instance normalization
+        # reversible instance normalization
         self.parser.add_argument("--revin", action="store_true")
-        self.parser.add_argument("--patch_revin", action="store_true")
         self.parser.add_argument("--revin_affine", action="store_true")
-
-        # decomposition
-        self.parser.add_argument("--separate_backbone", action="store_true")
 
         # patch and mask
         self.parser.add_argument("--use_patch", action="store_true")
         self.parser.add_argument("--patch_len", type=int)
         self.parser.add_argument("--stride", type=int)
         self.parser.add_argument("--masking_ratio", type=float, default=0)
-        self.parser.add_argument("--mean_mask_length", type=float)
-        self.parser.add_argument("--cls_token", action="store_true")
-        self.parser.add_argument("--ch_token", action="store_true")
 
         self.parser.add_argument("--masking", type=str)
 
-        self.parser.add_argument("--bert", action="store_true")
-
-        # hierarchical
-        self.parser.add_argument("--hierarchical", action="store_true")
-        self.parser.add_argument("--layer_wise_prediction", action="store_true")
-        self.parser.add_argument("--num_levels", type=int)
-        self.parser.add_argument("--window_size", type=int)
-        # self.parser.add_argument(
-        #     "--window_size",
-        #     nargs="+",
-        #     type=int,
-        # )
-        self.parser.add_argument("--ch_factor", type=float)
-        self.parser.add_argument("--hierarchical_loss", action="store_true")
-        self.parser.add_argument("--interpolation", action="store_true")
-        self.parser.add_argument("--depths", nargs="+", type=int)
-        self.parser.add_argument("--depths_encoder", nargs="+", type=int)
-        self.parser.add_argument("--depths_decoder", nargs="+", type=int)
-        self.parser.add_argument("--hierarchical_num_heads", nargs="+", type=int)
-
-        # time covariates
-        self.parser.add_argument("--use_time_features", action="store_true")
-        self.parser.add_argument("--timeenc", type=int, default=0)
-        self.parser.add_argument("--d_temp", type=int, default=0)
-        self.parser.add_argument("--temporal_attention", action="store_true")
-        self.parser.add_argument("--add_time_encoding", action="store_true")
-        self.parser.add_argument("--concat_time_encoding", action="store_true")
-        self.parser.add_argument("--patch_time", action="store_true")
-        self.parser.add_argument("--input_time", action="store_true")
-
-        # fedformer
-        self.parser.add_argument("--version", type=str)
-        self.parser.add_argument("--mode_select", type=str)
-        self.parser.add_argument("--modes", type=int)
-        self.parser.add_argument("--base", type=str)
-        self.parser.add_argument("--moving_avg")
+        # perform masked modeling in the input space, BERT and MAE
+        self.parser.add_argument("--input_space", action="store_true")
 
         # dataset
         self.parser.add_argument("--data_config", type=str)
