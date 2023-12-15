@@ -163,6 +163,7 @@ class BERT(nn.Module):
     """
     Main module for masked modeling in the input space
     """
+
     def __init__(
         self,
         encoder,
@@ -214,9 +215,7 @@ class BERT(nn.Module):
 
 
 class TS2VecNoEMA(nn.Module):
-    """
-
-    """
+    """ """
 
     def __init__(
         self,
@@ -394,8 +393,8 @@ class TS2VecForecaster(nn.Module):
         X = self.encoder(X)["encoder_out"]  # fetch the last layer outputs
 
         # channel independence
-        X = X.reshape(bs, ch, num_patch + self.forecast_patches, -1)
-        
+        X = X.reshape(bs, ch, num_patch, -1)
+
         y = self.head(X)
 
         return y

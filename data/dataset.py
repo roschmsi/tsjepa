@@ -26,6 +26,7 @@ class SupervisedDataset(Dataset):
     """
     Wrapper for supervised forecasting or classification
     """
+
     def __init__(self, dataset):
         super(SupervisedDataset, self).__init__()
         self.dataset = dataset
@@ -42,6 +43,7 @@ class CIDataset(Dataset):
     """
     Dataset with channel independence for pre-training
     """
+
     def __init__(self, dataset, num_channels, debug=False):
         super(CIDataset, self).__init__()
         self.dataset = dataset
@@ -51,7 +53,7 @@ class CIDataset(Dataset):
     def __getitem__(self, ind):
         series_ind = ind // self.num_channels
         channel_ind = ind % self.num_channels
-        
+
         X, _ = self.dataset.__getitem__(series_ind)
         X = X[:, channel_ind].unsqueeze(-1)
 
@@ -62,3 +64,13 @@ class CIDataset(Dataset):
             return 2
         else:
             return len(self.dataset) * self.num_channels
+
+
+def create_patch(xb, patch_len, stride):
+    """
+    xb: [bs x seq_len x n_vars]
+    """
+    xb = xb.unfold(
+        dimension=1, size=patch_len, step=stride
+    )  # xb: [bs x num_patch x n_vars x patch_len]
+    return xb

@@ -7,12 +7,9 @@ import numpy as np
 import pandas as pd
 import torch
 from biosppy.signals.tools import filter_signal
-from rand_ecg.augmentation import randaug
 from scipy.io import loadmat
 from scipy.signal import decimate, resample
 from torch.utils.data import Dataset
-
-from data.augmentation import augment
 
 classes = sorted(
     [
