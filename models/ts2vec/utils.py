@@ -2,7 +2,6 @@ import os
 import torch
 import sys
 import logging
-from utils import optimizer_to
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger()
@@ -109,7 +108,7 @@ def load_checkpoint_encoder(
     return model, optimizer, scheduler, epoch
 
 
-def load_encoder_from_ts2vec(path, encoder):
+def load_encoder_from_tsjepa(path, encoder):
     try:
         checkpoint = torch.load(path, map_location=torch.device("cpu"))
         epoch = checkpoint["epoch"]

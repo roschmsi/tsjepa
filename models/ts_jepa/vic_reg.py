@@ -112,18 +112,3 @@ def vicreg(z):
     cov_loss = off_diagonal(cov).pow_(2).sum().div(num_features)
 
     return std_loss, cov_loss, std_mean, cov
-
-
-def enc_vicreg_fn(z_enc):
-    num_features = z_enc.shape[-1]
-
-    z_enc = z_enc.reshape(-1, num_features)
-    z_enc = z_enc - z_enc.mean(dim=0)
-
-    std_enc = torch.sqrt(z_enc.var(dim=0) + 0.0001)
-    std_loss = torch.mean(F.relu(1 - std_enc))
-
-    cov_enc = (z_enc.T @ z_enc) / (z_enc.shape[0] - 1)
-    cov_loss = off_diagonal(cov_enc).pow_(2).sum().div(num_features)
-
-    return std_loss, cov_loss

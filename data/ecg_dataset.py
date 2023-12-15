@@ -1,18 +1,18 @@
 # Reference: https://physionet.org/content/challenge-2020/1.0.2/
 
+import random
 from pathlib import Path
+
 import numpy as np
-from torch.utils.data import Dataset
+import pandas as pd
+import torch
+from biosppy.signals.tools import filter_signal
+from rand_ecg.augmentation import randaug
 from scipy.io import loadmat
 from scipy.signal import decimate, resample
-from biosppy.signals.tools import filter_signal
-import pandas as pd
+from torch.utils.data import Dataset
+
 from data.augmentation import augment
-import random
-import torch
-
-from rand_ecg.augmentation import randaug
-
 
 classes = sorted(
     [
@@ -193,12 +193,6 @@ class ECGDataset(Dataset):
             cls = ["270492004", "164889003", "164890007", "426627000", "713427006"]
 
         lbl = row[cls].values.astype(np.float)
-
-        # Add just enough padding to allow window
-        # pad = np.abs(np.min([seq_len - self.window, 0]))
-        # if pad > 0:
-        #     data = np.pad(data, ((0,0),(0,pad+1)))
-        #     seq_len = data.shape[-1] # get the new length of the ecg sequence
 
         max_start = seq_len - self.window * self.fs + 1
         max_start = max_start if max_start > 1 else 1

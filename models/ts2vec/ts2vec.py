@@ -4,7 +4,6 @@ import torch.nn.functional as F
 from .ema import EMA
 from models.patch_tst.layers.heads import (
     ClassificationPoolHead,
-    ClassificationTokenHead,
 )
 
 
@@ -104,12 +103,6 @@ class TS2VecEMA(nn.Module):
 
         return X_enc, y_pred
 
-    def forward_cnn_predictor(self, X_kept, ids_kept, ids_restore):
-        X_enc = self.encoder(X_kept, ids_kept)["encoder_out"]
-        y_pred = self.predictor(X_enc, ids_restore)
-
-        return X_enc, y_pred
-
     def forward(self, X_full, X_masked, X_kept, ids_kept, ids_restore):
         """
         Data2Vec forward method.
@@ -128,10 +121,6 @@ class TS2VecEMA(nn.Module):
             X_enc, y_pred = self.forward_mlp_predictor(X_masked=X_masked)
         elif self.predictor_type == "transformer":
             X_enc, y_pred = self.forward_transformer_predictor(
-                X_kept=X_kept, ids_kept=ids_kept, ids_restore=ids_restore
-            )
-        elif self.predictor_type == "cnn":
-            X_enc, y_pred = self.forward_cnn_predictor(
                 X_kept=X_kept, ids_kept=ids_kept, ids_restore=ids_restore
             )
         else:
@@ -172,13 +161,8 @@ class TS2VecEMA(nn.Module):
 
 class BERT(nn.Module):
     """
-    Data2Vec main module.
-
-    Args:
-         encoder (nn.Module): The encoder module like BEiT, ViT, etc.
-         cfg (omegaconf.DictConfig): The config containing model properties
+    Main module for masked modeling in the input space
     """
-
     def __init__(
         self,
         encoder,
@@ -193,20 +177,21 @@ class BERT(nn.Module):
         self.embed_dim = embed_dim
 
     def forward_mlp_predictor(self, X_masked):
-        # model forward in online mode (student)
-        # X_kept with masked tokens
-        X_enc = self.encoder(X_masked)["encoder_out"]  # fetch the last layer outputs
+        """
+        encoder and mlp predictor operate on sequence of masked and unmasked patches
+        """
+
+        X_enc = self.encoder(X_masked)["encoder_out"]
         y_pred = self.predictor(X_enc)
 
         return X_enc, y_pred
 
     def forward_transformer_predictor(self, X_kept, ids_kept, ids_restore):
-        X_enc = self.encoder(X_kept, ids_kept)["encoder_out"]
-        y_pred = self.predictor(X_enc, ids_restore)
+        """
+        encoder only operates on unmasked patches
+        predictor operates on unmasked patches and mask tokens
+        """
 
-        return X_enc, y_pred
-
-    def forward_cnn_predictor(self, X_kept, ids_kept, ids_restore):
         X_enc = self.encoder(X_kept, ids_kept)["encoder_out"]
         y_pred = self.predictor(X_enc, ids_restore)
 
@@ -214,17 +199,7 @@ class BERT(nn.Module):
 
     def forward(self, X_full, X_masked, X_kept, ids_kept, ids_restore):
         """
-        Data2Vec forward method.
-
-        Args:
-            src: src tokens (masked inputs for training)
-            trg: trg tokens (unmasked inputs for training but left as `None` otherwise)
-            mask: bool masked indices, Note: if a modality requires the inputs to be masked before forward this param
-            has no effect. (see the Encoder for each modality to see if it uses mask or not)
-
-        Returns:
-            Either encoder outputs or a tuple of encoder + EMA outputs
-
+        apply linear, MLP, or Transformer predictor
         """
         if self.predictor_type in ["mlp", "linear"]:
             X_enc, y_pred = self.forward_mlp_predictor(X_masked=X_masked)
@@ -232,25 +207,15 @@ class BERT(nn.Module):
             X_enc, y_pred = self.forward_transformer_predictor(
                 X_kept=X_kept, ids_kept=ids_kept, ids_restore=ids_restore
             )
-        elif self.predictor_type == "cnn":
-            X_enc, y_pred = self.forward_cnn_predictor(
-                X_kept=X_kept, ids_kept=ids_kept, ids_restore=ids_restore
-            )
         else:
             raise NotImplementedError
-
-        # model forward in offline mode (teacher)
 
         return X_enc, y_pred, X_full
 
 
 class TS2VecNoEMA(nn.Module):
     """
-    Data2Vec main module.
 
-    Args:
-         encoder (nn.Module): The encoder module like BEiT, ViT, etc.
-         cfg (omegaconf.DictConfig): The config containing model properties
     """
 
     def __init__(
@@ -290,12 +255,6 @@ class TS2VecNoEMA(nn.Module):
 
         return X_enc, y_pred
 
-    def forward_cnn_predictor(self, X_kept, ids_kept, ids_restore):
-        X_enc = self.encoder(X_kept, ids_kept)["encoder_out"]
-        y_pred = self.predictor(X_enc, ids_restore)
-
-        return X_enc, y_pred
-
     def forward(self, X_full, X_masked, X_kept, ids_kept, ids_restore):
         """
         Data2Vec forward method.
@@ -314,10 +273,6 @@ class TS2VecNoEMA(nn.Module):
             X_enc, y_pred = self.forward_mlp_predictor(X_masked=X_masked)
         elif self.predictor_type == "transformer":
             X_enc, y_pred = self.forward_transformer_predictor(
-                X_kept=X_kept, ids_kept=ids_kept, ids_restore=ids_restore
-            )
-        elif self.predictor_type == "cnn":
-            X_enc, y_pred = self.forward_cnn_predictor(
                 X_kept=X_kept, ids_kept=ids_kept, ids_restore=ids_restore
             )
         else:
@@ -394,11 +349,7 @@ class PredictionHead(nn.Module):
 
 class TS2VecForecaster(nn.Module):
     """
-    Data2Vec main module.
-
-    Args:
-         encoder (nn.Module): The encoder module like BEiT, ViT, etc.
-         cfg (omegaconf.DictConfig): The config containing model properties
+    Transformer model for downstream forecasting
     """
 
     def __init__(
@@ -408,28 +359,18 @@ class TS2VecForecaster(nn.Module):
         d_model,
         num_patch,
         forecast_len,
-        patch_len,
         head_dropout,
-        head_type="linear",
     ):
         super(TS2VecForecaster, self).__init__()
         self.encoder = encoder
-        self.head_type = head_type
 
-        if head_type == "linear":
-            self.head = PredictionHead(
-                n_vars=n_vars,
-                d_model=d_model,
-                num_patch=num_patch,
-                forecast_len=forecast_len,
-                head_dropout=head_dropout,
-            )
-            self.forecast_patches = 0
-        elif head_type == "transformer":
-            self.head = nn.Linear(self.encoder.embed_dim, patch_len)
-            self.forecast_patches = forecast_len // patch_len
-        else:
-            raise NotImplementedError
+        self.head = PredictionHead(
+            n_vars=n_vars,
+            d_model=d_model,
+            num_patch=num_patch,
+            forecast_len=forecast_len,
+            head_dropout=head_dropout,
+        )
 
     def forward(self, X):
         """
@@ -449,45 +390,20 @@ class TS2VecForecaster(nn.Module):
         bs, num_patch, ch, patch_len = X.shape
         X = X.transpose(1, 2).reshape(bs * ch, num_patch, patch_len)
 
-        # append 0's to mimic future values
-        if self.head_type == "transformer":
-            X = torch.cat(
-                [
-                    X,
-                    torch.zeros(
-                        (bs * ch, self.forecast_patches, patch_len),
-                        device=X.device,
-                    ),
-                ],
-                dim=1,
-            )
-
         # model forward in online mode (student)
         X = self.encoder(X)["encoder_out"]  # fetch the last layer outputs
-        # if X_full is None:
-        #     return X
 
         # channel independence
         X = X.reshape(bs, ch, num_patch + self.forecast_patches, -1)
-
-        if self.head_type == "transformer":
-            X = X[:, :, -self.forecast_patches :, :]
-
+        
         y = self.head(X)
-
-        if self.head_type == "transformer":
-            y = y.reshape(bs, ch, -1).transpose(1, 2)
 
         return y
 
 
 class TS2VecClassifier(nn.Module):
     """
-    Data2Vec main module.
-
-    Args:
-         encoder (nn.Module): The encoder module like BEiT, ViT, etc.
-         cfg (omegaconf.DictConfig): The config containing model properties
+    Transformer model for downstream classification
     """
 
     def __init__(
@@ -502,16 +418,6 @@ class TS2VecClassifier(nn.Module):
         super(TS2VecClassifier, self).__init__()
         self.encoder = encoder
 
-        # self.cls_token = True if encoder.cls_token is not None else False
-
-        # if self.cls_token:
-        #     self.head = ClassificationTokenHead(
-        #         n_vars=n_vars,
-        #         d_model=d_model,
-        #         n_classes=n_classes,
-        #         head_dropout=head_dropout,
-        #     )
-        # else:
         self.head = ClassificationPoolHead(
             n_vars=n_vars,
             d_model=d_model,

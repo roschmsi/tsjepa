@@ -1,53 +1,34 @@
 # Reference: https://github.com/gzerveas/mvts_transformer
 
-import copy
 import logging
 import os
 import sys
 import time
 from functools import partial
-import torch.nn as nn
-
-from models.ts_jepa.vic_reg import vicreg, vibcreg
 
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from data.dataset import JEPADataset, load_dataset, ConcatenatedDataset, CIDataset
-from models.ts_jepa.mask import RandomMaskCollator, BlockMaskCollator
-from models.ts_jepa.setup import (
-    init_model_pretraining,
-    init_optimizer_enc_pred,
-    init_optimizer,
-    init_scheduler,
-)
-from models.ts2vec.predictor import TransformerPredictor, get_predictor
-from models.ts_jepa.utils import (
-    plot_2d,
-    plot_classwise_distribution,
-)
-from models.ts2vec.utils import (
-    save_checkpoint,
-    load_checkpoint,
-    load_checkpoint_encoder,
-)
-from options import Options
-from runner.ts2vec import TS2VecRunner
-from utils import log_training, readable_time, seed_everything, setup
-from models.patch_tst.layers.revin import RevIN, BlockRevIN
-
-from models.ts2vec.ts2vec import TS2VecEMA, TS2VecNoEMA, BERT
+from data.dataset import CIDataset, load_dataset
+from models.patch_tst.layers.revin import BlockRevIN, RevIN
 from models.ts2vec.encoder import TransformerEncoder
+from models.ts2vec.predictor import get_predictor
+from models.ts2vec.ts2vec import BERT, TS2VecEMA, TS2VecNoEMA
+from models.ts2vec.utils import load_checkpoint, save_checkpoint
+from models.ts_jepa.setup import init_optimizer, init_scheduler
+from models.ts_jepa.utils import plot_2d, plot_classwise_distribution
+from options import Options
+from runner.tsjepa import TS2VecRunner
+from utils import log_training, readable_time, seed_everything, setup
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-logger.info("Loading packages ...")  #
-
-from data.dataset import collate_patch_unsuperv
+logger.info("Loading packages ...")
 
 
 def main(config):
@@ -64,7 +45,7 @@ def main(config):
 
     # config for debugging on single sample
     if config.debug:
-        config.batch_size = 2
+        config.batch_size = 1
         config.val_interval = 10
         config.plot_interval = 10
         config.augment = False
@@ -81,11 +62,10 @@ def main(config):
     if config.use_patch:
         num_patch = (max_seq_len - config.patch_len) // config.stride + 1
 
-    # initialize data generator and runner
-    # channel independence, TODO solve for forecasting all dataset
+    # dataset with channel independence
     dataset_class = partial(CIDataset, num_channels=config.feat_dim, debug=config.debug)
 
-    # prepare dataloader
+    # prepare datset and dataloader
     train_dataset = dataset_class(train_dataset)
     train_loader = DataLoader(
         dataset=train_dataset,
@@ -93,7 +73,6 @@ def main(config):
         shuffle=False if config.debug else True,
         num_workers=config.num_workers,
         pin_memory=True,
-        # collate_fn=mask_collator,
     )
     val_dataset = dataset_class(val_dataset)
     val_loader = DataLoader(
@@ -102,7 +81,6 @@ def main(config):
         shuffle=False,
         num_workers=config.num_workers,
         pin_memory=True,
-        # collate_fn=mask_collator,
     )
     test_dataset = dataset_class(test_dataset)
     test_loader = DataLoader(
@@ -111,17 +89,12 @@ def main(config):
         shuffle=False,
         num_workers=config.num_workers,
         pin_memory=True,
-        # collate_fn=mask_collator,
     )
 
-    ipe = len(train_loader)
-
-    # create model
+    # create encoder
     encoder = TransformerEncoder(
-        seq_len=max_seq_len,
         num_patch=num_patch,
         patch_size=config.patch_len,
-        in_chans=config.feat_dim,
         embed_dim=config.enc_d_model,
         depth=config.enc_num_layers,
         num_heads=config.enc_num_heads,
@@ -135,14 +108,14 @@ def main(config):
         learn_pe=config.learn_pe,
     )
 
+    # create predictor
     predictor = get_predictor(config, max_seq_len=max_seq_len)
 
-    if config.vbcreg:
-        regfn = vibcreg
-    else:
-        regfn = vicreg
+    # iterations per epoch
+    ipe = len(train_loader)
 
-    if config.bert:
+    # create ts-jepa model
+    if config.bert or config.mae:
         model = BERT(
             encoder=encoder,
             predictor=predictor,
@@ -281,6 +254,7 @@ def main(config):
         regfn=regfn,
         embedding_space=not config.bert,
     )
+    
     trainer = runner_class(
         dataloader=train_loader,
         optimizer=optimizer,

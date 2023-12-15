@@ -38,8 +38,6 @@ def init_opt(encoder, predictor, lr, weight_decay, epochs):
         },
     ]
 
-    # param_groups = [*encoder.parameters(), *predictor.parameters()]
-
     optimizer = torch.optim.AdamW(
         param_groups,
         lr=lr,

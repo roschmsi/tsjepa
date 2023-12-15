@@ -1,12 +1,6 @@
-from models.patch_tst.layers.pos_encoding import positional_encoding
 import torch
 import torch.nn as nn
-import math
 from models.ts_jepa.model import get_1d_sincos_pos_embed
-from models.ts_jepa.mask import apply_masks
-from models.ts_jepa.tensors import trunc_normal_
-from models.patch_tst.layers.basics import Transpose
-from models.patch_tst.layers.encoder import TSTEncoderLayer
 
 
 def get_activation_fn(activation):
@@ -166,10 +160,8 @@ class TransformerEncoder(nn.Module):
 
     def __init__(
         self,
-        seq_len,
         patch_size,
         num_patch,
-        in_chans,
         embed_dim,
         depth,
         num_heads,
@@ -179,11 +171,8 @@ class TransformerEncoder(nn.Module):
         activation="gelu",
         activation_drop_rate=0.0,
         norm="LayerNorm",
-        init_std=0.02,
         layer_norm_first=True,
         learn_pe=False,
-        use_mask_tokens=False,
-        cls_token=False,
         **kwargs,
     ):
         super().__init__()
@@ -232,9 +221,6 @@ class TransformerEncoder(nn.Module):
 
         x += pos_embed
 
-        # interpolation only for finetuning if necessary
-        # x = x + self.interpolate_pos_encoding(x, self.pos_embed)
-
         # layer results after ffn in every block
         layer_results_ffn = []
         layer_results = []
@@ -253,17 +239,3 @@ class TransformerEncoder(nn.Module):
             "encoder_states": layer_results,
             "encoder_states_ffn": layer_results_ffn,
         }
-
-    def interpolate_pos_encoding(self, x, pos_embed):
-        npatch = x.shape[1]
-        N = pos_embed.shape[1]
-        if npatch == N:
-            return pos_embed
-        pos_embed = pos_embed.transpose(1, 2)
-        pos_embed = nn.functional.interpolate(
-            pos_embed,
-            scale_factor=npatch / N,
-            mode="linear",
-        )
-        pos_embed = pos_embed.transpose(1, 2)
-        return pos_embed

@@ -6,6 +6,8 @@ import sys
 import time
 from functools import partial
 
+import numpy as np
+from runner.forecasting import ForecastingRunner
 import torch
 import torch.nn as nn
 from torch.nn import BCEWithLogitsLoss
@@ -13,35 +15,25 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from data.dataset import load_dataset
-from models.ts_jepa.setup import (
-    init_optimizer,
-    init_scheduler,
-)
-from options import Options
-from runner.ts2vec import TS2VecForecastingRunner, TS2VecClassificationRunner
-from utils import log_training, readable_time, seed_everything, setup
-from models.patch_tst.layers.revin import RevIN
-
-from models.ts2vec.ts2vec import TS2VecForecaster, TS2VecClassifier
-from models.ts2vec.encoder import TransformerEncoder
-from models.ts2vec.utils import (
-    load_encoder_from_ts2vec,
-    save_checkpoint,
-    load_checkpoint,
-)
-from data.dataset import JEPADataset
-from evaluation.evaluate_12ECG_score import (
-    compute_challenge_metric,
-    load_weights,
-)
+from data.dataset import SupervisedDataset, create_patch, load_dataset
 from data.ecg_dataset import classes, normal_class
-import numpy as np
-from data.dataset import create_patch
+from evaluation.evaluate_12ECG_score import (compute_challenge_metric,
+                                             load_weights)
+from models.patch_tst.layers.revin import RevIN
+from models.ts2vec.encoder import TransformerEncoder
+from models.ts2vec.ts2vec import TS2VecClassifier, TS2VecForecaster
+from models.ts2vec.utils import (load_checkpoint, load_encoder_from_tsjepa,
+                                 save_checkpoint)
+from models.ts_jepa.setup import init_optimizer, init_scheduler
+from options import Options
+from runner.classification import ClassificationRunner
+from utils import log_training, readable_time, seed_everything, setup
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO
 )
+import pandas as pd
+
 logger = logging.getLogger(__name__)
 logger.info("Loading packages ...")
 
@@ -79,7 +71,7 @@ def main(config):
 
     # initialize data generator and runner
     # channel independence, TODO solve for forecasting all dataset
-    dataset_class = JEPADataset
+    dataset_class = SupervisedDataset
 
     # prepare dataloader
     train_dataset = dataset_class(train_dataset)
@@ -110,14 +102,10 @@ def main(config):
         # collate_fn=mask_collator,
     )
 
-    ipe = len(train_loader)
-
-    # create model
+    # create Transformer encoder
     encoder = TransformerEncoder(
-        seq_len=max_seq_len,
         patch_size=config.patch_len,
         num_patch=num_patch,
-        in_chans=config.feat_dim,
         embed_dim=config.enc_d_model,
         depth=config.enc_num_layers,
         num_heads=config.enc_num_heads,
@@ -129,8 +117,9 @@ def main(config):
         norm=config.norm,
         layer_norm_first=config.layer_norm_first,
         learn_pe=config.learn_pe,
-        cls_token=config.cls_token,
     )
+
+    # create model for downstream task
     if config.task == "forecasting":
         model = TS2VecForecaster(
             encoder=encoder,
@@ -138,9 +127,7 @@ def main(config):
             d_model=config.enc_d_model,
             num_patch=num_patch,
             forecast_len=config.pred_len,
-            patch_len=config.patch_len,
             head_dropout=config.head_dropout,
-            head_type=config.head_type,
         )
     elif config.task == "classification":
         model = TS2VecClassifier(
@@ -166,9 +153,8 @@ def main(config):
 
     start_epoch = 0
 
+    # load pretrained weights
     if config.load_model:
-        # load pretrained weights
-        # TODO load checkpoint best or last or specified one with single string
         if config.checkpoint_last:
             path = os.path.join(config.load_model, "checkpoints", "model_last.pth")
         elif config.checkpoint is not None:
@@ -178,16 +164,17 @@ def main(config):
         else:
             path = os.path.join(config.load_model, "checkpoints", "model_best.pth")
 
-        encoder = load_encoder_from_ts2vec(path=path, encoder=model.encoder)
+        encoder = load_encoder_from_tsjepa(path=path, encoder=model.encoder)
         encoder = encoder.to(device)
 
         model.encoder = encoder
 
+    # for linear probing
     if config.freeze:
         for _, param in model.encoder.named_parameters():
             param.requires_grad = False
 
-    # TODO enable to select a loss
+    # choose task-dependent criterion
     if config.task == "forecasting":
         criterion = nn.MSELoss(reduction="mean")
     elif config.task == "classification":
@@ -198,9 +185,10 @@ def main(config):
     else:
         raise ValueError(f"Task {config.task} not supported.")
 
+    # enable reversible instance normalization
     if config.revin:
         revin = RevIN(
-            num_features=1,  # config.feat_dim,
+            num_features=1, # channel independence
             affine=config.revin_affine,
             subtract_last=False,
         )
@@ -208,8 +196,9 @@ def main(config):
     else:
         revin = None
 
+    # setup trainer and evaluator
     if config.task == "forecasting":
-        runner_class = TS2VecForecastingRunner
+        runner_class = ForecastingRunner
         runner_class = partial(
             runner_class,
             model=model,
@@ -220,7 +209,7 @@ def main(config):
             stride=config.stride,
         )
     elif config.task == "classification":
-        runner_class = TS2VecClassificationRunner
+        runner_class = ClassificationRunner
         runner_class = partial(
             runner_class,
             model=model,
@@ -235,11 +224,10 @@ def main(config):
     trainer = runner_class(
         dataloader=train_loader, optimizer=optimizer, scheduler=scheduler
     )
-
     val_evaluator = runner_class(dataloader=val_loader)
-
     test_evaluator = runner_class(dataloader=test_loader)
 
+    # only testing
     if config.test:
         logger.info("Test performance:")
         aggr_metrics_test, _ = test_evaluator.evaluate()
@@ -248,6 +236,7 @@ def main(config):
 
         return
 
+    # robustness analysis with perturbations
     elif config.robustness:
         df = pd.DataFrame()
 
@@ -255,7 +244,7 @@ def main(config):
             for i, perturbation_std in enumerate(
                 np.arange(start=0, stop=1.1, step=0.1)
             ):
-                print("perturbation std: ", perturbation_std)
+                print("Perturbation std: ", perturbation_std)
                 aggr_metrics_test = test_evaluator.evaluate(
                     perturbation_std=perturbation_std
                 )
@@ -335,17 +324,14 @@ def main(config):
         if patience_count > config.patience:
             break
 
-    # load best model, iterate over test loader, get representations
-    # mean over time axis, then plot with tsne
-
-    # if not config.debug:
+    # load best model
     path = os.path.join(config["output_dir"], "checkpoints", "model_best.pth")
     model, _, _, epoch = load_checkpoint(
         path,
         model=model,
     )
 
-    # TODO load best model, evaluate on test set
+    # evaluate on test set
     with torch.no_grad():
         test_evaluator.model = model
         aggr_metrics_test = test_evaluator.evaluate(epoch_num=epoch)
@@ -354,7 +340,7 @@ def main(config):
     for k, v in aggr_metrics_test.items():
         logger.info(f"{k}: {v}")
 
-    # load best model, compute physionet challenge metric
+    # compute physionet challenge metric
     if config.dataset == "ecg" and config.task == "classification":
         logger.info("Compute PhysioNet 2020 challenge metric")
         step = 0.02

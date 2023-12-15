@@ -1,306 +1,135 @@
-# Reference: https://github.com/gzerveas/mvts_transformer
-
-import logging
-import torch
-from runner.base import BaseRunner
 from data.dataset import create_patch
+from models.ts_jepa.logging import AverageMeter
+from runner.base import BaseRunner
+import torch
 
-logger = logging.getLogger("__main__")
+
+from collections import OrderedDict
 
 
 class ForecastingRunner(BaseRunner):
     def __init__(
         self,
         model,
+        revin,
         dataloader,
         device,
         criterion,
-        print_interval,
-        console,
-        use_time_features,
-        layer_wise_prediction,
-        hierarchical_loss,
         patch_len,
         stride,
-        differencing,
         optimizer=None,
         scheduler=None,
     ):
-        super().__init__(
-            model=model,
-            dataloader=dataloader,
-            device=device,
-            criterion=criterion,
-            optimizer=optimizer,
-            scheduler=scheduler,
-            print_interval=print_interval,
-            console=console,
-        )
-
-        self.use_time_features = use_time_features
-        self.layer_wise_prediction = layer_wise_prediction
-        self.hierarchical_loss = hierarchical_loss
+        self.model = model
+        self.revin = revin
+        self.dataloader = dataloader
+        self.device = device
+        self.criterion = criterion
+        self.optimizer = optimizer
+        self.scheduler = scheduler
 
         self.patch_len = patch_len
         self.stride = stride
 
-        self.differencing = differencing
+        self.l1_loss = torch.nn.L1Loss(reduction="mean")
+        self.l2_loss = torch.nn.MSELoss(reduction="mean")
+
+        self.epoch_metrics = OrderedDict()
 
     def train_epoch(self, epoch_num=None):
         self.model.train()
-        l1_loss = torch.nn.L1Loss(reduction="mean")
-        l2_loss = torch.nn.MSELoss(reduction="mean")
 
-        epoch_loss = 0
-        epoch_mae = 0
-        epoch_mse = 0
-        num_samples = 0
+        loss_meter = AverageMeter()
+        mse_meter = AverageMeter()
+        mae_meter = AverageMeter()
 
         for batch in self.dataloader:
-            if self.use_time_features:
-                X, targets, padding_masks, X_time, y_time = batch
-                X_time = X_time.to(self.device)
-                y_time = y_time.to(self.device)
-            else:
-                X, targets, padding_masks = batch
-                X_time = None
-                y_time = None
-
+            X, y = batch
             X = X.to(self.device)
-            targets = targets.to(self.device)
-            padding_masks = padding_masks.to(self.device)
+            y = y.to(self.device)
 
-            # bs, seq_len, n_features = X.shape
-            # X = X.transpose(1, 2).reshape(bs * n_features, seq_len)
-            # targets = targets.transpose(1, 2).reshape(bs * n_features, -1)
+            # reversible instance normalization
+            if self.revin is not None:
+                bs, seq_len, n_vars = X.shape
+                X = X.transpose(1, 2).reshape(bs * n_vars, seq_len).unsqueeze(-1)
+                X = self.revin(X, "norm")
+                X = X.squeeze(-1).reshape(bs, n_vars, seq_len).transpose(1, 2)
 
-            # targets = targets.to(torch.float64)
-            # X = X.to(torch.float64)
+            X = create_patch(X, patch_len=self.patch_len, stride=self.stride)
 
-            # with lag = 1
-            # if self.differencing:
-            #     repeats = 2
-            #     X_orig = X
-            #     targets_orig = tyargets
+            y_pred = self.model(X)
 
-            #     pred_start = []
-            #     targets = torch.cat([X_orig[:, -repeats:, :], targets], dim=1)
+            # denormalization
+            if self.revin is not None:
+                bs, pred_len, n_vars = y_pred.shape
+                y_pred = (
+                    y_pred.transpose(1, 2).reshape(bs * n_vars, pred_len).unsqueeze(-1)
+                )
+                y_pred = self.revin(y_pred, "denorm")
+                y_pred = (
+                    y_pred.squeeze(-1).reshape(bs, n_vars, pred_len).transpose(1, 2)
+                )
 
-            #     for i in range(repeats):
-            #         X = torch.diff(X, n=1, dim=1)
-            #         pred_start.append(targets[:, :1, :])
-            #         targets = torch.diff(targets, n=1, dim=1)
-
-            # min = -1
-            # max = 1
-            # max_min_diff = X.max(dim=1, keepdim=True)[0] - X.min(dim=1, keepdim=True)[0]
-            # input_min = X.min(dim=1, keepdim=True)[0]
-
-            # # normalization
-
-            # X = (X - input_min) / max_min_diff
-            # X = X * (max - min) + min
-
-            # targets = (targets - input_min) / max_min_diff
-            # targets = targets * (max - min) + min
-
-            X = create_patch(X, self.patch_len, self.stride)
-
-            if X_time is not None and y_time is not None:
-                X_time = create_patch(X_time, self.patch_len, self.stride)
-                y_time = create_patch(y_time, self.patch_len, self.stride)
-
-            # if self.use_time_features:
-            predictions = self.model(
-                X,
-                X_time=X_time,
-                y_time=y_time,
-                padding_mask=padding_masks,
-            )
-
-            # de-normalizations
-
-            # if self.differencing:
-            #     targets = targets_orig
-
-            #     # denormalization prediction
-            #     predictions = (predictions - min) / (max - min)
-            #     predictions = predictions * max_min_diff + input_min
-
-            #     pred_start = pred_start[::-1]
-
-            #     for i in range(repeats):
-            #         predictions = torch.cat([pred_start[i], predictions], dim=1)
-            #         predictions = torch.cumsum(predictions, dim=1, dtype=torch.float64)
-
-            #     predictions = predictions[:, -targets.shape[1] :, :]
-
-            if self.layer_wise_prediction:
-                if self.hierarchical_loss:
-                    with torch.no_grad():
-                        targets_revin = self.model.revin_layer(targets, mode="norm_y")
-                    targets_revin = targets
-
-                    loss = self.criterion(predictions[1], targets_revin)
-                else:
-                    loss = self.criterion(predictions[0], targets)
-            else:
-                loss = self.criterion(predictions, targets)
-
-            # if self.mixup is not None:
-            #     loss = mixup_criterion(
-            #         self.criterion, predictions, targets_a, targets_b, lam
-            #     )
-            # else:
-            #     loss = self.criterion(predictions, targets)
+            loss = self.criterion(y_pred, y)
 
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
 
-            # hierarchical output
-            if self.layer_wise_prediction:
-                predictions = predictions[0]
-            elif self.differencing:
-                targets = targets_orig
+            loss_meter.update(loss.item(), n=X.shape[0])
+            mse = self.l2_loss(y_pred, y)
+            mse_meter.update(mse.item(), n=X.shape[0])
+            mae = self.l1_loss(y_pred, y)
+            mae_meter.update(mae.item(), n=X.shape[0])
 
-                # denormalization prediction
-                # predictions = (predictions - min) / (max - min)
-                # predictions = predictions * max_min_diff + input_min
-
-                pred_start = pred_start[::-1]
-
-                for i in range(repeats):
-                    predictions = torch.cat([pred_start[i], predictions], dim=1)
-                    predictions = torch.cumsum(predictions, dim=1, dtype=torch.float64)
-
-                predictions = predictions[:, -targets.shape[1] :, :]
-
-            # mse and mae
-            epoch_mse += l2_loss(predictions, targets).item() * predictions.shape[0]
-            epoch_mae += l1_loss(predictions, targets).item() * predictions.shape[0]
-            epoch_loss += loss.item() * predictions.shape[0]
-            num_samples += predictions.shape[0]
-
-        # average loss per sample for whole epoch
-        self.epoch_metrics["epoch"] = epoch_num
-        self.epoch_metrics["loss"] = epoch_loss / num_samples
-        self.epoch_metrics["mae"] = epoch_mae / num_samples
-        self.epoch_metrics["mse"] = epoch_mse / num_samples
-
+        # scheduler for learning rate change every epoch
         if self.scheduler is not None:
             self.scheduler.step()
 
+        self.epoch_metrics["loss"] = loss_meter.avg
+        self.epoch_metrics["mse"] = mse_meter.avg
+        self.epoch_metrics["mae"] = mae_meter.avg
+
         return self.epoch_metrics
 
-    def evaluate(self, epoch_num=None):
+    def evaluate(self, epoch_num=None, perturbation_std=None, plot_forecast=False):
         self.model.eval()
-        l1_loss = torch.nn.L1Loss(reduction="mean")
-        l2_loss = torch.nn.MSELoss(reduction="mean")
 
-        epoch_loss = 0
-        epoch_mae = 0
-        epoch_mse = 0
-        num_samples = 0
+        loss_meter = AverageMeter()
+        mse_meter = AverageMeter()
+        mae_meter = AverageMeter()
 
         for batch in self.dataloader:
-            if self.use_time_features:
-                X, targets, padding_masks, X_time, y_time = batch
-                X_time = X_time.to(self.device)
-                y_time = y_time.to(self.device)
-            else:
-                X, targets, padding_masks = batch
-                X_time = None
-                y_time = None
-
+            X, y = batch
             X = X.to(self.device)
-            targets = targets.to(self.device)
-            padding_masks = padding_masks.to(self.device)
+            y = y.to(self.device)
 
-            # targets = targets.to(torch.float64)
-            # X = X.to(torch.float64)
+            if perturbation_std is not None:
+                X = X + torch.randn_like(X) * perturbation_std
 
-            # with lag = 1
-            if self.differencing:
-                repeats = 2
-                X_orig = X
-                targets_orig = targets
+            # normalization
+            if self.revin is not None:
+                X = self.revin(X, "norm")
 
-                pred_start = []
-                targets = torch.cat([X_orig[:, -repeats:, :], targets], dim=1)
+            # create patch
+            X = create_patch(X, patch_len=self.patch_len, stride=self.stride)
 
-                for i in range(repeats):
-                    X = torch.diff(X, n=1, dim=1)
-                    pred_start.append(targets[:, :1, :])
-                    targets = torch.diff(targets, n=1, dim=1)
+            y_pred = self.model(X)
 
-            # min = -1
-            # max = 1
-            # max_min_diff = X.max(dim=1, keepdim=True)[0] - X.min(dim=1, keepdim=True)[0]
-            # input_min = X.min(dim=1, keepdim=True)[0]
+            # denormalization
+            if self.revin is not None:
+                y_pred = self.revin(y_pred, "denorm")
 
-            # # normalization
+            loss = self.criterion(y_pred, y)
 
-            # X = (X - input_min) / max_min_diff
-            # X = X * (max - min) + min
+            loss_meter.update(loss.item(), n=X.shape[0])
+            mse = self.l2_loss(y_pred, y)
+            mse_meter.update(mse.item(), n=X.shape[0])
+            mae = self.l1_loss(y_pred, y)
+            mae_meter.update(mae.item(), n=X.shape[0])
 
-            # targets = (targets - input_min) / max_min_diff
-            # targets = targets * (max - min) + min
-
-            X = create_patch(X, self.patch_len, self.stride)
-
-            if X_time is not None and y_time is not None:
-                X_time = create_patch(X_time, self.patch_len, self.stride)
-                y_time = create_patch(y_time, self.patch_len, self.stride)
-
-            # if self.use_time_features:
-            predictions = self.model(
-                X,
-                X_time=X_time,
-                y_time=y_time,
-                padding_mask=padding_masks,
-            )
-
-            if self.layer_wise_prediction:
-                if self.hierarchical_loss:
-                    with torch.no_grad():
-                        targets_revin = self.model.revin_layer(targets, mode="norm_y")
-                    targets_revin = targets
-
-                    loss = self.criterion(predictions[1], targets_revin)
-                else:
-                    loss = self.criterion(predictions[0], targets)
-            else:
-                loss = self.criterion(predictions, targets)
-
-            # hierarchical output
-            if self.layer_wise_prediction:
-                predictions = predictions[0]
-            elif self.differencing:
-                targets = targets_orig
-
-                # denormalization prediction
-                # predictions = (predictions - min) / (max - min)
-                # predictions = predictions * max_min_diff + input_min
-
-                pred_start = pred_start[::-1]
-
-                for i in range(repeats):
-                    predictions = torch.cat([pred_start[i], predictions], dim=1)
-                    predictions = torch.cumsum(predictions, dim=1, dtype=torch.float64)
-
-                predictions = predictions[:, -targets.shape[1] :, :]
-
-            # mse and mae
-            epoch_mse += l2_loss(predictions, targets).item() * predictions.shape[0]
-            epoch_mae += l1_loss(predictions, targets).item() * predictions.shape[0]
-            epoch_loss += loss.item() * predictions.shape[0]
-            num_samples += predictions.shape[0]
-
-        # average loss per element for whole epoch
-        self.epoch_metrics["epoch"] = epoch_num
-        self.epoch_metrics["loss"] = epoch_loss / num_samples
-        self.epoch_metrics["mae"] = epoch_mae / num_samples
-        self.epoch_metrics["mse"] = epoch_mse / num_samples
+        self.epoch_metrics["loss"] = loss_meter.avg
+        self.epoch_metrics["mse"] = mse_meter.avg
+        self.epoch_metrics["mae"] = mae_meter.avg
 
         return self.epoch_metrics

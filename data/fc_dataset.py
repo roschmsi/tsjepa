@@ -6,10 +6,10 @@ from typing import List
 
 import numpy as np
 import pandas as pd
+import torch
 from pandas.tseries import offsets
 from pandas.tseries.frequencies import to_offset
 from sklearn.preprocessing import StandardScaler
-import torch
 from torch.utils.data import Dataset
 
 warnings.filterwarnings("ignore")

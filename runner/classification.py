@@ -1,80 +1,74 @@
-# Reference: https://github.com/gzerveas/mvts_transformer
-
-import logging
-import numpy as np
-import torch
-from data.mixup import mixup_criterion, mixup_data
+from data.dataset import create_patch
 from evaluation.evaluate_12ECG_score import compute_auc
+from models.ts_jepa.logging import AverageMeter
 from runner.base import BaseRunner
 
-logger = logging.getLogger("__main__")
+
+import numpy as np
 
 
-class SupervisedRunner(BaseRunner):
+from collections import OrderedDict
+
+
+class ClassificationRunner(BaseRunner):
+    def __init__(
+        self,
+        model,
+        dataloader,
+        device,
+        criterion,
+        patch_len,
+        stride,
+        optimizer=None,
+        scheduler=None,
+    ):
+        self.model = model
+        self.dataloader = dataloader
+        self.device = device
+        self.criterion = criterion
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+
+        self.patch_len = patch_len
+        self.stride = stride
+
+        self.epoch_metrics = OrderedDict()
+
     def train_epoch(self, epoch_num=None):
         self.model.train()
 
-        epoch_loss = 0  # total loss of epoch
-        total_samples = 0  # total samples in epoch
-
-        lbls = []
+        loss_meter = AverageMeter()
         probs = []
+        lbls = []
 
         for batch in self.dataloader:
-            X, targets, padding_masks = batch
+            X, y = batch
             X = X.to(self.device)
-            targets = targets.to(self.device).float()
-            padding_masks = padding_masks.to(self.device)  # 0s: ignore
+            y = y.to(self.device)
 
-            if self.mixup is not None:
-                X, targets_a, targets_b, lam = mixup_data(
-                    X, targets, self.mixup, use_cuda=True
-                )
+            X = create_patch(X, patch_len=self.patch_len, stride=self.stride)
 
-            predictions = self.model(X, padding_masks)
+            y_pred = self.model(X)
 
-            # (batch_size,) loss for each sample in the batch
-            if self.mixup is not None:
-                loss = mixup_criterion(
-                    self.criterion, predictions, targets_a, targets_b, lam
-                )
-            else:
-                loss = self.criterion(predictions, targets)
-
-            # mean loss (over samples) used for optimization
-            batch_loss = torch.sum(loss) / len(loss)
+            loss = self.criterion(y_pred, y)
 
             self.optimizer.zero_grad()
-            batch_loss.backward()
-            # torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=4.0)
-            # torch.nn.utils.clip_grad_value_(self.model.parameters(), clip_value=1.0)
+            loss.backward()
             self.optimizer.step()
 
-            prob = predictions.sigmoid().data.cpu().numpy()
+            loss_meter.update(loss.item(), n=X.shape[0])
+            prob = y_pred.sigmoid().data.cpu().numpy()
             probs.append(prob)
-            lbls.append(targets.data.cpu().numpy())
+            lbls.append(y.data.cpu().numpy())
 
-            total_samples += len(loss)
-            epoch_loss += batch_loss.item()
-
-        # average loss per sample for whole epoch
-        self.epoch_metrics["epoch"] = epoch_num
-        self.epoch_metrics["loss"] = epoch_loss / len(self.dataloader)
-
-        lbls = np.concatenate(lbls)
-        probs = np.concatenate(probs)
-
+        # scheduler for learning rate change every epoch
         if self.scheduler is not None:
             self.scheduler.step()
 
-        if self.multilabel:
-            auroc, _ = compute_auc(lbls, probs)
-        else:
-            probs = torch.nn.functional.softmax(torch.from_numpy(probs), dim=1).numpy()
-            auroc = 0
-            # auroc = roc_auc_score(lbls, probs, multi_class="ovo")
-            # TODO reactivate AUROC
-
+        self.epoch_metrics["loss"] = loss_meter.avg
+        lbls = np.concatenate(lbls)
+        probs = np.concatenate(probs)
+        auroc, _ = compute_auc(lbls, probs)
         self.epoch_metrics["auroc"] = auroc
 
         return self.epoch_metrics
@@ -82,48 +76,30 @@ class SupervisedRunner(BaseRunner):
     def evaluate(self, epoch_num=None):
         self.model.eval()
 
-        epoch_loss = 0  # total loss of epoch
-        total_samples = 0  # total samples in epoch
-
-        lbls = []
+        loss_meter = AverageMeter()
         probs = []
+        lbls = []
 
         for batch in self.dataloader:
-            X, targets, padding_masks = batch
+            X, y = batch
             X = X.to(self.device)
-            # TODO better conversion to float
-            targets = targets.to(self.device).float()
-            padding_masks = padding_masks.to(self.device)  # 0s: ignore
+            y = y.to(self.device)
 
-            # classification: (batch_size, num_classes) of logits
-            predictions = self.model(X, padding_masks)
+            X = create_patch(X, patch_len=self.patch_len, stride=self.stride)
 
-            # (batch_size,) loss for each sample in the batch
-            loss = self.criterion(predictions, targets)
-            batch_loss = torch.sum(loss) / len(loss)
+            y_pred = self.model(X)
 
-            prob = predictions.sigmoid().data.cpu().numpy()
+            loss = self.criterion(y_pred, y)
+
+            loss_meter.update(loss.item(), n=X.shape[0])
+            prob = y_pred.sigmoid().data.cpu().numpy()
             probs.append(prob)
-            lbls.append(targets.data.cpu().numpy())
+            lbls.append(y.data.cpu().numpy())
 
-            total_samples += len(loss)
-            epoch_loss += batch_loss.item()
-
-        # average loss per element for whole epoch
-        self.epoch_metrics["epoch"] = epoch_num
-        self.epoch_metrics["loss"] = epoch_loss / len(self.dataloader)
-
+        self.epoch_metrics["loss"] = loss_meter.avg
         lbls = np.concatenate(lbls)
         probs = np.concatenate(probs)
-
-        if self.multilabel:
-            auroc, _ = compute_auc(lbls, probs)
-        else:
-            probs = torch.nn.functional.softmax(torch.from_numpy(probs), dim=1).numpy()
-            # auroc = roc_auc_score(lbls, probs, multi_class="ovo")
-            auroc = 0
-            # TODO reactivate AUROC
-
+        auroc, _ = compute_auc(lbls, probs)
         self.epoch_metrics["auroc"] = auroc
 
         return self.epoch_metrics

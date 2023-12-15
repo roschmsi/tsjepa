@@ -24,7 +24,6 @@ class Options(object):
         self.parser.add_argument("--attn_drop_rate", type=float, default=0)
         self.parser.add_argument("--drop_path_rate", type=float, default=0)
         self.parser.add_argument("--head_dropout", type=float)
-        # self.parser.add_argument("--attn_dropout", type=float)
         self.parser.add_argument("--shared_embedding", action="store_true")
         self.parser.add_argument("--norm", type=str)
         self.parser.add_argument("--pre_norm", action="store_true")

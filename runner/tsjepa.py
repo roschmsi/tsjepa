@@ -1,15 +1,13 @@
-from collections import OrderedDict
 import logging
+from collections import OrderedDict
+
+import matplotlib.pyplot as plt
 import torch
+
+from data.dataset import (block_patch_masking, create_patch,
+                          random_patch_masking)
 from models.ts_jepa.logging import AverageMeter
 from runner.base import BaseRunner
-from models.ts_jepa.vic_reg import vicreg
-import matplotlib.pyplot as plt
-import torch.nn as nn
-from data.dataset import create_patch, random_patch_masking, block_patch_masking
-from evaluation.evaluate_12ECG_score import compute_auc
-import torch
-import numpy as np
 
 logger = logging.getLogger("__main__")
 
@@ -24,6 +22,9 @@ def plot_cov_matrix(cov_matrix):
 
 
 class TS2VecRunner(BaseRunner):
+    """
+    Trainer and Evaluator for TS-JEPA
+    """
     def __init__(
         self,
         model,
@@ -94,23 +95,21 @@ class TS2VecRunner(BaseRunner):
         pred_cov_meter = AverageMeter()
         target_cov_meter = AverageMeter()
 
-        # track covariance
+        # track covariance matrix
         enc_cov_matrix = torch.zeros(self.model.embed_dim, self.model.embed_dim)
         pred_cov_matrix = torch.zeros(self.model.embed_dim, self.model.embed_dim)
         target_cov_matrix = torch.zeros(self.model.embed_dim, self.model.embed_dim)
 
         for batch in self.dataloader:
-            X = batch  # no y needed
+            X = batch
 
-            # TODO revin for block masking separately on X and y to reduce the distribution shift
-            # X: (bs x seq_len x n_vars)
+            # reversible instance normalization
             if self.revin is not None:
                 X = self.revin(X, "norm")
 
-            # create patch
             X = create_patch(X, patch_len=self.patch_len, stride=self.stride)
 
-            # random patch masking
+            # patch masking
             if self.masking == "random":
                 X_masked, X_kept, mask, ids_keep, ids_restore = random_patch_masking(
                     X,
@@ -174,9 +173,6 @@ class TS2VecRunner(BaseRunner):
                 target_cov,
             ) = self.regfn(target)
 
-            # TODO we should only track that shit for the masked parts, the others arent interesting
-
-            # TODO discuss, where should vc-reg be applied, for now only on encoder representations
             pred_loss = loss
 
             if self.no_ema:
@@ -185,10 +181,6 @@ class TS2VecRunner(BaseRunner):
             else:
                 std_loss = (enc_std_loss + pred_std_loss) / 2
                 cov_loss = (enc_cov_loss + pred_cov_loss) / 2
-            # else:
-            #     # TODO currently only optimize encoder representations, however predictor representations could also be optimized
-            #     std_loss = enc_std_loss
-            #     cov_loss = enc_cov_loss
 
             if self.pred_weight > 0:
                 loss = self.pred_weight * loss
@@ -197,7 +189,6 @@ class TS2VecRunner(BaseRunner):
             if self.cov_weight > 0:
                 loss += self.cov_weight * cov_loss
 
-            #  Step 2. Backward & step
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
@@ -221,7 +212,7 @@ class TS2VecRunner(BaseRunner):
                 pred_cov_matrix += pred_cov.detach().cpu()
                 target_cov_matrix += target_cov.detach().cpu()
 
-            # ema teacher step
+            # ema update
             if self.embedding_space and not self.no_ema:
                 self.model.ema_step()
 
@@ -420,236 +411,3 @@ class TS2VecRunner(BaseRunner):
 
         return self.epoch_metrics, self.epoch_imgs
 
-
-class TS2VecForecastingRunner(BaseRunner):
-    def __init__(
-        self,
-        model,
-        revin,
-        dataloader,
-        device,
-        criterion,
-        patch_len,
-        stride,
-        optimizer=None,
-        scheduler=None,
-    ):
-        self.model = model
-        self.revin = revin
-        self.dataloader = dataloader
-        self.device = device
-        self.criterion = criterion
-        self.optimizer = optimizer
-        self.scheduler = scheduler
-
-        self.patch_len = patch_len
-        self.stride = stride
-
-        self.l1_loss = torch.nn.L1Loss(reduction="mean")
-        self.l2_loss = torch.nn.MSELoss(reduction="mean")
-
-        self.epoch_metrics = OrderedDict()
-
-    def train_epoch(self, epoch_num=None):
-        self.model.train()
-
-        loss_meter = AverageMeter()
-        mse_meter = AverageMeter()
-        mae_meter = AverageMeter()
-
-        for batch in self.dataloader:
-            X, y = batch
-            X = X.to(self.device)
-            y = y.to(self.device)
-
-            # X: (bs x seq_len x n_vars)
-            if self.revin is not None:
-                bs, seq_len, n_vars = X.shape
-                X = X.transpose(1, 2).reshape(bs * n_vars, seq_len).unsqueeze(-1)
-                X = self.revin(X, "norm")
-                X = X.squeeze(-1).reshape(bs, n_vars, seq_len).transpose(1, 2)
-
-            # create patch
-            X = create_patch(X, patch_len=self.patch_len, stride=self.stride)
-
-            # channel independence, happens in model
-            # X = X.squeeze()
-
-            # channel independence
-            y_pred = self.model(X)
-
-            if self.revin is not None:
-                bs, pred_len, n_vars = y_pred.shape
-                y_pred = (
-                    y_pred.transpose(1, 2).reshape(bs * n_vars, pred_len).unsqueeze(-1)
-                )
-                y_pred = self.revin(y_pred, "denorm")
-                y_pred = (
-                    y_pred.squeeze(-1).reshape(bs, n_vars, pred_len).transpose(1, 2)
-                )
-
-            loss = self.criterion(y_pred, y)
-
-            #  Step 2. Backward & step
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-
-            loss_meter.update(loss.item(), n=X.shape[0])
-            mse = self.l2_loss(y_pred, y)
-            mse_meter.update(mse.item(), n=X.shape[0])
-            mae = self.l1_loss(y_pred, y)
-            mae_meter.update(mae.item(), n=X.shape[0])
-
-        # scheduler for learning rate change every epoch
-        if self.scheduler is not None:
-            self.scheduler.step()
-
-        # average loss per sample for whole epoch
-        self.epoch_metrics["loss"] = loss_meter.avg
-        self.epoch_metrics["mse"] = mse_meter.avg
-        self.epoch_metrics["mae"] = mae_meter.avg
-
-        return self.epoch_metrics
-
-    def evaluate(self, epoch_num=None, perturbation_std=None, plot_forecast=False):
-        self.model.eval()
-
-        loss_meter = AverageMeter()
-        mse_meter = AverageMeter()
-        mae_meter = AverageMeter()
-
-        for batch in self.dataloader:
-            X, y = batch
-            X = X.to(self.device)
-            y = y.to(self.device)
-
-            if perturbation_std is not None:
-                X = X + torch.randn_like(X) * perturbation_std
-
-            # X: (bs x seq_len x n_vars)
-            if self.revin is not None:
-                X = self.revin(X, "norm")
-
-            # create patch
-            X = create_patch(X, patch_len=self.patch_len, stride=self.stride)
-
-            y_pred = self.model(X)
-
-            if self.revin is not None:
-                y_pred = self.revin(y_pred, "denorm")
-
-            loss = self.criterion(y_pred, y)
-
-            loss_meter.update(loss.item(), n=X.shape[0])
-            mse = self.l2_loss(y_pred, y)
-            mse_meter.update(mse.item(), n=X.shape[0])
-            mae = self.l1_loss(y_pred, y)
-            mae_meter.update(mae.item(), n=X.shape[0])
-
-        # average loss per sample for whole epoch
-        self.epoch_metrics["loss"] = loss_meter.avg
-        self.epoch_metrics["mse"] = mse_meter.avg
-        self.epoch_metrics["mae"] = mae_meter.avg
-
-        return self.epoch_metrics
-
-
-class TS2VecClassificationRunner(BaseRunner):
-    def __init__(
-        self,
-        model,
-        dataloader,
-        device,
-        criterion,
-        patch_len,
-        stride,
-        optimizer=None,
-        scheduler=None,
-    ):
-        self.model = model
-        self.dataloader = dataloader
-        self.device = device
-        self.criterion = criterion
-        self.optimizer = optimizer
-        self.scheduler = scheduler
-
-        self.patch_len = patch_len
-        self.stride = stride
-
-        self.epoch_metrics = OrderedDict()
-
-    def train_epoch(self, epoch_num=None):
-        self.model.train()
-
-        loss_meter = AverageMeter()
-        probs = []
-        lbls = []
-
-        for batch in self.dataloader:
-            X, y = batch
-            X = X.to(self.device)
-            y = y.to(self.device)
-
-            # create patch
-            X = create_patch(X, patch_len=self.patch_len, stride=self.stride)
-
-            y_pred = self.model(X)
-
-            loss = self.criterion(y_pred, y)
-
-            #  Step 2. Backward & step
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-
-            loss_meter.update(loss.item(), n=X.shape[0])
-            prob = y_pred.sigmoid().data.cpu().numpy()
-            probs.append(prob)
-            lbls.append(y.data.cpu().numpy())
-
-        # scheduler for learning rate change every epoch
-        if self.scheduler is not None:
-            self.scheduler.step()
-
-        # average loss per sample for whole epoch
-        self.epoch_metrics["loss"] = loss_meter.avg
-        lbls = np.concatenate(lbls)
-        probs = np.concatenate(probs)
-        auroc, _ = compute_auc(lbls, probs)
-        self.epoch_metrics["auroc"] = auroc
-
-        return self.epoch_metrics
-
-    def evaluate(self, epoch_num=None):
-        self.model.eval()
-
-        loss_meter = AverageMeter()
-        probs = []
-        lbls = []
-
-        for batch in self.dataloader:
-            X, y = batch
-            X = X.to(self.device)
-            y = y.to(self.device)
-
-            # create patch
-            X = create_patch(X, patch_len=self.patch_len, stride=self.stride)
-
-            y_pred = self.model(X)
-
-            loss = self.criterion(y_pred, y)
-
-            loss_meter.update(loss.item(), n=X.shape[0])
-            prob = y_pred.sigmoid().data.cpu().numpy()
-            probs.append(prob)
-            lbls.append(y.data.cpu().numpy())
-
-        # average loss per sample for whole epoch
-        self.epoch_metrics["loss"] = loss_meter.avg
-        lbls = np.concatenate(lbls)
-        probs = np.concatenate(probs)
-        auroc, _ = compute_auc(lbls, probs)
-        self.epoch_metrics["auroc"] = auroc
-
-        return self.epoch_metrics
