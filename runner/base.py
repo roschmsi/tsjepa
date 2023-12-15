@@ -4,7 +4,7 @@ import logging
 import os
 from collections import OrderedDict
 import torch
-from utils import Printer, save_model
+from utils_old import Printer, save_model
 
 logger = logging.getLogger("__main__")
 

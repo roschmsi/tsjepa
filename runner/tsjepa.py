@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import torch
 
 from data.dataset import block_patch_masking, create_patch, random_patch_masking
-from model.ts_jepa.logging import AverageMeter
+from utils import AverageMeter
 from runner.base import BaseRunner
 
 logger = logging.getLogger("__main__")

@@ -17,13 +17,14 @@ from model.revin import BlockRevIN, RevIN
 from model.encoder import TransformerEncoder
 from model.predictor import get_predictor
 from modes.ts2vec.ts2vec import BERT, TS2VecEMA, TS2VecNoEMA
-from model.ts2vec.utils import load_checkpoint, save_checkpoint
-from model.ts2vec.setup import init_optimizer, init_scheduler
-from model.ts_jepa.utils import plot_classwise_distribution
-from model.ts_jepa.vic_reg import vicreg
+from utils import load_checkpoint
+from model.setup import init_optimizer, init_scheduler
+from utils import plot_classwise_distribution
+from model.vic_reg import vicreg
 from options import Options
 from runner.tsjepa import TS2VecRunner
-from utils import log_training, readable_time, seed_everything, setup
+from utils import save_checkpoint
+from utils_old import log_training, readable_time, seed_everything, setup
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO

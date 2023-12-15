@@ -7,6 +7,7 @@ import time
 from functools import partial
 
 import numpy as np
+from model.forecaster import TS2VecForecaster
 from runner.forecasting import ForecastingRunner
 import torch
 import torch.nn as nn
@@ -20,16 +21,15 @@ from data.ecg_dataset import classes, normal_class
 from evaluation.evaluate_12ECG_score import compute_challenge_metric, load_weights
 from model.revin import RevIN
 from model.encoder import TransformerEncoder
-from model.ts2vec.ts2vec import TS2VecClassifier, TS2VecForecaster
-from model.ts2vec.utils import (
-    load_checkpoint,
+from model.classifier import TS2VecClassifier
+from utils import (
     load_encoder_from_tsjepa,
-    save_checkpoint,
 )
-from model.ts2vec.setup import init_optimizer, init_scheduler
+from model.setup import init_optimizer, init_scheduler
 from options import Options
 from runner.classification import ClassificationRunner
-from utils import log_training, readable_time, seed_everything, setup
+from utils import load_checkpoint, save_checkpoint
+from utils_old import log_training, readable_time, seed_everything, setup
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO

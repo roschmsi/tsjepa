@@ -21,7 +21,7 @@ from models.ts_jepa.setup import (
 )
 from options import Options
 from runner.classification import ClassificationRunner
-from utils import log_training, readable_time, seed_everything, setup
+from utils_old import log_training, readable_time, seed_everything, setup
 from models.patch_tst.layers.revin import RevIN
 
 from models.ts2vec.ts2vec import TS2VecForecaster, TS2VecClassifier

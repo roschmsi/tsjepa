@@ -6,7 +6,7 @@ import torch
 
 from data.ecg_dataset import load_ecg_dataset
 from options import Options
-from utils import seed_everything, setup
+from utils_old import seed_everything, setup
 
 plt.rcParams["figure.dpi"] = 300
 

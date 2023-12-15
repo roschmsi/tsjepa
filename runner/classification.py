@@ -4,7 +4,7 @@ import numpy as np
 
 from data.dataset import create_patch
 from evaluation.evaluate_12ECG_score import compute_auc
-from model.ts_jepa.logging import AverageMeter
+from utils import AverageMeter
 from runner.base import BaseRunner
 
 

@@ -1,5 +1,5 @@
 from data.dataset import create_patch
-from model.ts_jepa.logging import AverageMeter
+from utils import AverageMeter
 from runner.base import BaseRunner
 import torch
 

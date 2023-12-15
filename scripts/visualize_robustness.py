@@ -4,6 +4,7 @@ import sys
 import time
 from functools import partial
 import argparse
+from model.forecaster import TS2VecForecaster
 from runner.forecasting import ForecastingRunner
 
 import torch
@@ -20,15 +21,14 @@ from model.ts_jepa.setup import (
 )
 from options import Options
 from runner.classification import ClassificationRunner
-from utils import log_training, readable_time, seed_everything, setup
+from utils import load_checkpoint, save_checkpoint
+from utils_old import log_training, readable_time, seed_everything, setup
 from model.revin import RevIN
 
-from model.ts2vec.ts2vec import TS2VecForecaster, TS2VecClassifier
+from model.classifier import TS2VecClassifier
 from model.encoder import TransformerEncoder
-from model.ts2vec.utils import (
+from utils import (
     load_encoder_from_tsjepa,
-    save_checkpoint,
-    load_checkpoint,
 )
 from data.dataset import SupervisedDataset
 import matplotlib.pyplot as plt
