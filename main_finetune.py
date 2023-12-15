@@ -7,7 +7,7 @@ import time
 from functools import partial
 
 import numpy as np
-from logging import log_training, readable_time
+from utils.logging import log_training, readable_time
 from model.forecaster import Forecaster
 from runner.forecasting import ForecastingRunner
 import torch
@@ -278,7 +278,7 @@ def main(config):
 
         # train model
         epoch_start_time = time.time()
-        aggr_metrics_train = trainer.train_epoch(epoch)
+        aggr_metrics_train = trainer.train_epoch()
         epoch_end_time = time.time()
 
         log_training(

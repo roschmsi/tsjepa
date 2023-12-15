@@ -4,6 +4,7 @@ from data.dataset import create_patch
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+import torch
 
 
 def plot_classwise_distribution(

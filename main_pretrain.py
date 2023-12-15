@@ -3,7 +3,7 @@ import os
 import sys
 import time
 from functools import partial
-from logging import log_training, readable_time
+from utils.logging import log_training, readable_time
 
 import torch
 import torch.nn as nn
@@ -51,6 +51,13 @@ def main(config):
         config.plot_interval = 10
         config.augment = False
         config.dropout = 0
+
+    if config.model_name in ["patchtst", "mae"]:
+        config.input_space = True
+    elif config.model_name in ["tsjepa"]:
+        config.input_space = False
+    else:
+        raise ValueError("unknown model name")
 
     # build data
     train_dataset, val_dataset, test_dataset = load_dataset(config)
@@ -158,7 +165,9 @@ def main(config):
 
     # create optimizer and scheduler
     optimizer = init_optimizer(
-        model, lr=config.lr, weight_decay=config.weight_decay,
+        model,
+        lr=config.lr,
+        weight_decay=config.weight_decay,
     )
 
     scheduler = init_scheduler(optimizer, config)
@@ -169,9 +178,7 @@ def main(config):
     if config.resume or config.load_model:
         if config.resume:
             if config.load_model is None:
-                path = os.path.join(
-                    config.output_dir, "checkpoints", "model_last.pth"
-                )
+                path = os.path.join(config.output_dir, "checkpoints", "model_last.pth")
             else:
                 path = os.path.join(config.load_model, "checkpoints", "model_last.pth")
         elif config.load_model:
@@ -296,7 +303,7 @@ def main(config):
     ):
         # train model
         epoch_start_time = time.time()
-        aggr_metrics_train, aggr_imgs_train = trainer.train_epoch(epoch)
+        aggr_metrics_train, aggr_imgs_train = trainer.train_epoch()
         epoch_end_time = time.time()
 
         log_training(
@@ -315,7 +322,7 @@ def main(config):
         # evaluate model
         if epoch % config.val_interval == 0:
             with torch.no_grad():
-                aggr_metrics_val, aggr_imgs_val = val_evaluator.evaluate(epoch)
+                aggr_metrics_val, aggr_imgs_val = val_evaluator.evaluate()
 
             for k, v in aggr_metrics_val.items():
                 tb_writer.add_scalar(f"{k}/val", v, epoch)

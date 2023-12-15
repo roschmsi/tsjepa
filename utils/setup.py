@@ -70,7 +70,7 @@ def check_config(config):
         if config.no_ema:
             dir += "_noema"
         else:
-            dir += f"_ema={config.ema_start}"
+            dir += f"_ema={config.ema_decay}"
 
     # reverse instance normalization
     if config.revin:
@@ -121,8 +121,6 @@ def create_output_directory(config):
         output_dir = os.path.join(
             output_dir, config.model_name, f"{config.task}_finetuning"
         )
-    if config.robustness:
-        output_dir = os.path.join(output_dir, "robustness")
 
     config_description = check_config(config)
     if not config.description == "":
@@ -149,7 +147,7 @@ def create_dirs(dirs):
 
 
 def setup(args):
-     # configuration dictionary
+    # configuration dictionary
     config = args.__dict__
     data_config = load_config_yaml(config["data_config"])
     config.update(data_config)

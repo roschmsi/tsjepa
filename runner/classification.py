@@ -5,7 +5,7 @@ import numpy as np
 from data.dataset import create_patch
 from evaluation.evaluate_12ECG_score import compute_auc
 from runner.base import BaseRunner
-from logging import AverageMeter
+from utils.logging import AverageMeter
 
 
 class ClassificationRunner(BaseRunner):

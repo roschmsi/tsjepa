@@ -5,9 +5,9 @@ from utils.plot import plot_cov_matrix
 
 import torch
 
-from data.dataset import (create_patch)
+from data.dataset import create_patch
 from runner.base import BaseRunner
-from logging import AverageMeter
+from utils.logging import AverageMeter
 
 logger = logging.getLogger("__main__")
 

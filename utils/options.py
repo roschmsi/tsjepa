@@ -26,7 +26,6 @@ class Options(object):
         self.parser.add_argument("--head_dropout", type=float)
         self.parser.add_argument("--shared_embedding", action="store_true")
         self.parser.add_argument("--norm", type=str)
-        self.parser.add_argument("--pre_norm", action="store_true")
         self.parser.add_argument("--activation", type=str)
         self.parser.add_argument("--learn_pe", action="store_true")
 
@@ -46,37 +45,35 @@ class Options(object):
         self.parser.add_argument("--loss", type=str)
         self.parser.add_argument("--smoothl1_beta", type=float)
 
-        # tsjepa
-        self.parser.add_argument("--ema_start", type=float)
-        self.parser.add_argument("--ema_end", type=float)
-        self.parser.add_argument("--no_ema", action="store_true")
-
+        # transformer
         self.parser.add_argument("--activation_drop_rate", type=float)
         self.parser.add_argument("--layer_norm_first", action="store_true")
+
+        # contextualized targets
+        self.parser.add_argument("--targets_rep", type=str)
         self.parser.add_argument("--average_top_k_layers", type=int)
         self.parser.add_argument("--normalize_targets", action="store_true")
         self.parser.add_argument("--targets_norm", type=str)
         self.parser.add_argument("--normalize_pred", action="store_true")
         self.parser.add_argument("--pred_norm", type=str)
+
+        # ema update
         self.parser.add_argument("--ema_decay", type=float)
         self.parser.add_argument("--ema_end_decay", type=float)
         self.parser.add_argument("--ema_anneal_end_step", type=int)
+        self.parser.add_argument("--no_ema", action="store_true")
         self.parser.add_argument("--skip_embeddings", action="store_true")
         self.parser.add_argument("--skip_pos_embed", action="store_true")
         self.parser.add_argument("--skip_patch_embed", action="store_true")
-        self.parser.add_argument("--targets_rep", type=str)
+
+        # linear, MLP, or Transformer predictor
         self.parser.add_argument("--predictor", type=str)
-        self.parser.add_argument("--kernel_size", type=int)
-        self.parser.add_argument("--mask_noise_std", type=float)
 
         # vic regularization
         self.parser.add_argument("--vcreg", action="store_true")
         self.parser.add_argument("--pred_weight", type=float)
         self.parser.add_argument("--std_weight", type=float)
         self.parser.add_argument("--cov_weight", type=float)
-
-        self.parser.add_argument("--checkpoint_last", action="store_true")
-        self.parser.add_argument("--checkpoint", type=int)
 
         # reversible instance normalization
         self.parser.add_argument("--revin", action="store_true")
@@ -86,12 +83,12 @@ class Options(object):
         self.parser.add_argument("--use_patch", action="store_true")
         self.parser.add_argument("--patch_len", type=int)
         self.parser.add_argument("--stride", type=int)
+        self.parser.add_argument("--masking", type=str)
         self.parser.add_argument("--masking_ratio", type=float, default=0)
 
-        self.parser.add_argument("--masking", type=str)
-
-        # perform masked modeling in the input space, BERT and MAE
-        self.parser.add_argument("--input_space", action="store_true")
+        # load model
+        self.parser.add_argument("--checkpoint_last", action="store_true")
+        self.parser.add_argument("--checkpoint", type=int)
 
         # dataset
         self.parser.add_argument("--data_config", type=str)
@@ -99,12 +96,13 @@ class Options(object):
         self.parser.add_argument("--augment", action="store_true")
         self.parser.add_argument("--mixup", type=float)
         self.parser.add_argument("--rand_ecg", type=str, default="")
-        self.parser.add_argument("--channel_independence", action="store_true")
 
         # forecasting
         self.parser.add_argument("--seq_len", type=int)
         self.parser.add_argument("--label_len", type=int)
         self.parser.add_argument("--pred_len", type=int)
+        self.parser.add_argument("--use_time_features", action="store_true")
+        self.parser.add_argument("--timeenc", type=int, default=0)
 
         # training
         self.parser.add_argument("--optimizer", type=str)
@@ -137,6 +135,7 @@ class Options(object):
             type=str,
             help="pretraining, classification, forecasting",
         )
+        self.parser.add_argument("--robustness", action="store_true")
 
         # print parameters
         self.parser.add_argument(
@@ -169,9 +168,6 @@ class Options(object):
             type=str,
             default="/usr/stud/roschman/ECGAnalysis/output",
         )
-
-        # distributed training
-        self.parser.add_argument("--distributed", action="store_true")
 
     def parse(self):
         args = self.parser.parse_args()

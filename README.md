@@ -57,7 +57,7 @@ To patch the time series input, please set the `--use_patch` flag and specify `-
 
 
 ### Pre-training
-The pre-training of our TS-JEPA model on time series with a masking ratio of 50 % and non-overlapping patches of size 8 can be initiated as follows:
+The pre-training of our TS-JEPA model on time series with a masking ratio of 50 % and non-overlapping patches of size 8 can be initiated with the following command.
 
 ```bash
 python3 main.py \
@@ -93,8 +93,10 @@ python3 main.py \
 --task pretraining
 ```
 
+TS-JEPA can be trained with three different predictors (`mlp`, `linear`, `transformer`) by setting the `--predictor` flag accordingly. Here, the final teacher encoder output is used as contextualized target and the model is trained with a Smooth L1 loss.
+
 ### Finetuning
-To finetune a pre-trained TS-JEPA model for ECG classification, please adapt the following command:
+To finetune a pre-trained TS-JEPA model for ECG classification, please adapt the following command. Without loading a pre-trained model, this command can also be used to start a fully supervised Transformer training. For linear probing, fix the weights of the pre-trained encoder with `--freeze`.
 
 ```bash
 python3 main.py \

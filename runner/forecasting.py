@@ -1,5 +1,5 @@
 from data.dataset import create_patch
-from logging import AverageMeter
+from utils.logging import AverageMeter
 from runner.base import BaseRunner
 import torch
 
