@@ -74,7 +74,3 @@ def create_patch(xb, patch_len, stride):
         dimension=1, size=patch_len, step=stride
     )  # xb: [bs x num_patch x n_vars x patch_len]
     return xb
-
-
-
-

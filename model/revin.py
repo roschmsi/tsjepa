@@ -1,4 +1,4 @@
-# Adapted from https://github.com/ts-kim/RevIN, https://github.com/yuqinie98/PatchTST
+"""Adapted from https://github.com/ts-kim/RevIN"""
 
 import torch
 import torch.nn as nn

@@ -1,3 +1,5 @@
+"""Adapted from https://github.com/yuqinie98/PatchTST"""
+
 import torch
 
 
@@ -45,6 +47,7 @@ def random_patch_masking(xb, mask_ratio, debug=False):
     # unshuffle to get the binary mask
     mask = torch.gather(mask, dim=1, index=ids_restore)  # [bs x num_patch x nvars]
     return x_masked, x_kept, mask, ids_keep, ids_restore
+
 
 def block_patch_masking(xb, mask_ratio, debug=False):
     # xb: [bs x num_patch x n_vars x patch_len]

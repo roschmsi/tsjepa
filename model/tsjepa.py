@@ -139,7 +139,7 @@ class TSJepaEMA(nn.Module):
         return X_enc, y_pred, y
 
 
-class BERT(nn.Module):
+class MaskedModelingInputSpace(nn.Module):
     """
     Main module for masked modeling in the input space
     """
@@ -151,7 +151,7 @@ class BERT(nn.Module):
         predictor_type,
         embed_dim,
     ):
-        super(BERT, self).__init__()
+        super(MaskedModelingInputSpace, self).__init__()
         self.encoder = encoder
         self.predictor = predictor
         self.predictor_type = predictor_type
@@ -235,19 +235,6 @@ class TSJepaNoEMA(nn.Module):
         return X_enc, y_pred
 
     def forward(self, X_full, X_masked, X_kept, ids_kept, ids_restore):
-        """
-        Data2Vec forward method.
-
-        Args:
-            src: src tokens (masked inputs for training)
-            trg: trg tokens (unmasked inputs for training but left as `None` otherwise)
-            mask: bool masked indices, Note: if a modality requires the inputs to be masked before forward this param
-            has no effect. (see the Encoder for each modality to see if it uses mask or not)
-
-        Returns:
-            Either encoder outputs or a tuple of encoder + EMA outputs
-
-        """
         if self.predictor_type in ["mlp", "linear"]:
             X_enc, y_pred = self.forward_mlp_predictor(X_masked=X_masked)
         elif self.predictor_type == "transformer":
@@ -293,7 +280,3 @@ class TSJepaNoEMA(nn.Module):
             y = F.layer_norm(y.float(), y.shape[-1:])
 
         return X_enc, y_pred, y
-
-
-
-

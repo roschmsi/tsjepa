@@ -1,4 +1,4 @@
-# Reference: https://physionet.org/content/challenge-2020/1.0.2/
+"""Adapted from https://physionet.org/content/challenge-2020/1.0.2/"""
 
 import random
 from pathlib import Path

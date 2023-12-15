@@ -58,7 +58,10 @@ def get_predictor(config, max_seq_len):
 
 
 class TransformerPredictor(nn.Module):
-    """TS-JEPA Transformer Predictor Adapted from """
+    """
+    TS-JEPA Transformer Predictor
+    Adapted from https://github.com/facebookresearch/ijepa
+    """
 
     def __init__(
         self,

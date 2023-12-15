@@ -15,7 +15,7 @@ from data.dataset import CIDataset, load_dataset
 from model.revin import BlockRevIN, RevIN
 from model.encoder import TransformerEncoder
 from model.predictor import get_predictor
-from model.tsjepa import BERT, TSJepaEMA, TSJepaNoEMA
+from model.tsjepa import MaskedModelingInputSpace, TSJepaEMA, TSJepaNoEMA
 from utils.helper import load_checkpoint
 from model.setup import init_optimizer, init_scheduler
 from utils.plot import plot_classwise_distribution
@@ -124,7 +124,7 @@ def main(config):
 
     # create ts-jepa model
     if config.input_space:
-        model = BERT(
+        model = MaskedModelingInputSpace(
             encoder=encoder,
             predictor=predictor,
             predictor_type=config.predictor,
@@ -219,7 +219,6 @@ def main(config):
             )
         else:
             raise NotImplementedError
-        # revin = revin.to(device)
     else:
         revin = None
 

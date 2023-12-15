@@ -1,4 +1,4 @@
-# Reference: https://github.com/yuqinie98/PatchTST
+"""Adapted from https://github.com/yuqinie98/PatchTST"""
 
 import os
 import warnings
